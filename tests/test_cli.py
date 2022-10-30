@@ -27,9 +27,10 @@ class TestDebugFunctions(unittest.TestCase):
         cfg.LOG_FILE = ""
         cfg.LOGS_ENABLED = False
         self.assertTrue(create_log_file(cfg.LOG_PATH))
-        log_files = os.listdir(os.getcwd() + "/tests/testing")
+        if os.path.isdir(os.getcwd() + "/tests/testing"):
+            log_files = os.listdir(os.getcwd() + "/tests/testing")
+            self.assertTrue(len(log_files) == 0)
         self.assertTrue(len(cfg.LOG_FILE) == 0)
-        self.assertTrue(len(log_files) == 0)
         clean_dir()
 
     def test_log_creation_use_path_on_none(self):
