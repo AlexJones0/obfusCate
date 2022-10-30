@@ -103,7 +103,8 @@ class CSource:
             return False
         return len(self.t_unit.diagnostics) == 0
 
-    def get_parse_errors(self) -> Iterable[str]:
+    @property
+    def parse_errors(self) -> Iterable[str]:
         """ Retrieves a list of string error/warning messages generated during the parse of
         the C source file by clang.
 

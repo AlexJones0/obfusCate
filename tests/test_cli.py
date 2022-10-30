@@ -192,6 +192,45 @@ class TestIOFunctions(unittest.TestCase):
         self.assertTrue(children[0].is_definition())
         self.assertTrue(children[0].displayname == "main()")
         del source
+    
+    def test_valid_parse_false(self):
+        """ Tests that the CSource.valid_parse property works correctly for a false case. """
+        source = CSource(os.getcwd() + "/tests/data/invalid.c")
+        self.assertFalse(source.valid_parse)
+        del source
+        
+    def test_valid_parse_true(self):
+        """ Tests that the CSource.valid_parse property works correctly for a true case. """
+        source = CSource(os.getcwd() + "/tests/data/minimal.c")
+        self.assertTrue(source.valid_parse)
+        del source
+    
+    def test_parse_errors_empty_case(self):
+        """ Tests that the CSource.parse_errors property correctly returns no errors 
+        for a valid C program. """
+        source = CSource(os.getcwd() + "/tests/data/minimal.c")
+        self.assertTrue(len(source.parse_errors) == 0)
+        del source
+    
+    def test_parse_errors_single_case(self):
+        """ Tests that the CSource.parse_errors property correctly returns single errors
+        for an invalid C program. """
+        source = CSource(os.getcwd() + "/tests/data/invalid.c")
+        self.assertTrue(len(source.parse_errors) == 1)
+        self.assertTrue(source.parse_errors[0].endswith("/tests/data/invalid.c:2:8: error: expected '(' after 'if'"))
+        del source
+    
+    def test_parse_errors_multiple_case(self):
+        """ Tests that the CSource.parse_errors property correctly returns multiple errors
+        found by clang for an invalid C program. """
+        source = CSource(os.getcwd() + "/tests/data/five_invalid.c")
+        self.assertTrue(len(source.parse_errors) == 5)
+        self.assertTrue(source.parse_errors[0].endswith("/tests/data/five_invalid.c:2:14: error: expected ';' at end of declaration"))
+        self.assertTrue(source.parse_errors[1].endswith("/tests/data/five_invalid.c:3:14: error: expected ';' at end of declaration"))
+        self.assertTrue(source.parse_errors[2].endswith("/tests/data/five_invalid.c:4:14: error: expected ';' at end of declaration"))
+        self.assertTrue(source.parse_errors[3].endswith("/tests/data/five_invalid.c:5:14: error: expected ';' at end of declaration"))
+        self.assertTrue(source.parse_errors[4].endswith("/tests/data/five_invalid.c:6:14: error: expected ';' at end of declaration"))
+        del source
 
 if __name__ == "__main__":
     unittest.main()
