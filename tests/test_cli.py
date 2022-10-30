@@ -162,18 +162,6 @@ class TestIOFunctions(unittest.TestCase):
         source = CSource(os.getcwd() + "/tests/data/does_not_exist.c")
         self.assertTrue(source.contents is None)
         del source
-    
-    def test_parse_invalid_c_file(self):
-        """ Tests that the CSource constructor correctly fails on being given an invalid
-        C file (that cannot be parsed)."""
-        source = CSource(os.getcwd() + "/tests/data/invalid.c")
-        self.assertTrue(source.contents == """int main() {
-    if 1 == 1 {
-        return 1;
-    }
-}""")
-        self.assertTrue(source.t_unit is None)
-        del source
 
 
 if __name__ == "__main__":
