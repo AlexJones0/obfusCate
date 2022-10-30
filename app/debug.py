@@ -2,6 +2,7 @@ from typing import Callable
 from app import settings as cfg
 from time import localtime
 from sys import stderr
+import os
 
 
 def print_error(*args, **kwargs):
@@ -9,6 +10,8 @@ def print_error(*args, **kwargs):
 
 
 def create_log_file(filepath: str = None) -> bool:
+    if not cfg.LOGS_ENABLED:
+        return True
     if filepath is None:
         filepath = cfg.LOG_PATH
     t = localtime()
@@ -16,6 +19,8 @@ def create_log_file(filepath: str = None) -> bool:
         t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec)
     cfg.LOG_FILE = filepath + fname
     try:
+        if not os.path.isdir(filepath):
+            os.makedirs(filepath)
         with open(cfg.LOG_FILE, "w+") as log_file:
             log_file.write(
                 f"=== LOG FILE FOR {cfg.NAME} {cfg.VERSION} AT {fname[:-4]} ===\n")
@@ -26,6 +31,8 @@ def create_log_file(filepath: str = None) -> bool:
 
 
 def log(log_str: str) -> bool:
+    if not cfg.LOGS_ENABLED:
+        return True
     if len(cfg.LOG_FILE) == 0:
         print_error("Log file must first be created.")
     t = localtime()
