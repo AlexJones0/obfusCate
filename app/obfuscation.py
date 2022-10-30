@@ -1,6 +1,5 @@
 """ File: obfuscation.py
 Implements classes for obfuscation transformations and the transform pipeline. """
-
 import random
 from typing import Iterable, Optional
 from ctypes import Union
@@ -57,7 +56,7 @@ class Pipeline:
         Args:
             transform (ObfuscationUnit): The transform to be added to the pipeline.
             index (int, optional): The position the transform will be inserted into the list.
-            Defaults to None.
+            Defaults to None, which indicates the end of the pipeline.
         """
         if index is None:
             return self.transforms.append(transform)

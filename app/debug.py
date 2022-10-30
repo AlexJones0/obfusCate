@@ -1,3 +1,5 @@
+""" File: debug.py
+Implements classes for debugging the system, with a focus on logging functions."""
 from typing import Callable
 from app import settings as cfg
 from time import localtime
