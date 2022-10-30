@@ -86,7 +86,7 @@ class CSource:
             )
             return None
 
-    def copy(self) -> "CSource":
+    def copy(self) -> 'CSource':
         """Creates a copy of the code record, producing a separate translation unit.
 
         Returns:
@@ -94,6 +94,25 @@ class CSource:
         """
         log(f"Creating copy of source: {self.fpath}.")
         return CSource(self.fpath, self.contents)
+    
+    @property
+    def valid_parse(self) -> bool:
+        """ This boolean property describes whether a valid parse has been performed on
+        the C source file or not."""
+        if self.t_unit is None:
+            return False
+        return len(self.t_unit.diagnostics) == 0
+
+    def get_parse_errors(self) -> Iterable[str]:
+        """ Retrieves a list of string error/warning messages generated during the parse of
+        the C source file by clang.
+
+        Returns:
+            Iterable[str]: A list of strings, where each string is an individual parse error.
+        """
+        if self.t_unit is None:
+            return []
+        return [str(d) for d in self.t_unit.diagnostics]
 
 
 def menu_driven_option(
