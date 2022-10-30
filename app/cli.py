@@ -152,12 +152,16 @@ def handle_CLI() -> bool:
         log("Aborting executions because no arguments were supplied.")
     elif len(args) == 1:  # 1 argument - take as input source file, and print output
         source = CSource(args[0])
+        if source.contents is None or source.t_unit is None:
+            return False
         obfuscated = get_transformations(source, seed)
         if obfuscated is not None:
             print(obfuscated.contents)
         return True
     elif len(args) == 2:  # 2 arguments - input and output files
         source = CSource(args[0])
+        if source.contents is None or source.t_unit is None:
+            return False
         obfuscated = get_transformations(source, seed)
         try:
             with open(args[1], "w+") as write_file:

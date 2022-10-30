@@ -27,6 +27,7 @@ def create_log_file(filepath: str = None) -> bool:
         return True
     if filepath is None:
         filepath = cfg.LOG_PATH
+    filepath = os.getcwd() + filepath
     t = localtime()
     fname = "{}-{:02d}-{:02d}--{:02d}.{:02d}.{:02d}.txt".format(
         t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec
@@ -59,6 +60,7 @@ def log(log_str: str) -> bool:
         return True
     if len(cfg.LOG_FILE) == 0:
         print_error("Log file must first be created.")
+        return False
     t = localtime()
     time_str = "[{:02d}:{:02d}:{:02d}] ".format(t.tm_hour, t.tm_min, t.tm_sec)
     try:
