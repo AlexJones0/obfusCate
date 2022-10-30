@@ -167,6 +167,31 @@ class TestIOFunctions(unittest.TestCase):
         self.assertTrue(source.contents is None)
         del source
 
+    def test_parse_invalid_c_file(self):
+        """ Tests that the CSource constructor correctly fails on being given an invalid
+        C file (that cannot be parsed)."""
+        source = CSource(os.getcwd() + "/tests/data/invalid.c")
+        self.assertTrue(source.contents == """int main() {
+    if 1 == 1 {
+        return 1;
+    }
+}""")
+        diags = source.t_unit.diagnostics
+        self.assertTrue(len(diags) == 1)
+        self.assertTrue(diags[0].severity > 0)
+        self.assertTrue(str(diags[0]).endswith("/tests/data/invalid.c:2:8: error: expected '(' after 'if'"))
+        del source
+
+    def test_parse_valid_c_file(self):
+        """ Tests that the CSource constructor correctly parses a valid C file. """
+        source = CSource(os.getcwd() + "/tests/data/minimal.c")
+        self.assertTrue(source.contents == "int main() {}")
+        self.assertTrue(len(source.t_unit.diagnostics) == 0)
+        children = list(source.t_unit.cursor.get_children())
+        self.assertTrue(len(children) == 1)
+        self.assertTrue(children[0].is_definition())
+        self.assertTrue(children[0].displayname == "main()")
+        del source
 
 if __name__ == "__main__":
     unittest.main()
