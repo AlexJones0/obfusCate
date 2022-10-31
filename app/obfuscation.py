@@ -148,7 +148,7 @@ class IdentitifierRenameUnit(ObfuscationUnit):
     def edit_cli(self) -> bool:
         pass # TODO
     
-    def get_cli(self) -> Optional['IdentitifierRenameUnit']:
+    def get_cli() -> Optional['IdentitifierRenameUnit']:
         pass # TODO
     
     def __eq__(self, other: ObfuscationUnit) -> bool:
