@@ -302,8 +302,8 @@ class TestIOFunctions(unittest.TestCase):
     def test_menu_driven_multiple_args(self):
         """Tests that the menu_driven_option function in the `io.py` file can correctly handle
         the case where multiple options are given. Does this by simulating with 1000 random tests,
-        each using from 2 to 500 options, with an expected amount of around 9 invalid inputs per 
-        1 correct input to the menu. """
+        each using from 2 to 500 options, with an expected amount of around 9 invalid inputs per
+        1 correct input to the menu."""
         potential_options = ["test {}".format(x) for x in range(500)]
         num_tests = 1000
         for i in range(num_tests):
@@ -337,18 +337,15 @@ class TestIOFunctions(unittest.TestCase):
             output = output.getvalue().split("\n")
             for i, line in enumerate(expected_out):
                 self.assertEqual(output[i], line)
-    
-    def test_menu_driven_quits(self):
-        """ Tests that the menu_driven_option function in the `io.py` file can correctly handle
-        user requests to quit the menu and exit the program. """
-        quit_inputs = ["q", "quit", "exit", "leave", "x"]
-        for input_ in quit_inputs:
-            output = io.StringIO()
-            with patch("builtins.input", returns=input_), redirect_stdout(output):
-                result = menu_driven_option(["option 1", "option 2", "option 3"])
-            self.assertEqual(result, -1)
 
-            
+    def test_menu_driven_quits(self):
+        """Tests that the menu_driven_option function in the `io.py` file can correctly handle
+        user requests to quit the menu and exit the program."""
+        quit_inputs = ["q", "quit", "exit", "leave", "x"]
+        with patch("builtins.input", side_effect=quit_inputs):
+            for _ in quit_inputs:
+                result = menu_driven_option(["option 1", "option 2", "option 3"])
+                self.assertEqual(result, -1)
 
 
 if __name__ == "__main__":
