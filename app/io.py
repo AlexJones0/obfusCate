@@ -135,6 +135,10 @@ def menu_driven_option(
     Returns:
         int: The integer index of the selected choice. -1 if it was selected to quit.
     """
+    if len(options) == 0:
+        return 0
+    prompt = "" if prompt is None else prompt
+    
     # Display options and prompt
     for i, option in enumerate(options):
         print(f" ({i+1}) {option}")

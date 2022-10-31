@@ -108,6 +108,9 @@ class IdentityUnit(ObfuscationUnit):
             IdentityUnit: The transform created from user CLI interaction.
         """
         return IdentityUnit()
+    
+    """def edit_cli() -> bool: 
+        return None""" # TODO do I want to add this or not? 
 
     def __eq__(self, other: ObfuscationUnit) -> bool:
         return isinstance(other, IdentityUnit)
