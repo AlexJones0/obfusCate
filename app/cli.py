@@ -3,7 +3,7 @@ Implements functions to implement the command-line interface of the program,
 such that it can be used through text interaction in a terminal window."""
 from select import select
 import sys
-from typing import Optional
+from typing import Optional, Union
 from .debug import print_error, create_log_file, log
 from .io import CSource, menu_driven_option
 from .obfuscation import *
@@ -108,7 +108,7 @@ def check_source_errors(source: CSource) -> bool:
     return True
 
 
-def handle_arguments(supplied_args: Iterable[str]) -> Union[Iterable[str], bool]:
+def handle_arguments(supplied_args: Iterable[str]) -> Iterable[str] | bool:
     """This function iteratively handles a list of supplied arguments, filtering
     out actual arguments and handling the execution of different options supplied
     to the program, most of which are just changing some config setting to alter
@@ -202,7 +202,7 @@ def handle_CLI() -> bool:
 
     # Read file and display parse errors
     source = CSource(args[0])
-    if not check_source_errors(CSource):
+    if not check_source_errors(source):
         return False
     obfuscated = get_transformations(source, config.SEED)
     

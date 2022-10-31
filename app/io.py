@@ -140,7 +140,8 @@ def menu_driven_option(
     prompt = "" if prompt is None else prompt
     
     # Display options and prompt
-    for i, option in enumerate(options):
+    printable_options = [x[0] if isinstance(x, tuple) else x for x in options]
+    for i, option in enumerate(printable_options):
         print(f" ({i+1}) {option}")
     print(prompt + "\n >", end="")
 
@@ -155,7 +156,7 @@ def menu_driven_option(
             # Check for keyword matches
             for i, option in enumerate(options):
                 if isinstance(option, tuple) and choice in option[1]:
-                    choice = i
+                    choice = i + 1
                     break
             # Check for valid integer choice ranges
             if not isinstance(choice, int):

@@ -269,6 +269,18 @@ class TestIOFunctions(unittest.TestCase):
         )
         del source
 
+    def test_source_file_copy(self):
+        """Tests that the Csource.copy function correclty returns a copy with a separate
+        clang translation unit instance but the same name and file contents."""
+        source = CSource(os.getcwd() + "/tests/data/minimal.c")
+        copied = source.copy()
+        self.assertEqual(source.fpath, copied.fpath)
+        self.assertEqual(source.contents, copied.contents)
+        self.assertIsNotNone(source.t_unit)
+        self.assertIsNotNone(copied.t_unit)
+        self.assertIsNot(source.t_unit, copied.t_unit)
+        del source
+
     def test_menu_driven_no_args(self):
         """Tests that the menu_driven_option function in the `io.py` file can correctly
         handle the case where no options to select from are given."""
@@ -341,11 +353,173 @@ class TestIOFunctions(unittest.TestCase):
     def test_menu_driven_quits(self):
         """Tests that the menu_driven_option function in the `io.py` file can correctly handle
         user requests to quit the menu and exit the program."""
-        quit_inputs = ["q", "quit", "exit", "leave", "x"]
+        quit_inputs = ["Q", "qUIt", "eXit    ", "  LEAVE    ", " X  "]
         with patch("builtins.input", side_effect=quit_inputs):
             for _ in quit_inputs:
                 result = menu_driven_option(["option 1", "option 2", "option 3"])
                 self.assertEqual(result, -1)
+
+    def test_menu_driven_prompt(self):
+        """Tests that prompts given to the menu_driven_option function in the `io.py` file actually
+        displays the correct prompts to users."""
+        output = io.StringIO()
+        with patch("builtins.input", returns="1"), redirect_stdout(output):
+            result = menu_driven_option(
+                ["option 1", "option 2"], prompt="This is a test prompt."
+            )
+        self.assertEqual(result, 0)
+        output = output.getvalue().split("\n")
+        self.assertEqual(
+            output, [" (1) option 1", " (2) option 2", "This is a test prompt.", " >"]
+        )
+        del output, result
+
+    def test_menu_driven_no_prompt(self):
+        """Tests that no prompt is displayed successfully if no prompt is given to the
+        menu_driven_option function in the `io.py` file."""
+        output = io.StringIO()
+        with patch("builtins.input", returns="1"), redirect_stdout(output):
+            result = menu_driven_option(["option 1", "option 2"], prompt=None)
+        self.assertEqual(result, 0)
+        output = output.getvalue().split("\n")
+        self.assertEqual(output, [" (1) option 1", " (2) option 2", "", " >"])
+        del output, result
+
+    def test_menu_driven_only_keywords(self):
+        """Tests that the menu_driven_option function in the `io.py` file can correctly handle
+        the case where keywords are given to be used alongside options."""
+        options = [
+            ("test one", ["first", "hello"]),
+            ("test two", ["second", "goodbye", "two"]),
+        ]
+        inputs = [
+            "1",
+            "2",
+            "first",
+            "second",
+            "hello",
+            "goodbye",
+            "two",
+            "other",
+            "quit",
+        ]
+        results = [0, 1, 0, 1, 0, 1, 1, -1]
+        with patch("builtins.input", side_effect=inputs):
+            for i, _ in enumerate(results):
+                result = menu_driven_option(options)
+                self.assertEqual(result, results[i])
+        del options, inputs, results, result
+
+    def tests_menu_driven_keyword_mixed(self):
+        """Tests that the menu_druven_option function in the `io.py` file can correctly handle
+        the case where some options have keywords given to be used alongside options, and
+        some do not."""
+        output = io.StringIO()
+        options = [
+            ("test one", ["first", "test"]),
+            "test two",
+            ("test three", ["three"]),
+            "test four",
+        ]
+        inputs = [
+            "1",
+            "2",
+            "3",
+            "4",
+            "first",
+            "test",
+            "three",
+            "two",
+            "four",
+            "other",
+            "quit",
+        ]
+        results = [0, 1, 2, 3, 0, 0, 2, -1]
+        with patch("builtins.input", side_effect=inputs), redirect_stdout(output):
+            for i, _ in enumerate(results):
+                result = menu_driven_option(options)
+                self.assertEqual(result, results[i])
+        output = output.getvalue().split("\n")
+        self.assertEqual(
+            output[-9:],
+            [
+                " > (1) test one",
+                " (2) test two",
+                " (3) test three",
+                " (4) test four",
+                "",
+                " >Invalid option choice. Please select a number corresponding to your choice, or type 'quit' to exit.",
+                " >Invalid option choice. Please select a number corresponding to your choice, or type 'quit' to exit.",
+                " >Invalid option choice. Please select a number corresponding to your choice, or type 'quit' to exit.",
+                " >",
+            ],
+        )
+        del options, inputs, results, result, output
+
+    def test_menu_driven_selection_too_small(self):
+        """Tests that the menu_driven_option function in the `io.py` file can correctly handle
+        the case where an integer of zero or below is given as the selected option."""
+        output = io.StringIO()
+        inputs = ["0", "-10000", "-1", "1"]
+        with patch("builtins.input", side_effect=inputs), redirect_stdout(output):
+            result = menu_driven_option(["option 1", "option 2"], prompt=None)
+        self.assertEqual(result, 0)
+        output = output.getvalue().split("\n")
+        expected_out = [
+            " (1) option 1",
+            " (2) option 2",
+            "",
+            " >Invalid option choice. Please select a number corresponding to your choice, or type 'quit' to exit.",
+            " >Invalid option choice. Please select a number corresponding to your choice, or type 'quit' to exit.",
+            " >Invalid option choice. Please select a number corresponding to your choice, or type 'quit' to exit.",
+            " >",
+        ]
+        self.assertEqual(output, expected_out)
+        del inputs, output, result
+
+    def test_menu_driven_selection_too_large(self):
+        """Tests that the menu_driven_option function in the `io.py` file can correctly handle
+        the case where an integer greater than then number of supplied options is given as
+        the selected option."""
+        output = io.StringIO()
+        inputs = ["4", "5000345345", "5", "3"]
+        with patch("builtins.input", side_effect=inputs), redirect_stdout(output):
+            result = menu_driven_option(["option 1", "option 2", "option 3"], prompt=None)
+        self.assertEqual(result, 2)
+        output = output.getvalue().split("\n")
+        expected_out = [
+            " (1) option 1",
+            " (2) option 2",
+            " (3) option 3",
+            "",
+            " >Invalid option choice. Please select a number corresponding to your choice, or type 'quit' to exit.",
+            " >Invalid option choice. Please select a number corresponding to your choice, or type 'quit' to exit.",
+            " >Invalid option choice. Please select a number corresponding to your choice, or type 'quit' to exit.",
+            " >",
+        ]
+        self.assertEqual(output, expected_out)
+        del inputs, output, result
+
+    def test_menu_driven_selection_not_int(self):
+        """Tests that the menu_driven_option function in the `io.py` file can correctly handle
+        the case where a non-integer is given as the selected option."""
+        output = io.StringIO()
+        inputs = ["4.3592", "abcdef", "42O", "2"]
+        with patch("builtins.input", side_effect=inputs), redirect_stdout(output):
+            result = menu_driven_option(["option 1", "option 2"], prompt=None)
+        self.assertEqual(result, 1)
+        output = output.getvalue().split("\n")
+        expected_out = [
+            " (1) option 1",
+            " (2) option 2",
+            "",
+            " >Invalid option choice. Please select a number corresponding to your choice, or type 'quit' to exit.",
+            " >Invalid option choice. Please select a number corresponding to your choice, or type 'quit' to exit.",
+            " >Invalid option choice. Please select a number corresponding to your choice, or type 'quit' to exit.",
+            " >",
+        ]
+        self.assertEqual(output, expected_out)
+        del inputs, output, result
 
 
 if __name__ == "__main__":
