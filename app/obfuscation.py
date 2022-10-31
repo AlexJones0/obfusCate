@@ -101,16 +101,26 @@ class IdentityUnit(ObfuscationUnit):
         """
         return source
 
-    def get_cli() -> "IdentityUnit":
-        """Implements a command-line interface for creating an identity transformation.
+    def edit_cli(self) -> bool:
+        """Implements a command-line interface for editing an identity transformation.
 
         Returns:
-            IdentityUnit: The transform created from user CLI interaction.
+            bool: True if editing successful, false if the user chose to quit.
         """
-        return IdentityUnit()
-    
-    """def edit_cli() -> bool: 
-        return None""" # TODO do I want to add this or not? 
+        return True
+
+    def get_cli() -> Optional["IdentityUnit"]:
+        """Creates an identity transformation and performs the CLI interaction to allow
+        the user to edit the new transform.
+
+        Returns:
+            Optional[IdentityUnit]: the transform created from user CLI interaction.
+            Returns None if the user chose to quit within the CLI.
+        """
+        new_transform = IdentityUnit()
+        if not new_transform.edit_cli():
+            return None
+        return new_transform()
 
     def __eq__(self, other: ObfuscationUnit) -> bool:
         return isinstance(other, IdentityUnit)
