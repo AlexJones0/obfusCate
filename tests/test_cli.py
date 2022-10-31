@@ -521,6 +521,15 @@ class TestIOFunctions(unittest.TestCase):
         self.assertEqual(output, expected_out)
         del inputs, output, result
 
+class TestMainCLIFunctions(unittest.TestCase):
+    """Implements unit tests for the cli.py functions"""
+    pass
+
+class TestObfuscationCLIFunctions(unittest.TestCase):
+    """Implements unit test for the obfuscation edit_cli and get_cli methods in obfuscation.py """
+    pass
+
+
 
 if __name__ == "__main__":
     unittest.main()
