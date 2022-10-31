@@ -10,3 +10,6 @@ class Config(object):
     LOGS_ENABLED = True
     NAME = "Obfus_ateD"
     VERSION = "v0.0.1"
+    DISPLAY_ERRORS = False
+    SUPPRESS_ERRORS = False
+    SEED = None

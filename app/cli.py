@@ -7,7 +7,7 @@ from typing import Optional
 from .debug import print_error, create_log_file, log
 from .io import CSource, menu_driven_option
 from .obfuscation import *
-from app import settings as cfg
+from app import settings as config
 
 
 def help_menu() -> None:  # TODO change from 'python cli' to actual name
@@ -90,6 +90,85 @@ def get_transformations(
     return obfuscated
 
 
+def check_source_errors(source: CSource) -> bool:
+    """ Handles parse errors found with the input source file, displaying these errors and 
+    choosing to terminate execution (or suppressing the errors) depending on settings supplied
+    to the program. """
+    if source.contents is None or source.t_unit is None:
+        return False
+    if len(source.parse_errors) > 0:
+        if config.DISPLAY_ERRORS:
+            print("PARSE ERRORS:")
+            print("\n".join("  " + e for e in source.parse_errors))
+        if config.SUPPRESS_ERRORS:
+            print(f"Encountered {len(source.parse_errors)} errors/warnings whilst parsing but trying to continue anyway...\n")
+        else:
+            print(f"Encountered {len(source.parse_errors)} errors/warnings whilst parsing, so stopping execution.")
+            return False
+    return True
+
+
+def handle_arguments(supplied_args: Iterable[str]) -> Union[Iterable[str], bool]:
+    """This function iteratively handles a list of supplied arguments, filtering
+    out actual arguments and handling the execution of different options supplied
+    to the program, most of which are just changing some config setting to alter
+    later program behaviour.
+
+    Args:
+        supplied_args (Iterable[str]): The list of args/options supplied to the program.
+
+    Returns:
+        Union[Iterable[str], bool]: The list of (just) arguments supplied to the program.
+        If execution is to be stopped, instead just returns True or False to indicate
+        a valid or failed execution respectively.
+    """
+    args = []
+    skipNext = False
+    for i, arg in enumerate(supplied_args):
+        # Handle skipping for giving values with options
+        if skipNext:
+            skipNext = False
+            continue
+        match arg:
+            case "-h" | "--help" | "--man" | "--manual":  
+                # View help
+                help_menu()
+                return True
+            case "-l" | "--noLogs":  
+                # Disable logging
+                config.LOGS_ENABLED = False
+            case "-s" | "--seed":  
+                # Set seed for randomness
+                skipNext = True
+                if len(supplied_args) <= i:
+                    print_error(
+                        "Some integer seed must be supplied with the -s and --seed options. Use the -h or --help options to see usage information."
+                    )
+                    return False
+                try:
+                    config.SEED = int(supplied_args[i + 1])
+                except:
+                    print_error(
+                        "Some integer seed must be supplied with the -s and --seed options. Use the -h or --help options to see usage information."
+                    )
+                    return False
+            case "-e" | "--errors": 
+                # Display errors on invalid parse
+                config.DISPLAY_ERRORS = True
+            case "-S" | "--supress-errors": 
+                # Supress errors and try to obfuscate anyway
+                config.SUPPRESS_ERRORS = True
+            case _:
+                if arg.startswith("-"):  # Handle unknown options
+                    print_error(
+                        f"Unknown option '{arg}' supplied. Use the -h or --help options to see usage information."
+                    )
+                    return False
+                else:  # Store valid arguments
+                    args.append(arg)
+    return args
+
+
 def handle_CLI() -> bool:
     """Handles the command line interface for the program, parsing command arguments
     and options to determine which settings to apply and what other functionalities
@@ -104,53 +183,14 @@ def handle_CLI() -> bool:
         # Handle execution as python script rather than binary # TODO CHANGE?
         supplied_args = supplied_args[1:]
 
-    # Iteratively handle arguments/options
-    args = []
-    seed = None
-    displayErrors = False
-    suppressErrors = False
-    skipNext = False
-    for i, arg in enumerate(supplied_args):
-        if skipNext:
-            skipNext = False
-            continue
-        match arg:
-            case "-h" | "--help" | "--man" | "--manual":  # View help option
-                help_menu()
-                return True
-            case "-l" | "--noLogs":  # Disable logging option
-                cfg.LOGS_ENABLED = False
-            case "-s" | "--seed":  # Set random seed option
-                skipNext = True
-                if len(supplied_args) <= i:
-                    print_error(
-                        "Some integer seed must be supplied with the -s and --seed options. Use the -h or --help options to see usage information."
-                    )
-                    return False
-                try:
-                    seed = int(supplied_args[i + 1])
-                except:
-                    print_error(
-                        "Some integer seed must be supplied with the -s and --seed options. Use the -h or --help options to see usage information."
-                    )
-                    return False
-            case "-e" | "--errors": # Display errors on invalid parse
-                displayErrors = True
-            case "-S" | "--supress-errors": # Supress errors and try to obfuscate anyway
-                suppressErrors = True
-            case _:
-                if arg.startswith("-"):  # Handle unknown options
-                    print_error(
-                        f"Unknown option '{arg}' supplied. Use the -h or --help options to see usage information."
-                    )
-                    return False
-                else:  # Store valid arguments
-                    args.append(arg)
-
     # Setup logging information
     create_log_file()
     log(f"Began execution of CLI script.")
     log(f"Supplied arguments: {str(supplied_args)}")
+    
+    args = handle_arguments(supplied_args)
+    if (isinstance(args, bool)):
+        return args
 
     # Determine subsequent execution based on number of supplied arguments.
     if len(args) == 0:  # No arguments - error
@@ -162,18 +202,9 @@ def handle_CLI() -> bool:
 
     # Read file and display parse errors
     source = CSource(args[0])
-    if source.contents is None or source.t_unit is None:
+    if not check_source_errors(CSource):
         return False
-    if len(source.parse_errors) > 0:
-        if displayErrors:
-            print("PARSE ERRORS:")
-            print("\n".join("  " + e for e in source.parse_errors))
-        if suppressErrors:
-            print(f"Encountered {len(source.parse_errors)} errors/warnings whilst parsing but trying to continue anyway...\n")
-        else:
-            print(f"Encountered {len(source.parse_errors)} errors/warnings whilst parsing, so stopping execution.")
-            return False
-    obfuscated = get_transformations(source, seed)
+    obfuscated = get_transformations(source, config.SEED)
     
     # Handle obfuscation interface
     if len(args) == 1:  # 1 argument - take as input source file, and print output
