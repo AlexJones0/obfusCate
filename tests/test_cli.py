@@ -484,7 +484,9 @@ class TestIOFunctions(unittest.TestCase):
         output = io.StringIO()
         inputs = ["4", "5000345345", "5", "3"]
         with patch("builtins.input", side_effect=inputs), redirect_stdout(output):
-            result = menu_driven_option(["option 1", "option 2", "option 3"], prompt=None)
+            result = menu_driven_option(
+                ["option 1", "option 2", "option 3"], prompt=None
+            )
         self.assertEqual(result, 2)
         output = output.getvalue().split("\n")
         expected_out = [
@@ -521,14 +523,17 @@ class TestIOFunctions(unittest.TestCase):
         self.assertEqual(output, expected_out)
         del inputs, output, result
 
+
 class TestMainCLIFunctions(unittest.TestCase):
     """Implements unit tests for the cli.py functions"""
+
     pass
+
 
 class TestObfuscationCLIFunctions(unittest.TestCase):
-    """Implements unit test for the obfuscation edit_cli and get_cli methods in obfuscation.py """
-    pass
+    """Implements unit test for the obfuscation edit_cli and get_cli methods in obfuscation.py"""
 
+    pass
 
 
 if __name__ == "__main__":
