@@ -22,6 +22,10 @@ class ObfuscationUnit(ABC):
         return NotImplemented
 
     @abstractmethod
+    def edit_cli() -> Optional["ObfuscationUnit"]:
+        return NotImplemented
+
+    @abstractmethod
     def get_cli() -> Optional["ObfuscationUnit"]:
         return NotImplemented
 
@@ -127,3 +131,30 @@ class IdentityUnit(ObfuscationUnit):
 
     def __str__(self):
         return "Identity()"
+
+
+class IdentitifierRenameUnit(ObfuscationUnit):
+    """ Implements an identifier rename (IRN) obfuscation transformation, which takes the input
+    source code and renames all identifiers (function names, parameter names, variable names, etc.)
+    such that the program still performs the same functionality, but now the identifier names reveal
+    no meaningful information about the program and are difficult to humanly comprehend. """
+    
+    name = "Identifier Renaming"
+    description = "Renames variable/function names to make them uncomprehensible."
+    
+    def transform(self, source: CSource) -> CSource:
+        pass # TODO
+    
+    def edit_cli(self) -> bool:
+        pass # TODO
+    
+    def get_cli(self) -> Optional['IdentitifierRenameUnit']:
+        pass # TODO
+    
+    def __eq__(self, other: ObfuscationUnit) -> bool:
+        if not isinstance(other, IdentitifierRenameUnit):
+            return False
+        pass # TODO
+
+    def __str__(self):
+        pass # TODO
