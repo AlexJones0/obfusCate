@@ -52,6 +52,7 @@ def get_transformations(
     options.append("Move cursor left")
     options.append("Move cursor right")
     options.append("Remove transform after cursor")
+    options.append("Edit transform after cursor")
     options.append("Finish selecting transforms and continue")
 
     # Iteratively get transform info until user selects to continue/quit.
@@ -82,6 +83,9 @@ def get_transformations(
                 selected_transforms[:cursor_index]
                 + selected_transforms[(cursor_index + 1) :]
             )
+        elif choice == num_transforms + 3:  # Edit transform after cursor
+            if cursor_index < len(selected_transforms):
+                selected_transforms[cursor_index].edit_cli()
         else:  # Finished selecting
             done_selecting = True
 
