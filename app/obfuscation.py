@@ -158,6 +158,7 @@ class IdentifierTraverser(NodeVisitor):
         self.idents = {"main": "main"}
         self.new_idents = set()
         self.style = style
+        self.pragmas = []
         self._in_scope = {}
 
     def get_new_ident(self, ident):
@@ -194,27 +195,63 @@ class IdentifierTraverser(NodeVisitor):
 
     def visit_Decl(self, node):
         self.scramble_ident(node)
-        for c in node:
-            self.visit(c)
+        NodeVisitor.generic_visit(self, node)
+
+    def visit_Union(self, node):
+        self.scramble_ident(node)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_Enum(self, node):
+        self.scramble_ident(node)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_Enumerator(self, node):
+        self.scramble_ident(node)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_Label(self, node):
+        self.scramble_ident(node)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_Goto(self, node):
+        self.scramble_ident(node)
+        NodeVisitor.generic_visit(self, node)
 
     def visit_TypeDecl(self, node):
-        if node.declname not in self.idents:
-            self.get_new_ident(node.declname)
-        node.declname = self.idents[node.declname]
-        for c in node:
-            self.visit(c)
+        if node.declname is not None:
+            if node.declname not in self.idents:
+                self.get_new_ident(node.declname)
+            node.declname = self.idents[node.declname]
+        NodeVisitor.generic_visit(self, node)
 
     def visit_ID(self, node):
         if node.name in self.idents:
             node.name = self.idents[node.name]
-        for c in node:
-            self.visit(c)
+        NodeVisitor.generic_visit(self, node)
 
     def visit_FuncCall(self, node):
         if node.name in self.idents:
             node.name = self.idents[node.name]
-        for c in node:
-            self.visit(c)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_IdentifierType(self, node):
+        for i, name in enumerate(node.names):
+            if name in self.idents:
+                node.names[i] = self.idents[name]
+        NodeVisitor.generic_visit(self, node)
+        
+    def visit_Pragma(self, node): # TODO maybe warn on pragma?
+        # TODO something's not working with pragmas because of how pycparser handles them!
+        import debug
+        debug.print_error("Error: cannot currently handle pragmas!")
+        debug.log("Could not continue obfuscation because the obfuscator cannot handle pragmas!")
+        exit()
+    
+    def visit_StaticAssert(self, node): # TODO what's breaking here?
+        import debug
+        debug.print_error("Error: cannot currently handle static assertions!")
+        debug.log("Could not continue obfuscation because the obfuscator cannot handle static asserts!")
+        exit()
 
     # TODO: ArrayRef, Enum, Enumerator, FuncCall, Goto, Label, NamedInitializer, Struct, StructRef
 

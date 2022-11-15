@@ -5,60 +5,17 @@ import sys
 def test_random_testing_to_delete():
     source = CSource(sys.argv[1])
 
-    from pycparser.c_ast import NodeVisitor
+    from pycparser.c_ast import NodeVisitor, StaticAssert
     from pycparser import c_generator
     from random import choices as randchoice, randint
     from string import ascii_letters, digits as ascii_digits
 
-    class IdentifierTraverser(NodeVisitor):
-        def __init__(self):
-            self.idents = {"main": "main"}
-            self.new_idents = set()
+    class PatchedVisitor(NodeVisitor):
+        def visit(self, node):
+            if isinstance(node, StaticAssert):
+                print("hi!")
 
-        def get_new_ident(self, ident):
-            new_ident = ""
-            while len(new_ident) == 0 or new_ident in self.new_idents:
-                size_ = randint(4, 19)
-                new_ident = randchoice(ascii_letters)[0]
-                new_ident += "".join(
-                    randchoice(ascii_letters + ascii_digits + "_" * 6, k=size_)
-                )
-            self.new_idents.add(new_ident)
-            self.idents[ident] = new_ident
-            return new_ident
-
-        def scramble_ident(self, node):
-            if hasattr(node, "name") and node.name is not None:
-                if node.name not in self.idents:
-                    self.get_new_ident(node.name)
-                node.name = self.idents[node.name]
-
-        def visit_Decl(self, node):
-            self.scramble_ident(node)
-            for c in node:
-                self.visit(c)
-
-        def visit_TypeDecl(self, node):
-            if node.declname not in self.idents:
-                self.get_new_ident(node.declname)
-            node.declname = self.idents[node.declname]
-            for c in node:
-                self.visit(c)
-
-        def visit_ID(self, node):
-            if node.name in self.idents:
-                node.name = self.idents[node.name]
-            for c in node:
-                self.visit(c)
-
-        def visit_FuncCall(self, node):
-            if node.name in self.idents:
-                node.name = self.idents[node.name]
-            for c in node:
-                self.visit(c)
-
-        # TODO: ArrayRef, Enum, Enumerator, FuncCall, Goto, Label, NamedInitializer, Struct, StructRef
-
+    PatchedVisitor().visit(source.t_unit)
     source.t_unit.show()
     return
     v = IdentifierTraverser()
