@@ -2,11 +2,8 @@
 Implements classes and functions for handling input and output. """
 from typing import Iterable, Optional, Tuple, Union
 from .debug import print_error, log
-from clang.cindex import TranslationUnit, TranslationUnitLoadError
-import clang.cindex
-
-# Create the clang Index for parsing C source files.
-index = clang.cindex.Index.create()
+from pycparser import parse_file
+from pycparser.c_ast import FileAST
 
 
 class CSource:
@@ -17,7 +14,7 @@ class CSource:
         self,
         filepath: str,
         contents: Optional[str] = None,
-        t_unit: Optional[TranslationUnit] = None,
+        t_unit: Optional[FileAST] = None,
     ):
         """A constructor for a CSource object.
 
@@ -61,7 +58,7 @@ class CSource:
             log(f"Error in opening source file: {str(e)}.")
         return None
 
-    def parse(self) -> Optional[TranslationUnit]:
+    def parse(self) -> Optional[FileAST]:
         """Parses the file using the clang parser to produce a translation unit, raising
         errors and logging as appropriate.
 
@@ -71,14 +68,16 @@ class CSource:
         """
         log("Attempting to parse program.")
         try:
-            t_unit = index.parse(self.fpath)
+            t_unit = parse_file(
+                self.fpath,
+                use_cpp=True,
+                cpp_path="clang",
+                cpp_args=["-E", r"-Iutils/fake_libc_include"],
+            ) # TODO check cpp stuff here? + with github actions
+            fname = self.fpath.split("\\")[-1]
+            t_unit.ext = [x for x in t_unit.ext if fname in x.coord.file]
+            # TODO could also modify contents to cut off directives?
             return t_unit
-        except TranslationUnitLoadError as e:
-            log(f"Error parsing the program: {str(e)}")
-            print_error(
-                f"An error occurred whilst trying to parse {self.fpath} - check that this compiles without any errors or warnings and try again."
-            )
-            return None
         except Exception as e:
             log(f"Unexpected error whilst parsing the program: {str(e)}.")
             print_error(
@@ -86,7 +85,7 @@ class CSource:
             )
             return None
 
-    def copy(self) -> 'CSource':
+    def copy(self) -> "CSource":
         """Creates a copy of the code record, producing a separate translation unit.
 
         Returns:
@@ -94,26 +93,25 @@ class CSource:
         """
         log(f"Creating copy of source: {self.fpath}.")
         return CSource(self.fpath, self.contents)
-    
+
     @property
     def valid_parse(self) -> bool:
-        """ This boolean property describes whether a valid parse has been performed on
+        """This boolean property describes whether a valid parse has been performed on
         the C source file or not."""
-        if self.t_unit is None:
-            return False
-        return len(self.t_unit.diagnostics) == 0
+        return self.t_unit is not None
 
-    @property
+    """@property
     def parse_errors(self) -> Iterable[str]:
-        """ Retrieves a list of string error/warning messages generated during the parse of
-        the C source file by clang.
-
-        Returns:
-            Iterable[str]: A list of strings, where each string is an individual parse error.
-        """
+        #Retrieves a list of string error/warning messages generated during the parse of
+        #the C source file by clang.
+        #
+        #Returns:
+        #    Iterable[str]: A list of strings, where each string is an individual parse error.
+        # 
+        return [] # TODO FIX THIS
         if self.t_unit is None:
             return []
-        return [str(d) for d in self.t_unit.diagnostics]
+        return [str(d) for d in self.t_unit.diagnostics]"""
 
 
 def menu_driven_option(
@@ -138,7 +136,7 @@ def menu_driven_option(
     if len(options) == 0:
         return 0
     prompt = "" if prompt is None else prompt
-    
+
     # Display options and prompt
     printable_options = [x[0] if isinstance(x, tuple) else x for x in options]
     for i, option in enumerate(printable_options):
@@ -168,7 +166,7 @@ def menu_driven_option(
                     "Invalid option choice. Please select a number corresponding to your choice, or type 'quit' to exit.\n >",
                     end="",
                 )
-        except: # Handle non-integer (and non-keyword) inputs
+        except:  # Handle non-integer (and non-keyword) inputs
             print(
                 "Invalid option choice. Please select a number corresponding to your choice, or type 'quit' to exit.\n >",
                 end="",

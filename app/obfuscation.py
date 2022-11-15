@@ -3,8 +3,23 @@ Implements classes for obfuscation transformations and the transform pipeline. "
 import random
 from typing import Iterable, Optional
 from ctypes import Union
-from .io import CSource
+from .io import CSource, menu_driven_option
 from abc import ABC, abstractmethod
+from pycparser.c_ast import NodeVisitor
+from pycparser import c_generator
+from random import choices as randchoice, randint
+from string import ascii_letters, digits as ascii_digits
+from enum import Enum
+
+
+def generate_new_contents(source: CSource) -> str:
+    new_contents = ""
+    for line in source.contents.splitlines():
+        if line.strip().startswith("#"):
+            new_contents += line + "\n"
+    generator = c_generator.CGenerator()
+    new_contents += generator.visit(source.t_unit)
+    return new_contents
 
 
 class ObfuscationUnit(ABC):
@@ -122,9 +137,7 @@ class IdentityUnit(ObfuscationUnit):
             Returns None if the user chose to quit within the CLI.
         """
         new_transform = IdentityUnit()
-        if not new_transform.edit_cli():
-            return None
-        return new_transform()
+        return new_transform
 
     def __eq__(self, other: ObfuscationUnit) -> bool:
         return isinstance(other, IdentityUnit)
@@ -132,29 +145,122 @@ class IdentityUnit(ObfuscationUnit):
     def __str__(self):
         return "Identity()"
 
+class IdentifierTraverser(NodeVisitor):
+    """Traverses the program AST looking for non-external identifiers (except main),
+    transforming them to some random scrambled identifier."""
+    
+    class Style(Enum):
+        COMPLETE_RANDOM  = "Complete Randomness"
+        ONLY_UNDERSCORES = "Only underscores" # TODO will this break anything?
+        MINIMAL_LENGTH   = "Minimal length"
+
+    def __init__(self, style: Style):
+        self.idents = {"main": "main"}
+        self.new_idents = set()
+        self.style = style
+        self._in_scope = {}
+
+    def get_new_ident(self, ident):
+        new_ident = ""
+        while len(new_ident) == 0 or new_ident in self.new_idents:
+            if self.style == self.Style.COMPLETE_RANDOM:
+                size_ = randint(4, 19)
+                new_ident = randchoice(ascii_letters)[0]
+                new_ident += "".join(
+                    randchoice(ascii_letters + ascii_digits + "_" * 6, k=size_)
+                )
+            elif self.style == self.Style.ONLY_UNDERSCORES:
+                new_ident = "_" * (len(self.new_idents) + 1)
+            elif self.style == self.Style.MINIMAL_LENGTH:
+                cur_num = len(self.new_idents) + 1
+                #choices = "_" + ascii_letters + ascii_digits
+                choices = ascii_letters
+                new_ident = ""
+                #new_ident += choices[cur_num // len(ascii_digits)]
+                while cur_num >= 0:
+                    new_ident += choices[cur_num % len(choices)]
+                    cur_num = cur_num // len(choices)
+                    if cur_num == 0:
+                        break
+        self.new_idents.add(new_ident)
+        self.idents[ident] = new_ident
+        return new_ident
+
+    def scramble_ident(self, node):
+        if hasattr(node, "name") and node.name is not None:
+            if node.name not in self.idents:
+                self.get_new_ident(node.name)
+            node.name = self.idents[node.name]
+
+    def visit_Decl(self, node):
+        self.scramble_ident(node)
+        for c in node:
+            self.visit(c)
+
+    def visit_TypeDecl(self, node):
+        if node.declname not in self.idents:
+            self.get_new_ident(node.declname)
+        node.declname = self.idents[node.declname]
+        for c in node:
+            self.visit(c)
+
+    def visit_ID(self, node):
+        if node.name in self.idents:
+            node.name = self.idents[node.name]
+        for c in node:
+            self.visit(c)
+
+    def visit_FuncCall(self, node):
+        if node.name in self.idents:
+            node.name = self.idents[node.name]
+        for c in node:
+            self.visit(c)
+
+    # TODO: ArrayRef, Enum, Enumerator, FuncCall, Goto, Label, NamedInitializer, Struct, StructRef
+
 
 class IdentitifierRenameUnit(ObfuscationUnit):
-    """ Implements an identifier rename (IRN) obfuscation transformation, which takes the input
+    """Implements an identifier rename (IRN) obfuscation transformation, which takes the input
     source code and renames all identifiers (function names, parameter names, variable names, etc.)
     such that the program still performs the same functionality, but now the identifier names reveal
-    no meaningful information about the program and are difficult to humanly comprehend. """
-    
+    no meaningful information about the program and are difficult to humanly comprehend."""
+
     name = "Identifier Renaming"
     description = "Renames variable/function names to make them uncomprehensible."
-    
+
+    def __init__(self, style):
+        self.style = style
+        self.traverser = IdentifierTraverser(style)
+
     def transform(self, source: CSource) -> CSource:
-        pass # TODO
-    
+        self.traverser.visit(source.t_unit)
+        new_contents = generate_new_contents(source)
+        return CSource(source.fpath, new_contents, source.t_unit)
+
     def edit_cli(self) -> bool:
-        pass # TODO
-    
-    def get_cli() -> Optional['IdentitifierRenameUnit']:
-        pass # TODO
-    
+        options = [s.value for s in IdentifierTraverser.Style]
+        prompt = f'\nChoose a style for the identifier renaming. Your current style is "{options[self.style-1]}".\n'
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return False
+        self.style = IdentifierTraverser.Style(options[choice])
+        self.traverser.style = self.style
+        return True
+
+    def get_cli() -> Optional["IdentitifierRenameUnit"]:
+        options = [s.value for s in IdentifierTraverser.Style]
+        prompt = "\nChoose a style for the identifier renaming.\n"
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return None
+        style = IdentifierTraverser.Style(options[choice])
+        return IdentitifierRenameUnit(style)
+
     def __eq__(self, other: ObfuscationUnit) -> bool:
         if not isinstance(other, IdentitifierRenameUnit):
             return False
-        pass # TODO
-
+        return self.style == other.style
+ 
     def __str__(self):
-        pass # TODO
+        style_flag = f"style={self.style.name}"
+        return f"RenameIdentifiers({style_flag})"

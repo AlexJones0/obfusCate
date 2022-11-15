@@ -7,6 +7,7 @@ import random
 from app import settings as cfg
 from app.debug import *
 from app.io import *
+from pycparser.c_ast import FuncDef, Decl
 
 
 def clean_dir():
@@ -185,25 +186,20 @@ class TestIOFunctions(unittest.TestCase):
     }
 }""",
         )
-        diags = source.t_unit.diagnostics
-        self.assertEqual(len(diags), 1)
-        self.assertGreater(diags[0].severity, 0)
-        self.assertTrue(
-            str(diags[0]).endswith(
-                "/tests/data/invalid.c:2:8: error: expected '(' after 'if'"
-            )
-        )
+        self.assertFalse(source.valid_parse)
         del source
 
     def test_parse_valid_c_file(self):
         """Tests that the CSource constructor correctly parses a valid C file."""
         source = CSource(os.getcwd() + "/tests/data/minimal.c")
         self.assertEqual(source.contents, "int main() {}")
-        self.assertEqual(len(source.t_unit.diagnostics), 0)
-        children = list(source.t_unit.cursor.get_children())
+        self.assertTrue(source.valid_parse)
+        self.assertTrue(isinstance(source.t_unit, FileAST))
+        children = source.t_unit.children()
         self.assertEqual(len(children), 1)
-        self.assertTrue(children[0].is_definition())
-        self.assertEqual(children[0].displayname, "main()")
+        self.assertTrue(isinstance(children[0][1], FuncDef))
+        self.assertTrue(isinstance(children[0][1].children()[0][1], Decl))
+        self.assertEqual(children[0][1].children()[0][1].name, "main")
         del source
 
     def test_valid_parse_false(self):
@@ -218,16 +214,9 @@ class TestIOFunctions(unittest.TestCase):
         self.assertTrue(source.valid_parse)
         del source
 
-    def test_parse_errors_empty_case(self):
-        """Tests that the CSource.parse_errors property correctly returns no errors
-        for a valid C program."""
-        source = CSource(os.getcwd() + "/tests/data/minimal.c")
-        self.assertEqual(len(source.parse_errors), 0)
-        del source
-
-    def test_parse_errors_single_case(self):
-        """Tests that the CSource.parse_errors property correctly returns single errors
-        for an invalid C program."""
+    """def test_parse_errors_single_case(self):
+        Tests that the CSource.parse_errors property correctly returns single errors
+        for an invalid C program.
         source = CSource(os.getcwd() + "/tests/data/invalid.c")
         self.assertEqual(len(source.parse_errors), 1)
         self.assertTrue(
@@ -238,8 +227,8 @@ class TestIOFunctions(unittest.TestCase):
         del source
 
     def test_parse_errors_multiple_case(self):
-        """Tests that the CSource.parse_errors property correctly returns multiple errors
-        found by clang for an invalid C program."""
+        Tests that the CSource.parse_errors property correctly returns multiple errors
+        found by clang for an invalid C program.
         source = CSource(os.getcwd() + "/tests/data/five_invalid.c")
         self.assertTrue(len(source.parse_errors) == 5)
         self.assertTrue(
@@ -267,7 +256,7 @@ class TestIOFunctions(unittest.TestCase):
                 "/tests/data/five_invalid.c:6:14: error: expected ';' at end of declaration"
             )
         )
-        del source
+        del source"""
 
     def test_source_file_copy(self):
         """Tests that the Csource.copy function correclty returns a copy with a separate
@@ -532,8 +521,77 @@ class TestMainCLIFunctions(unittest.TestCase):
 
 class TestObfuscationCLIFunctions(unittest.TestCase):
     """Implements unit test for the obfuscation edit_cli and get_cli methods in obfuscation.py"""
-
-    pass
+    
+    def test_random_testing_to_delete(self):
+        source = CSource("./tests/data/fibonacci_recursive.c")
+        
+        from pycparser.c_ast import NodeVisitor
+        from pycparser import c_generator
+        from random import choices as randchoice
+        from string import ascii_lowercase
+        
+        class IdentifierTraverser(NodeVisitor):
+            def __init__(self):
+                self.idents = dict()
+                self.new_idents = set()
+                self.functions = set()
+            
+            def get_new_ident(self, ident):
+                new_ident = ""
+                while len(new_ident) == 0 or new_ident in self.new_idents:
+                    new_ident = str(randchoice(ascii_lowercase))
+                self.new_idents.add(new_ident)
+                self.idents[ident] = new_ident
+                return new_ident
+                
+            def scramble_ident(self, node):
+                if hasattr(node, 'name') and node.name is not None:
+                    if node.name not in self.idents:
+                        self.get_new_ident(node.name)
+                    node.name = self.idents[node.name]
+            
+            def visit_Decl(self, node):
+                self.scramble_ident(node)
+                for c in node:
+                    self.visit(c)
+            
+            def visit_TypeDecl(self, node):
+                self.scramble_ident(node)
+                for c in node:
+                    self.visit(c)
+            
+            def visit_FuncDef(self, node):
+                self.functions.add(node.decl.name)
+                self.scramble_ident(node.decl)
+                for c in node:
+                    self.visit(c)
+            
+            def visit_ID(self, node):
+                self.scramble_ident(node)
+                for c in node:
+                    self.visit(c)
+            
+            def visit_FuncCall(self, node):
+                if node.name in self.functions:
+                    self.scramble_ident(node)
+                for c in node:
+                    self.visit(c)
+            
+            # TODO: ArrayRef, Enum, Enumerator, FuncCall, Goto, Label, NamedInitializer, Struct, StructRef
+                
+        
+        v = IdentifierTraverser()
+        v.visit(source.t_unit)
+        new_contents = ""
+        generator = c_generator.CGenerator()
+        for line in open(source.fpath, "r"):
+            if line.strip().startswith("#"):
+                new_contents += line + "\n"
+        new_contents += generator.visit(source.t_unit)
+        newSource = CSource(source.fpath, new_contents, source.t_unit)
+        print("NEW CONTENTS:")
+        print(newSource.contents)
+        
 
 
 if __name__ == "__main__":

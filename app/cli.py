@@ -94,24 +94,6 @@ def get_transformations(
     return obfuscated
 
 
-def check_source_errors(source: CSource) -> bool:
-    """ Handles parse errors found with the input source file, displaying these errors and 
-    choosing to terminate execution (or suppressing the errors) depending on settings supplied
-    to the program. """
-    if source.contents is None or source.t_unit is None:
-        return False
-    if len(source.parse_errors) > 0:
-        if config.DISPLAY_ERRORS:
-            print("PARSE ERRORS:")
-            print("\n".join("  " + e for e in source.parse_errors))
-        if config.SUPPRESS_ERRORS:
-            print(f"Encountered {len(source.parse_errors)} errors/warnings whilst parsing but trying to continue anyway...\n")
-        else:
-            print(f"Encountered {len(source.parse_errors)} errors/warnings whilst parsing, so stopping execution.")
-            return False
-    return True
-
-
 def handle_arguments(supplied_args: Iterable[str]) -> Iterable[str] | bool:
     """This function iteratively handles a list of supplied arguments, filtering
     out actual arguments and handling the execution of different options supplied
@@ -206,7 +188,7 @@ def handle_CLI() -> bool:
 
     # Read file and display parse errors
     source = CSource(args[0])
-    if not check_source_errors(source):
+    if source.contents is None or not source.valid_parse:
         return False
     obfuscated = get_transformations(source, config.SEED)
     
