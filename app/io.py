@@ -172,3 +172,25 @@ def menu_driven_option(
                 end="",
             )
     return choice - 1
+
+def get_float(lower_bound: float = None, upper_bound: float = None) -> float:
+    """ Gets an input float from the user, applying appropriate boundary checks if either bound
+    is specified. Returns NaN if the user quits the input selection, and a valid float otherwise."""
+    while True:
+        user_input = input("\n>").lower().strip()
+        # Check for quit inputs
+        if user_input in ["q", "quit", "exit", "leave", "x"]:
+            return float('nan')
+        try:
+            user_input = float(user_input)
+        except:
+            print("Invalid input for a decimal number. Please try again...")
+            continue
+        if lower_bound is not None and user_input < lower_bound:
+            print(f"Input {user_input} is too small. The value must be at least {lower_bound}.")
+            continue
+        if upper_bound is not None and user_input > upper_bound:
+            print(f"Input {user_input} is too large. The value must be at most {upper_bound}.")
+            continue
+        return user_input
+        

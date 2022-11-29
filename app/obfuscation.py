@@ -3,10 +3,11 @@ Implements classes for obfuscation transformations and the transform pipeline. "
 import random
 from typing import Iterable, Optional
 from ctypes import Union
-from .io import CSource, menu_driven_option
+from .io import CSource, menu_driven_option, get_float
 from abc import ABC, abstractmethod
-from pycparser.c_ast import NodeVisitor
-from pycparser import c_generator
+from pycparser.c_ast import NodeVisitor, PtrDecl, ArrayDecl, InitList, Constant, \
+    CompoundLiteral, Typename, TypeDecl, IdentifierType
+from pycparser import c_generator, c_lexer
 from random import choices as randchoice, randint
 from string import ascii_letters, digits as ascii_digits
 from enum import Enum
@@ -363,7 +364,7 @@ class IdentitifierRenameUnit(ObfuscationUnit):
     no meaningful information about the program and are difficult to humanly comprehend."""
 
     name = "Identifier Renaming"
-    description = "Renames variable/function names to make them uncomprehensible."
+    description = "Renames variable/function names to make them incomprehensible."
 
     def __init__(self, style, minimiseIdents):
         self.style = style
@@ -396,7 +397,6 @@ class IdentitifierRenameUnit(ObfuscationUnit):
             else:
                 self.style = IdentifierTraverser.Style(options[choice])
                 self.traverser.style = self.style
-        return True
 
     def get_cli() -> Optional["IdentitifierRenameUnit"]:
         options = [s.value for s in IdentifierTraverser.Style]
@@ -429,3 +429,441 @@ class IdentitifierRenameUnit(ObfuscationUnit):
         minimise_ident_flag = f"minimal={'ENABLED' if self.minimiseIdents else 'DISABLED'}"
         return f"RenameIdentifiers({style_flag},{minimise_ident_flag})"
 
+class StringEncodeTraverser(NodeVisitor):
+    """Traverses the program AST looking for string literals and encoding them into
+    some incomprehensible form."""
+    
+    escape_chars = {
+        'a': '\'\\x07\'',
+        'b': '\'\\x08\'',
+        'e': '\'\\x1B\'',
+        'f': '\'\\x0C\'',
+        'n': '\'\\x0A\'',
+        'r': '\'\\x0D\'',
+        't': '\'\\x09\'',
+        'v': '\'\\x0B\'',
+        '\\': '\'\\x5C\'',
+        '\'': '\'\\x27\'',
+        '\"': '\'\\x22\'',
+        '?': '\'\\x3F\'',
+    }
+    
+    TO_REMOVE = True
+    
+    class Style(Enum):
+        SIMPLE = "Simple Octal Character Encoding"
+        OTHER = "OTHER Encoding (Not Yet Implemented)"
+    
+    def __init__(self, style):
+        self.style = style
+    
+    def encode_string(self, node):
+        chars = []
+        max_index = len(node.value) - 1
+        check_next = False
+        for i, char in enumerate(node.value[1:-1]):
+            if check_next:
+                check_next = False
+                if char in self.escape_chars:
+                    char_node = Constant("char", self.escape_chars[char])
+                    chars.append(char_node)
+                    continue
+                else:
+                    return None
+            if char == '\\' and i != max_index:
+                check_next = True
+                continue
+            octal = '\'\\' + str(oct(ord(char)))[2:] + '\''
+            char_node = Constant("char", octal)
+            chars.append(char_node)
+        chars.append(Constant("char", '\'\\0\''))
+        return chars
+    
+    def make_compound_literal(self, init_node):
+        identifier_node = IdentifierType(['char'])
+        type_decl_node = TypeDecl(None, [], None, identifier_node)
+        array_type_node = ArrayDecl(type_decl_node, None, None)
+        typename_node = Typename(None, [], None, array_type_node)
+        return CompoundLiteral(typename_node, init_node)
+    
+    def visit_Decl(self, node):
+        if node.init is not None:
+            if isinstance(node.init, Constant) and node.init.type == "string":
+                chars = self.encode_string(node.init)
+                if chars is not None:
+                    node.init = InitList(chars, None)
+                    if isinstance(node.type, PtrDecl):
+                        node.type = ArrayDecl(node.type.type, None, None)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_ExprList(self, node):
+        for i, expr in enumerate(node.exprs):
+            if isinstance(expr, Constant) and expr.type == "string":
+                chars = self.encode_string(expr)
+                if chars is not None:
+                    init_node = InitList(chars, None)
+                    node.exprs[i] = self.make_compound_literal(init_node)
+        NodeVisitor.generic_visit(self, node)
+
+    def visit_InitList(self, node):
+        for i, expr in enumerate(node.exprs):
+            if isinstance(expr, Constant) and expr.type == "string":
+                chars = self.encode_string(expr)
+                if chars is not None:
+                    node.exprs[i] = InitList(chars, None)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_ArrayRef(self, node):
+        if node.name is not None:
+            if isinstance(node.name, Constant) and node.name.type == "string":
+                chars = self.encode_string(node.name)
+                if chars is not None:
+                    init_node = InitList(chars, None)
+                    node.name = self.make_compound_literal(init_node)
+        NodeVisitor.generic_visit(self, node)
+        
+    def visit_NamedInitializer(self, node):
+        if node.expr is not None:
+            if isinstance(node.expr, Constant) and node.expr.type == "string":
+                chars = self.encode_string(node.expr)
+                if chars is not None:
+                    node.expr = InitList(chars, None)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_TernaryOp(self, node):
+        if node.iftrue is not None:
+            if isinstance(node.iftrue, Constant) and node.iftrue.type == "string":
+                chars = self.encode_string(node.iftrue)
+                if chars is not None:
+                    init_node = InitList(chars, None)
+                    node.iftrue = self.make_compound_literal(init_node)
+        if node.iffalse is not None:
+            if isinstance(node.iffalse, Constant) and node.iffalse.type == "string":
+                chars = self.encode_string(node.iffalse)
+                if chars is not None:
+                    init_node = InitList(chars, None)
+                    node.iffalse = self.make_compound_literal(init_node)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_BinaryOp(self, node):
+        if node.left is not None:
+            if isinstance(node.left, Constant) and node.left.type == "string":
+                chars = self.encode_string(node.left)
+                if chars is not None:
+                    init_node = InitList(chars, None)
+                    node.left = self.make_compound_literal(init_node)
+        if node.right is not None:
+            if isinstance(node.right, Constant) and node.right.type == "string":
+                chars = self.encode_string(node.right)
+                if chars is not None:
+                    init_node = InitList(chars, None)
+                    node.right = self.make_compound_literal(init_node)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_UnaryOp(self, node):
+        if node.expr is not None:
+            if isinstance(node.expr, Constant) and node.expr.type == "string":
+                chars = self.encode_string(node.expr)
+                if chars is not None:
+                    init_node = InitList(chars, None)
+                    node.expr = self.make_compound_literal(init_node)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_If(self, node):
+        if node.cond is not None:
+            if isinstance(node.cond, Constant) and node.cond.type == "string":
+                chars = self.encode_string(node.cond)
+                if chars is not None:
+                    init_node = InitList(chars, None)
+                    node.cond = self.make_compound_literal(init_node)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_While(self, node):
+        if node.cond is not None:
+            if isinstance(node.cond, Constant) and node.cond.type == "string":
+                chars = self.encode_string(node.cond)
+                if chars is not None:
+                    init_node = InitList(chars, None)
+                    node.cond = self.make_compound_literal(init_node)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_DoWhile(self, node):
+        if node.cond is not None:
+            if isinstance(node.cond, Constant) and node.cond.type == "string":
+                chars = self.encode_string(node.cond)
+                if chars is not None:
+                    init_node = InitList(chars, None)
+                    node.cond = self.make_compound_literal(init_node)
+        NodeVisitor.generic_visit(self, node)
+
+
+class StringEncodeUnit(ObfuscationUnit):
+    """ Implements a string literal encoding (SLE) obfuscation transformation, which takes the
+    input source code and encodes string literals in the code according to some encoding method
+    such that the program still performs the same functionality, but strings can no longer be
+    easily read in the code. """
+    
+    name = "String Literal Encoding"
+    description = "Encodes string literals to make them incomprehensible"
+    
+    def __init__(self, style):
+        self.style = style
+        self.traverser = StringEncodeTraverser(style)
+    
+    def transform(self, source: CSource) -> CSource:
+        self.traverser.visit(source.t_unit)
+        new_contents = generate_new_contents(source)
+        return CSource(source.fpath, new_contents, source.t_unit)
+    
+    def edit_cli(self) -> bool:
+        options = [s.value for s in StringEncodeTraverser.Style]
+        prompt = f"\nThe current encoding style is {self.style.value}.\n"
+        prompt += "Choose a new style for string encoding.\n"
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return False
+        self.style = self.Style(options[choice])
+        self.traverser.style = self.style
+        return True
+    
+    def get_cli() -> Optional["StringEncodeUnit"]:
+        options = [s.value for s in StringEncodeTraverser.Style]
+        prompt = "\nChoose a style for the string encoding.\n"
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return None
+        style = StringEncodeTraverser.Style(options[choice])
+        return StringEncodeUnit(style)
+    
+    def __eq__(self, other: ObfuscationUnit) -> bool:
+        if not isinstance(other, StringEncodeUnit):
+            return False
+        return self.style == other.style
+    
+    def __str__(self):
+        style_flag = f"style={self.style.name}"
+        return f"StringEncode({style_flag})"
+
+class IntegerEncodeTraverser(NodeVisitor):
+
+    class Style(Enum):
+        SIMPLE = "Simple Arithmetic Encoding (Not Yet Implemented)"
+        SPLIT = "Split Integer Literals (Not Yet Implemented)"
+        OPAQUE_EXPRESSION = "Opaque Expression (Not Yet Implemented)"
+        MBA = "Mixed-Boolean Arithmetic (Not Yet Implemented)"
+    
+    pass
+
+#class LiteralEncodeUnit(ObfuscationUnit):
+#    pass # TODO
+
+class ClutterWhitespaceUnit(ObfuscationUnit): # TODO picture extension?
+    """ Implements simple source-level whitespace cluttering, breaking down the high-level abstraction of 
+    indentation and program structure by altering whitespace in the file. """
+    
+    # TODO WARNING ORDERING - SHOULD COME LAST (BUT BEFORE DiTriGraphEncodeUnit)
+    name = "Clutter Whitespace"
+    description = "Clutters program whitespace, making it difficult to read"
+    
+    def __init__(self):
+        pass
+    
+    def transform(self, source: CSource) -> CSource:
+        # Preprocess contents
+        new_contents = ""
+        for line in source.contents.splitlines():
+            if line.strip().startswith("#"):
+                new_contents += line + "\n"
+        generator = c_generator.CGenerator()
+        contents = generator.visit(source.t_unit)
+        # Initialise lexer
+        discard_f = lambda: None
+        lexer = c_lexer.CLexer(discard_f, discard_f, discard_f, lambda tok: None)
+        lexer.build()
+        lexer.input(contents)
+        # Lex tokens and format according to whitespace rules
+        cur_line_length = 0
+        max_line_length = 100
+        token = lexer.token()
+        while token is not None:
+            cur_line_length += len(token.value) + 1
+            if cur_line_length <= max_line_length:
+                new_contents += ' ' + token.value
+                cur_line_length += 1
+            else:
+                cur_line_length = len(token.value)
+                new_contents += "\n" + token.value
+            token = lexer.token()
+        return CSource(source.fpath, new_contents)
+    
+    def edit_cli(self) -> bool:
+        return True
+    
+    def get_cli() -> Optional["ClutterWhitespaceUnit"]:
+        return ClutterWhitespaceUnit()
+    
+    def __eq__(self, other: ObfuscationUnit) -> bool:
+        return isinstance(other, ClutterWhitespaceUnit)
+
+    def __str__(self):
+        return "ClutterWhitespace()"
+
+class DiTriGraphEncodeUnit(ObfuscationUnit):
+    """ Implements a string literal encoding (SLE) obfuscation transformation, which takes the
+    input source code and encodes string literals in the code according to some encoding method
+    such that the program still performs the same functionality, but strings can no longer be
+    easily read in the code. """
+    
+    # TODO WARNING ORDERING - SHOULD COME LAST?
+    name = "Digraph/Trigraph Encoding"
+    description = "Encodes certain symbols with Digraphs/Trigraphs to make them incomprehensible"
+    
+    digraph_map = {
+        '[': "<:",
+        ']': ":>",
+        '{': "<%",
+        '}': "%>",
+        '#': "%:",
+    }
+    
+    trigraph_map = {
+        '#': "??=",
+        '\\': "??/",
+        '^': "??\'",
+        '[': "??(",
+        ']': "??)",
+        '|': "??!",
+        '{': "??<",
+        '}': "??>",
+        '~': "??-",
+    }
+    
+    class Style(Enum):
+        DIGRAPH = "Digraph Encoding"
+        TRIGRAPH = "Trigraph Encoding"
+        MIXED = "Mixed Digraph/Trigraph Encoding"
+    
+    def __init__(self, style: Style, chance: float):
+        self.style = style
+        if chance < 0.0:
+            self.chance = 0.0
+        elif chance > 1.0:
+            self.chance = 1.0
+        else:
+            self.chance = chance  
+    
+    def transform(self, source: CSource) -> CSource:
+        new_contents = ""
+        prev = None
+        str_top = None
+        for char in source.contents:
+            if (char == '\'' or char == '\"') and prev != '\\':
+                if str_top is None:
+                    str_top = char
+                elif str_top == char:
+                    str_top = None
+            if str_top is not None or random.random() > self.chance:
+                new_contents += char
+                prev = char
+                continue
+            if self.style == self.Style.MIXED and char in self.digraph_map or char in self.trigraph_map:
+                if random.randint(1,2) == 1 and char in self.digraph_map:
+                    new_contents += self.digraph_map[char]
+                else:
+                    new_contents += self.trigraph_map[char]
+            elif self.style == self.Style.DIGRAPH and char in self.digraph_map:
+                new_contents += self.digraph_map[char]
+            elif self.style == self.Style.TRIGRAPH and char in self.trigraph_map:
+                new_contents += self.trigraph_map[char]
+            else:
+                new_contents += char
+            prev = char
+        return CSource(source.fpath, new_contents)
+    
+    def edit_cli(self) -> bool:
+        options = [s.value for s in self.Style]
+        prompt = f"\nThe current encoding style is {self.style.value}.\n"
+        prompt += "Choose a new style for the digraph/trigraph encoding.\n"
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return False
+        style = self.Style(options[choice])
+        print(f"The current probability of encoding is {self.chance}.")
+        print("What is the new probability (0.0 <= p <= 1.0) of the encoding?")
+        prob = get_float(0.0, 1.0)
+        if prob == float('nan'):
+            return False
+        self.style = style
+        self.chance = prob
+        return True
+    
+    def get_cli() -> Optional["DiTriGraphEncodeUnit"]:
+        options = [s.value for s in DiTriGraphEncodeUnit.Style]
+        prompt = "\nChoose a style for the digraph/trigraph encoding.\n"
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return None
+        style = DiTriGraphEncodeUnit.Style(options[choice])
+        print("What is the probability (0.0 <= p <= 1.0) of the encoding?")
+        prob = get_float(0.0, 1.0)
+        if prob == float('nan'):
+            return None
+        return DiTriGraphEncodeUnit(style, prob)
+    
+    def __eq__(self, other: ObfuscationUnit) -> bool:
+        if not isinstance(other, DiTriGraphEncodeUnit):
+            return False
+        return self.style == other.style and self.chance == other.chance
+    
+    def __str__(self):
+        style_flag = f"style={self.style.name}"
+        probability_flag = f"p={self.chance}"
+        return f"DiTriGraphEncode({style_flag},{probability_flag})"
+
+
+class CFFlattenTraverser(NodeVisitor):
+    
+    def __init__(self):
+        self.levels = []
+        self.breaks = []
+        self.continues = []
+    
+    def flatten_function(self, node):
+        # We first must break the function into the basic blocks that define it
+        # TODO remove below - just logic
+        # We get a potential branch on:
+        #  > 
+        blocks = []
+        
+        pass
+    
+    def visit_FuncDef(self, node):
+        self.flatten_function(node)
+        NodeVisitor.generic_visit(self, node) # TODO do I do this?
+
+
+class ControlFlowFlattenUnit(ObfuscationUnit):
+    """ TODO """
+    
+    name = "Flatten Control Flow"
+    description = "Flatten all Control Flow in functions into a single level to help prevent code analysis"
+    
+    def __init__(self):
+        self.traverser = CFFlattenTraverser()
+        pass # TODO
+    
+    def transform(self, source: CSource) -> CSource:
+        self.traverser.visit(source.t_unit)
+        return source # TODO
+    
+    def edit_cli(self) -> bool:
+        return True # TODO
+    
+    def get_cli() -> Optional["ControlFlowFlattenUnit"]:
+        return ControlFlowFlattenUnit() # TODO
+    
+    def __eq__(self, other: ObfuscationUnit) -> bool:
+        return isinstance(other, ControlFlowFlattenUnit) # TODO
+
+    def __str__(self) -> str:
+        return "FlattenControlFlow()"

@@ -10,12 +10,19 @@ def test_random_testing_to_delete():
     from random import choices as randchoice, randint
     from string import ascii_letters, digits as ascii_digits
 
-    class PatchedVisitor(NodeVisitor):
-        def visit(self, node):
-            if isinstance(node, StaticAssert):
-                print("hi!")
+    class StringEncodeTraverser(NodeVisitor):
+        """Traverses the program AST looking for string literals and encoding them into
+        some incomprehensible form."""
+        
+        def __init__(self):
+            pass
+        
+        def visit_Constant(self, node):
+            if node.type == "string":
+                print(node.value)
+            NodeVisitor.generic_visit(self, node)
 
-    PatchedVisitor().visit(source.t_unit)
+    StringEncodeTraverser().visit(source.t_unit)
     source.t_unit.show()
     return
     v = IdentifierTraverser()
