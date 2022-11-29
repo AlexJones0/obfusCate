@@ -6,11 +6,12 @@ from ctypes import Union
 from .io import CSource, menu_driven_option, get_float
 from abc import ABC, abstractmethod
 from pycparser.c_ast import NodeVisitor, PtrDecl, ArrayDecl, InitList, Constant, \
-    CompoundLiteral, Typename, TypeDecl, IdentifierType
+    CompoundLiteral, Typename, TypeDecl, IdentifierType, BinaryOp
 from pycparser import c_generator, c_lexer
 from random import choices as randchoice, randint
 from string import ascii_letters, digits as ascii_digits
 from enum import Enum
+from math import sqrt, floor
 
 
 def generate_new_contents(source: CSource) -> str:
@@ -645,17 +646,105 @@ class StringEncodeUnit(ObfuscationUnit):
         return f"StringEncode({style_flag})"
 
 class IntegerEncodeTraverser(NodeVisitor):
+    """ TODO """
 
     class Style(Enum):
-        SIMPLE = "Simple Arithmetic Encoding (Not Yet Implemented)"
+        SIMPLE = "Simple Encoding (Multiply-Add)"
         SPLIT = "Split Integer Literals (Not Yet Implemented)"
         OPAQUE_EXPRESSION = "Opaque Expression (Not Yet Implemented)"
         MBA = "Mixed-Boolean Arithmetic (Not Yet Implemented)"
     
-    pass
+    def __init__(self, style):
+        self.style = style
+        self.ignore = set()
+    
+    def simple_encode(self,child):
+        # Form f(i) = a * i + b to encode f(i) as i.
+        value = int(child.value)
+        if abs(value) > 1000:
+            upper_bound = floor(sqrt(abs(value)))
+            lower_bound = upper_bound // 3
+            mul_const = random.randint(lower_bound, upper_bound)
+            encoded_val = value // mul_const
+            add_const = value % mul_const
+        else:
+            mul_const = random.randint(3000, 10000)
+            encoded_val = random.randint(3000, 10000)
+            add_const = value - mul_const * encoded_val 
+        mul_const_node = Constant("int", mul_const)
+        encoded_node = Constant("int", encoded_val)
+        add_const_node = Constant("int", abs(add_const))
+        mul_node = BinaryOp("*", mul_const_node, encoded_node)
+        if add_const >= 0:
+            add_node = BinaryOp("+", mul_node, add_const_node)
+        else:
+            add_node = BinaryOp("-", mul_node, add_const_node)
+        return add_node
+    
+    def encode_int(self, child):
+        if self.style == self.Style.SIMPLE:
+            encoded = self.simple_encode(child)
+            self.ignore.add(encoded)
+            return encoded
+        else:
+            pass # TODO
+    
+    def generic_visit(self, node):
+        if node in self.ignore:
+            return 
+        for child in node.children():
+            if isinstance(child[1], Constant) and child[1].type == "int":
+                setattr(node, child[0], self.encode_int(child[1])) # TODO clean up earlier code to be like this?
+        NodeVisitor.generic_visit(self, node)
 
-#class LiteralEncodeUnit(ObfuscationUnit):
-#    pass # TODO
+
+class IntegerEncodeUnit(ObfuscationUnit):
+    """ Implements an integer literal encoding (LE) obfuscation transformation, which takes the
+    input source code and encodes integer literals in the code according to some encoding method
+    such that the program still performs the same functionality, but integer constants can no longer
+    be easily read in code. We only encode literals and not floats due to necessary precision. """
+    
+    name = "Integer Literal Encoding"
+    description = "Encode integer literals to make them hard to determine"
+    
+    def __init__(self, style):
+        self.style = style
+        self.traverser = IntegerEncodeTraverser(style)
+    
+    def transform(self, source: CSource) -> CSource:
+        self.traverser.visit(source.t_unit)
+        new_contents = generate_new_contents(source)
+        return CSource(source.fpath, new_contents, source.t_unit)
+    
+    def edit_cli(self) -> bool:
+        options = [s.value for s in IntegerEncodeTraverser.Style]
+        prompt = f"\nThe current encoding style is {self.style.value}.\n"
+        prompt += "Choose a new style for integer encoding.\n"
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return False
+        self.style = self.Style(options[choice])
+        self.traverser.style = self.style
+        return True
+    
+    def get_cli() -> Optional["IntegerEncodeUnit"]:
+        options = [s.value for s in IntegerEncodeTraverser.Style]
+        prompt = "\nChoose a style for the integer encoding.\n"
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return None
+        style = IntegerEncodeTraverser.Style(options[choice])
+        return IntegerEncodeUnit(style)
+    
+    def __eq__(self, other: ObfuscationUnit) -> bool:
+        if not isinstance(other, IntegerEncodeUnit):
+            return False
+        return self.style == other.style
+
+    def __str__(self) -> str:
+        style_flag = f"style={self.style.name}"
+        return f"IntegerEncode({style_flag})"
+
 
 class ClutterWhitespaceUnit(ObfuscationUnit): # TODO picture extension?
     """ Implements simple source-level whitespace cluttering, breaking down the high-level abstraction of 
@@ -821,35 +910,58 @@ class DiTriGraphEncodeUnit(ObfuscationUnit):
         return f"DiTriGraphEncode({style_flag},{probability_flag})"
 
 
-class CFFlattenTraverser(NodeVisitor):
+"""
+class Block 
+
+
+class GenerateCFG(NodeVisitor):
     
     def __init__(self):
-        self.levels = []
-        self.breaks = []
-        self.continues = []
+        #self.levels = []
+        #self.breaks = []
+        #self.continues = []
+        self.functions = []
+        current_block = []
     
     def flatten_function(self, node):
         # We first must break the function into the basic blocks that define it
         # TODO remove below - just logic
         # We get a potential branch on:
-        #  > 
-        blocks = []
-        
-        pass
+        #  > A ternary operator - branch to iftrue, iffalse
+        #       > Evaluate condition - jump to iftrue block or iffalse block based on result
+                > 
+        #  > Any lazy operator - so also && and ||
+        #  > Switch-case + default
+        #  > While
+        #  > Do-While
+        #  > if-else
+        #  > Continue stmt
+        #  > Break stmt
+        #  > goto 
+        #  > label
+        #  > For loop
+        #  > Return statement
+        self.functions.append([node.decl.name, []])# TODO use when doing flattening?
     
     def visit_FuncDef(self, node):
-        self.flatten_function(node)
+        self.functions.append([node.decl.name, []])
         NodeVisitor.generic_visit(self, node) # TODO do I do this?
+    
+    def visit_TernaryOp(self, node):
+    
+    def generic_visit(self, node):
+        current_block.append(node)
+        NodeVisitor.generic_visit(self, node)
+        
 
 
 class ControlFlowFlattenUnit(ObfuscationUnit):
-    """ TODO """
     
     name = "Flatten Control Flow"
     description = "Flatten all Control Flow in functions into a single level to help prevent code analysis"
     
     def __init__(self):
-        self.traverser = CFFlattenTraverser()
+        self.traverser = GenerateCFG()
         pass # TODO
     
     def transform(self, source: CSource) -> CSource:
@@ -867,3 +979,4 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
 
     def __str__(self) -> str:
         return "FlattenControlFlow()"
+"""
