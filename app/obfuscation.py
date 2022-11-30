@@ -1000,14 +1000,30 @@ class ClutterWhitespaceUnit(ObfuscationUnit): # TODO picture extension?
         cur_line_length = 0
         max_line_length = 100
         token = lexer.token()
+        prev = None
+        spaced_tokens = c_lexer.CLexer.keywords + c_lexer.CLexer.keywords_new + ('ID',)
+        spaced_end_tokens = spaced_tokens + ('INT_CONST_DEC', 'INT_CONST_OCT', 'INT_CONST_HEX', 'INT_CONST_BIN', 'INT_CONST_CHAR', 'FLOAT_CONST', 'HEX_FLOAT_CONST',)
         while token is not None:
-            cur_line_length += len(token.value) + 1
+            addSpace = prev is not None and prev.type in spaced_tokens and token.type in spaced_end_tokens
+            cur_line_length += len(token.value) + (1 if addSpace else 0)
             if cur_line_length <= max_line_length:
-                new_contents += ' ' + token.value
-                cur_line_length += 1
+                if addSpace:
+                    new_contents += ' '
+                new_contents += token.value
+            elif token.type in ('STRING_LITERAL', 'WSTRING_LITERAL', 'U8STRING_LITERAL', 'U16STRING_LITERAL', 'U32STRING_LITERAL',) and \
+                cur_line_length - len(token.value) >= 4:
+                split_size = max_line_length - cur_line_length + len(token.value) - 1
+                if addSpace:
+                    new_contents += ' '
+                    split_size -= 1
+                new_contents += token.value[:split_size] + token.value[0] + "\n"
+                cur_line_length = 0
+                token.value = token.value[0] + token.value[split_size:]
+                continue
             else:
                 cur_line_length = len(token.value)
                 new_contents += "\n" + token.value
+            prev = token
             token = lexer.token()
         return CSource(source.fpath, new_contents)
     
@@ -1022,6 +1038,7 @@ class ClutterWhitespaceUnit(ObfuscationUnit): # TODO picture extension?
 
     def __str__(self):
         return "ClutterWhitespace()"
+
 
 class DiTriGraphEncodeUnit(ObfuscationUnit):
     """ Implements a string literal encoding (SLE) obfuscation transformation, which takes the
