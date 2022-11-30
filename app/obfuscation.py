@@ -6,7 +6,8 @@ from ctypes import Union
 from .io import CSource, menu_driven_option, get_float
 from abc import ABC, abstractmethod
 from pycparser.c_ast import NodeVisitor, PtrDecl, ArrayDecl, InitList, Constant, \
-    CompoundLiteral, Typename, TypeDecl, IdentifierType, BinaryOp
+    CompoundLiteral, Typename, TypeDecl, IdentifierType, BinaryOp, ID, StructRef, \
+    Cast, FuncCall, ArrayRef, UnaryOp, BinaryOp
 from pycparser import c_generator, c_lexer
 from random import choices as randchoice, randint
 from string import ascii_letters, digits as ascii_digits
@@ -650,13 +651,18 @@ class IntegerEncodeTraverser(NodeVisitor):
 
     class Style(Enum):
         SIMPLE = "Simple Encoding (Multiply-Add)"
-        SPLIT = "Split Integer Literals (Not Yet Implemented)"
-        OPAQUE_EXPRESSION = "Opaque Expression (Not Yet Implemented)"
-        MBA = "Mixed-Boolean Arithmetic (Not Yet Implemented)"
+        #SPLIT = "Split Integer Literals (Not Yet Implemented)"
+        LINKEDlIST = "Linked List Opaque Expression Encoding (Not Yet Implemented)"
+        ARRAY = "Array Opaque Expression Encoding (Not Yet Implemented)"
+        MBA = "Mixed-Boolean Arithmetic (Not Yet Implemented)" # TODO input dependent? Entropy-based
     
     def __init__(self, style):
         self.style = style
         self.ignore = set()
+        self.funcs = dict()
+        self.add_args = set()
+        self.current_func = []
+        self.traverse_num = 1
     
     def simple_encode(self,child):
         # Form f(i) = a * i + b to encode f(i) as i.
@@ -681,20 +687,41 @@ class IntegerEncodeTraverser(NodeVisitor):
             add_node = BinaryOp("-", mul_node, add_const_node)
         return add_node
     
+    def mba_encode(self, child):
+        pass
+    
     def encode_int(self, child):
         if self.style == self.Style.SIMPLE:
             encoded = self.simple_encode(child)
             self.ignore.add(encoded)
             return encoded
-        else:
-            pass # TODO
+        elif self.style == self.Style.MBA:
+            if self.traverse_num > 1:
+                encoded = self.mba_encode(child) # TODO change
+                self.ignore.add(encoded)
+                return encoded
+            else:
+                if self.current_func not in self.add_args:
+                    self.add_args.add(self.current_func)
+                return None
+    
+    def visit_FuncDef(self, node):
+        self.current_func = node
+        if self.traverse_num > 1:
+            
+            self.generic_visit(node)
+            return
+        self.funcs[node] = node.decl.type.args
+        self.generic_visit(node)
     
     def generic_visit(self, node):
         if node in self.ignore:
             return 
         for child in node.children():
             if isinstance(child[1], Constant) and child[1].type == "int":
-                setattr(node, child[0], self.encode_int(child[1])) # TODO clean up earlier code to be like this?
+                new_child = self.encode_int(child[1])
+                if new_child is not None:
+                    setattr(node, child[0], new_child)  # TODO clean up earlier code to be like this?
         NodeVisitor.generic_visit(self, node)
 
 
@@ -744,6 +771,168 @@ class IntegerEncodeUnit(ObfuscationUnit):
     def __str__(self) -> str:
         style_flag = f"style={self.style.name}"
         return f"IntegerEncode({style_flag})"
+    
+
+class ArithmeticEncodeTraverser(NodeVisitor):
+    """ TODO """
+    
+    def __init__(self, transform_depth: int):
+        self.transform_depth = transform_depth
+        self.var_types = []
+        self.func_types = dict()
+        self.type_cache = dict()
+        self.ignore_list = set()
+    
+    def get_var_type(self, ident):
+        for scope in self.var_types[::-1]:
+            if ident in scope:
+                return scope[ident]
+        return None
+    
+    def get_func_type(self, ident):
+        if ident in self.func_types:
+            return self.func_types[ident]
+        return None
+
+    def is_int_type(self, node):
+        if isinstance(node, (UnaryOp, BinaryOp)) and node in self.type_cache:
+            return self.type_cache[node]
+        if isinstance(node, Constant) and node.type == "int":
+            return True
+        elif isinstance(node, ID) and self.get_var_type(node.name) == "int":
+            return True
+        elif isinstance(node, StructRef) and node.type == "int": # TODO check this one - is this attr set?
+            return True
+        elif isinstance(node, Cast) and node.to_type.type.type == "int": # TODO check this one
+            return True
+        elif isinstance(node, FuncCall) and self.get_func_type(node.name) == "int":
+            return True
+        elif isinstance(node, ArrayRef) and self.get_var_type(node.name) == "int":
+            return True
+        elif isinstance(node, UnaryOp):
+            self.type_cache[node] = self.is_int_type(node.expr) or node.op == "!"
+            return self.type_cache[node]
+        elif isinstance(node, BinaryOp):
+            self.type_cache[node] = self.is_int_type(node.left) and self.is_int_type(node.right) \
+                or node.op in ["<", "<=", ">", ">=", "==", "!=", "&&", "||", "%", "//"]
+            return self.type_cache[node]
+        return False
+    
+    unary_subs = {
+        "-": [
+            lambda n: BinaryOp("+", UnaryOp("~", n.expr), Constant("int", "1")),  # -x = ¬x + 1
+            lambda n: UnaryOp("~", BinaryOp("-", n.expr, Constant("int", "1"))),  # -x = ¬(x - 1)
+        ],
+        "~": [
+            lambda n: BinaryOp("-", UnaryOp("-", n.expr), Constant("int", "1")),  # ¬x = -x - 1
+        ],
+    }
+    
+    binary_subs = { # TODO correctness - what if one argument changes some value? Then not correct - HOW!?!?!?
+        "+": [
+            lambda n: # x + y = x - ¬y - 1
+                BinaryOp("-",
+                    BinaryOp("-", n.left, UnaryOp("~", n.right)), 
+                    Constant("int", "1")),
+            lambda n: # x + y = (x ^ y) + 2 * (x & y)
+                BinaryOp("+",
+                    BinaryOp("^", n.left, n.right),
+                    BinaryOp("<<", 
+                        BinaryOp("&", n.left, n.right),
+                        Constant("int", "1"))),
+            # TODO
+            # TODO
+        ],
+        "-": [
+            lambda n: # x - y = x + ¬y + 1
+                BinaryOp("+",
+                    BinaryOp("+", n.left, UnaryOp("~", n.right)),
+                    Constant("int", "1")),
+            lambda n: # x - y = (x ^ y) - 2 * (¬x & y)
+                BinaryOp("-",
+                    BinaryOp("^", n.left, n.right),
+                    BinaryOp("<<", 
+                        BinaryOp("&", UnaryOp("~", n.left), n.right),
+                        Constant("int", "1"))),
+            # TODO
+            # TODO
+        ],
+    }
+    
+    def generic_visit(self, node):  # TODO broken - we just assume only integer operations for now!
+        if node in self.ignore_list:
+            return
+        for child in node.children():
+            if isinstance(child[1], (UnaryOp, BinaryOp)):
+                current = child[1]
+                applied_count = 0
+                while applied_count < self.transform_depth:
+                    if (isinstance(current, UnaryOp) and current.op not in self.unary_subs) or\
+                       (isinstance(current, BinaryOp) and current.op not in self.binary_subs):
+                           break
+                    if isinstance(current, UnaryOp):
+                        options = self.unary_subs[current.op]
+                    else:
+                        options = self.binary_subs[current.op]
+                    chosen_func = options[random.randint(0,len(options)-1)]
+                    current = chosen_func(current)
+                    parts = [p[:-1] if p[-1] == "]" else p for p in child[0].split("[")]
+                    if len(parts) == 1: # TODO this will be broke wherever else I did this also
+                        setattr(node, child[0], current)
+                    else:
+                        getattr(node, parts[0])[int(parts[1])] = current
+                    self.ignore_list.add(current)
+                    applied_count += 1
+        NodeVisitor.generic_visit(self, node)
+
+
+class ArithmeticEncodeUnit(ObfuscationUnit):
+    """ TODO """
+    
+    name = "Integer Arithmetic Encoding"
+    description = "Encode integer variable arithmetic to make code less comprehensible"
+    
+    def __init__(self, level):
+        self.level = level
+        self.traverser = ArithmeticEncodeTraverser(level)
+    
+    def transform(self, source: CSource) -> CSource:
+        self.traverser.visit(source.t_unit)
+        new_contents = generate_new_contents(source)
+        return CSource(source.fpath, new_contents, source.t_unit)
+    
+    def edit_cli(self) -> bool:
+        # TODO get int input for a level!
+        
+        """options = [s.value for s in ArithmeticEncodeTraverser.Style]
+        prompt = f"\nThe current encoding style is {self.style.value}.\n"
+        prompt += "Choose a new style for integer encoding.\n"
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return False
+        self.style = self.Style(options[choice])
+        self.traverser.style = self.style"""
+        return True
+    
+    def get_cli() -> Optional["IntegerEncodeUnit"]:
+        # TODO get int input for a level!
+        """options = [s.value for s in IntegerEncodeTraverser.Style]
+        prompt = "\nChoose a style for the integer encoding.\n"
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return None
+        style = IntegerEncodeTraverser.Style(options[choice])
+        return IntegerEncodeUnit(style)"""
+        return ArithmeticEncodeUnit(2)
+    
+    def __eq__(self, other: ObfuscationUnit) -> bool:
+        if not isinstance(other, ArithmeticEncodeUnit):
+            return False
+        return self.level == other.level
+
+    def __str__(self) -> str:
+        level_flag = f"depth={self.level}"
+        return f"IntegerEncode({level_flag})"
 
 
 class ClutterWhitespaceUnit(ObfuscationUnit): # TODO picture extension?

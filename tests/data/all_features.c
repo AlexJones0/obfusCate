@@ -71,9 +71,11 @@ int f(int n, float m) { // Function Declaration + Parameters
         }
     }
     return 4;
-    out: // Label
-    //static_assert(sizeof(int) == 2 * sizeof(short), "The program requires an integer is the size of 2 shorts.");
+    static_assert(sizeof(int) == 2 * sizeof(short), "The program requires an integer is the size of 2 shorts.");
+    int test = 3 + x + Friday + acct.idNum + (int) 4.56 + f(3,2.4) + z[0][1];
     return n + m;
+    out: // Label
+    return 4; 
 }
 
 void variadic(char *f, ...) { // Elipsis param (variadic function)
