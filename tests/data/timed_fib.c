@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <time.h>
 
-int vals = 20;
+int vals = 25;
 int runs = 10000;
 
 int fib(int n) {

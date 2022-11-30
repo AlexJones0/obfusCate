@@ -4,10 +4,11 @@ import random
 from typing import Iterable, Optional
 from ctypes import Union
 from .io import CSource, menu_driven_option, get_float, get_int
+from .utils import VariableUseAnalyzer # TODO remove if not used
 from abc import ABC, abstractmethod
 from pycparser.c_ast import NodeVisitor, PtrDecl, ArrayDecl, InitList, Constant, \
     CompoundLiteral, Typename, TypeDecl, IdentifierType, BinaryOp, ID, StructRef, \
-    Cast, FuncCall, ArrayRef, UnaryOp, BinaryOp
+    Cast, FuncCall, ArrayRef, UnaryOp, BinaryOp, FuncDecl
 from pycparser import c_generator, c_lexer
 from random import choices as randchoice, randint
 from string import ascii_letters, digits as ascii_digits
@@ -102,6 +103,9 @@ class Pipeline:
             source = t.transform(source)
             if source is None:
                 break
+        # TODO remove - this is temporary
+        analyzer = VariableUseAnalyzer(source.t_unit)
+        analyzer.process()
         return source
 
 
@@ -969,7 +973,99 @@ class ArithmeticEncodeUnit(ObfuscationUnit):
 
     def __str__(self) -> str:
         level_flag = f"depth={self.level}"
-        return f"IntegerEncode({level_flag})"
+        return f"IntegerEncode({level_flag})" # TODO finish/fix this method
+
+
+class FuncArgRandomiserTraverser(NodeVisitor):
+    """ TODO """
+    
+    def __init__(self, extra: int):
+        self.extra = extra
+        self.func_args = dict()
+        self.walk_num = 1
+    
+    def get_extra_args(self, args): 
+        # TODO need some variable name reachability/liveness analysis to avoid shadowing a name outside of 
+        # scope
+        extra_args = []
+        basename = "extra"
+        count = 0
+        for i in range(self.extra):
+            argname = basename + str(count)
+            count += 1
+            while argname in args:
+                pass
+    
+    def visit_FuncDecl(self, node):
+        # TODO check if a function prototype - edit if so, not otherwise
+        if self.walk_num == 1:
+            fname = node.type.name
+            if fname not in self.func_args:
+                if node.args is None or len(node.args) == 0:
+                    extra_args = []
+                    #for i in range # TODO do this
+                    self.func_args[fname] = None 
+                    # Create a new ParamList, generate extra args, and store
+                elif node.args[0].type.type.names[0] == "void":
+                    self.func_args[fname] = node.args
+                else:
+                    self.func_args[fname] = None
+                    # generate extra args, add to existing ParamList, randomise and store
+                    # make sure to take care for EllipsisParam (variadic functions)
+                
+                self.func_args[node.name] = "TODO"
+                print(node.type.type)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_FuncCall(self, node):
+        # TODO edit
+        if self.walk_num > 1:
+            pass
+        NodeVisitor.generic_visit(self, node)
+
+
+class FuncArgumentRandomiseUnit(ObfuscationUnit):
+    """ Implements function argument randomising, switching around the order of function arguments
+    and inserting redundant, unused arguments to make the function interface more confusing. """
+    
+    name = "Function Interface Randomisation"
+    description = "Randomise Function Arguments to make them less compehensible"
+    
+    def __init__(self, extra_args: int):
+        self.extra_args = extra_args
+        self.traverser = FuncArgRandomiserTraverser(extra_args)
+    
+    def transform(self, source: CSource) -> CSource:
+        self.traverser.visit(source.t_unit)
+        new_contents = generate_new_contents(source)
+        return CSource(source.fpath, new_contents, source.t_unit)
+
+    def edit_cli(self) -> bool: # TODO - maybe allow users to give specific functions?
+        print(f"The current number of extra arguments is {self.extra_args}.")
+        print("What is the new number of extra arguments per function?")
+        extra = get_int(0, None)
+        if extra is None:
+            return False
+        self.extra_args = extra
+        self.traverser.extra = extra
+        return True
+    
+    def get_cli() -> Optional["FuncArgumentRandomiseUnit"]:
+        print("How many extra arguments should be inserted?")
+        extra = get_int(1, None)
+        if extra is None:
+            return False
+        return FuncArgumentRandomiseUnit(extra)
+
+    def __eq__(self, other: ObfuscationUnit) -> bool:
+        if not isinstance(other, FuncArgumentRandomiseUnit):
+            return False
+        return self.extra_args == other.extra_args
+
+    def __str__(self) -> str:
+        extra_args_flag = f"extra={self.extra_args}"
+        return f"RandomiseFuncArgs({extra_args_flag})"
+        
 
 
 class ClutterWhitespaceUnit(ObfuscationUnit): # TODO picture extension?

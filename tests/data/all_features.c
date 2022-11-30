@@ -20,6 +20,11 @@ union ImportantData {
     _Bool thing4;
 } data; // Union 
 
+int do_something(int x, float y, short *z);
+int do_something2();
+int do_something3(void);
+int do_something4(int x, ...);
+
 void start(); // Prototype
 
 // #pragma startup start // Pragma
@@ -33,6 +38,10 @@ int f(int n, float m) { // Function Declaration + Parameters
     enum day{Monday, Tuesday, Wednesday, Thursday, Friday=100, Saturday, Sunday}; // Enum
     enum day today = Friday; // Enum reference
     Thing acct = {.idNum = 4596, .username = "JohnDoe92"}; // Named initializer, Struct Ref (?)
+    struct mything {int first; float second;};
+    struct mything yes = {1, 2.0};
+    typedef int mything;
+    mything abcdungdfg = 4;
     alignas(32) float data[4]; // Alignas
     x = 15 + 4; // Assignment, binary expression
     x = (n < m) ? x + 3 : x - 3; // Ternary operator
