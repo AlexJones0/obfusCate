@@ -84,5 +84,5 @@ void variadic(char *f, ...) { // Elipsis param (variadic function)
 
 int main() {
     f(x, y); // Function call
-    return 0;
+    return abs(0);
 }

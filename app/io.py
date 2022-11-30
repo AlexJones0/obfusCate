@@ -193,4 +193,24 @@ def get_float(lower_bound: float = None, upper_bound: float = None) -> float:
             print(f"Input {user_input} is too large. The value must be at most {upper_bound}.")
             continue
         return user_input
-        
+
+def get_int(lower_bound: int = None, upper_bound: int = None) -> Optional[int]:
+    """ Gets an input integer from the user, applying appropriate boundary checks if either bound
+    is specified. Returns None if the user quits the input selecion, and a valid integer otherwise."""
+    while True:
+        user_input = input("\n>").lower().strip()
+        # Check for quit inputs
+        if user_input in ["q", "quit", "exit", "leave", "x"]:
+            return None
+        try:
+            user_input = int(user_input)
+        except:
+            print("Invalid input for an integer. Please try again...")
+            continue
+        if lower_bound is not None and user_input < lower_bound:
+            print(f"Input {user_input} is too small. The value must be at least {lower_bound}.")
+            continue
+        if upper_bound is not None and user_input > upper_bound:
+            print(f"Input {user_input} is too large. The value must be at most {upper_bound}.")
+            continue
+        return user_input

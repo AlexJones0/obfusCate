@@ -3,7 +3,7 @@ Implements classes for obfuscation transformations and the transform pipeline. "
 import random
 from typing import Iterable, Optional
 from ctypes import Union
-from .io import CSource, menu_driven_option, get_float
+from .io import CSource, menu_driven_option, get_float, get_int
 from abc import ABC, abstractmethod
 from pycparser.c_ast import NodeVisitor, PtrDecl, ArrayDecl, InitList, Constant, \
     CompoundLiteral, Typename, TypeDecl, IdentifierType, BinaryOp, ID, StructRef, \
@@ -840,8 +840,16 @@ class ArithmeticEncodeTraverser(NodeVisitor):
                     BinaryOp("<<", 
                         BinaryOp("&", n.left, n.right),
                         Constant("int", "1"))),
-            # TODO
-            # TODO
+            lambda n: # x + y = (x | y) + (x & y)
+                BinaryOp("+",
+                    BinaryOp("|", n.left, n.right),
+                    BinaryOp("&", n.left, n.right)),
+            lambda n: # x + y = 2 * (x | y) - (x ^ y)
+                BinaryOp("-",
+                    BinaryOp("<<",
+                        BinaryOp("|", n.left, n.right),
+                        Constant("int", "1")),
+                    BinaryOp("^", n.left, n.right)),
         ],
         "-": [
             lambda n: # x - y = x + ¬y + 1
@@ -854,8 +862,44 @@ class ArithmeticEncodeTraverser(NodeVisitor):
                     BinaryOp("<<", 
                         BinaryOp("&", UnaryOp("~", n.left), n.right),
                         Constant("int", "1"))),
-            # TODO
-            # TODO
+            lambda n: # x - y = (x & ¬y) - (¬x & y)
+                BinaryOp("-",
+                    BinaryOp("&", 
+                        n.left, 
+                        UnaryOp("~", n.right)),
+                    BinaryOp("&", 
+                        UnaryOp("~", n.left), 
+                        n.right)),
+            lambda n: # x - y = 2 * (x & ¬y) - (x ^ y)
+                BinaryOp("-",
+                    BinaryOp("<<",
+                        BinaryOp("&", 
+                            n.left, 
+                            UnaryOp("~", n.right)),
+                        Constant("int", "1")),
+                    BinaryOp("^", n.left, n.right)),
+        ],
+        "^": [
+            lambda n: # x ^ y = (x | y) - (x & y)
+                BinaryOp("-",
+                    BinaryOp("|", n.left, n.right),
+                    BinaryOp("&", n.left, n.right)),
+        ],
+        "|": [
+            lambda n: # x | y = (x & ¬y) + y
+                BinaryOp("+",
+                    BinaryOp("&",
+                        n.left,
+                        UnaryOp("~", n.right)),
+                    n.right),
+        ],
+        "&": [
+            lambda n: # x & y = (¬x | y) - ¬x
+                BinaryOp("-",
+                    BinaryOp("|",
+                        UnaryOp("~", n.left),
+                        n.right),
+                    UnaryOp("~", n.left)),
         ],
     }
     
@@ -902,28 +946,21 @@ class ArithmeticEncodeUnit(ObfuscationUnit):
         return CSource(source.fpath, new_contents, source.t_unit)
     
     def edit_cli(self) -> bool:
-        # TODO get int input for a level!
-        
-        """options = [s.value for s in ArithmeticEncodeTraverser.Style]
-        prompt = f"\nThe current encoding style is {self.style.value}.\n"
-        prompt += "Choose a new style for integer encoding.\n"
-        choice = menu_driven_option(options, prompt)
-        if choice == -1:
+        print(f"The current arithmetic encoding depth is {self.level}.")
+        print("What is the new depth (recommended: 1 <= d <= 5) of the encoding?")
+        depth = get_int(1, None)
+        if depth is None:
             return False
-        self.style = self.Style(options[choice])
-        self.traverser.style = self.style"""
+        self.level = depth
+        self.traverser.transform_depth = depth
         return True
     
     def get_cli() -> Optional["IntegerEncodeUnit"]:
-        # TODO get int input for a level!
-        """options = [s.value for s in IntegerEncodeTraverser.Style]
-        prompt = "\nChoose a style for the integer encoding.\n"
-        choice = menu_driven_option(options, prompt)
-        if choice == -1:
-            return None
-        style = IntegerEncodeTraverser.Style(options[choice])
-        return IntegerEncodeUnit(style)"""
-        return ArithmeticEncodeUnit(2)
+        print("What recursive arithmetic encoding depth should be used? (recommended: 1 <= d <= 5)")
+        depth = get_int(1, None)
+        if depth is None:
+            return False
+        return ArithmeticEncodeUnit(depth)
     
     def __eq__(self, other: ObfuscationUnit) -> bool:
         if not isinstance(other, ArithmeticEncodeUnit):
