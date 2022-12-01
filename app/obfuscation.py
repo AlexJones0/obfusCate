@@ -16,6 +16,11 @@ from enum import Enum
 from math import sqrt, floor
 
 
+# TODO add print statements to report pipeline progress, as it could take a while for large programs?
+# TODO also, add log statements throughout!
+# TODO also, add an option to disable logging!
+
+
 def generate_new_contents(source: CSource) -> str:
     new_contents = ""
     for line in source.contents.splitlines():
@@ -103,9 +108,6 @@ class Pipeline:
             source = t.transform(source)
             if source is None:
                 break
-        # TODO remove - this is temporary
-        analyzer = VariableUseAnalyzer(source.t_unit)
-        analyzer.process()
         return source
 
 
