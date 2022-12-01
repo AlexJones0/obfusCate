@@ -16,6 +16,11 @@ from math import sqrt, floor
 
 # TODO remove unnecesary imports when done
 
+class TypeKinds(enum.Enum): # Could also call tags?
+    STRUCTURE = 0
+    LABEL = 1
+    NONSTRUCTURE = 2
+
 # Identifier analysis - we need to determine
 #  1. What identifiers exist where
 #  2. What identifers are used in each
@@ -40,20 +45,17 @@ from math import sqrt, floor
 class VariableUseAnalyzer(NodeVisitor):
     """ TODO """
     
-    #CS_tree_children = dict() # Tree of only Compound Statement AST nodes stored by storing the children of each node
-    #CS_statements = dict() # Map of Compound Statement AST nodes to Maps of statements to index numbers.
-    #identifier_usage = dict() # Map of Compound Statement AST nodes to Maps of statement indexes to identifiers used in that statement.
-    #identifier_defined = dict() # Map of Compound Statement AST nodes to Maps of statement indexes to identifier definitions in that statement.
+    # TODO it feels like switches might break this? Maybe need to
+    # do some testing?
     
-    class TypeKinds(enum.Enum): # Could also call tags?
-        STRUCTURE = 0
-        LABEL = 1
-        NONSTRUCTURE = 2
-    
+    # TODO add some functionality for getting the statement of an AST node?
+    # also just - if node is child of a FileAST or compound, it is a statement
     
     def __init__(self, t_unit=None):
         self.functions = set()
         self.typedefs = set()
+        self.parent_block = dict()
+        self.parent_statement = dict()
         self.current_function = None
         self.info = {}
         self.processing_stack = []
@@ -69,47 +71,126 @@ class VariableUseAnalyzer(NodeVisitor):
         self.visit(self.t_unit)
         self.processed = True
     
-    def get_scope_definitions(self, compound: Compound):
+    # TODO can I generalise some of these functions - just the same but use "IdentDefs" or "IdentUses" - can definitely make higher order
+    
+    def get_scope_definitions(self, compound: Compound, from_stmt: Node = None, to_stmt: Node = None):
         # TODO should I calculate and cache scope-level stuff at the end instead?
         info = self.info[compound]
+        if from_stmt is None:
+            from_index = 0 # Set to start, whole scope
+        else:
+            from_index = info["stmtIndexes"][from_stmt]
+        if to_stmt is None:
+            to_index = info["currentIndex"] # Set to end, whole scope
+        else:
+            to_index = info["stmtIndexes"][to_stmt] + 1 # Set to include up to the stmt
         definitions = set()
-        for i in range(0, info["currentIndex"]):
+        for i in range(from_index, to_index):
             stmt_defs = info["IdentDefs"][i]
             definitions = definitions.union(stmt_defs)
         return definitions
     
-    def get_scope_usage(self, compound: Compound):
+    def get_scope_usage(self, compound: Compound, from_stmt: Node = None, to_stmt: Node = None):
         info = self.info[compound]
+        if from_stmt is None:
+            from_index = 0 # Set to start, whole scope
+        else:
+            from_index = info["stmtIndexes"][from_stmt]
+        if to_stmt is None:
+            to_index = info["currentIndex"] # Set to end, whole scope
+        else:
+            to_index = info["stmtIndexes"][to_stmt] + 1 # Set to include up to the stmt
         usage = set()
-        for i in range(0, info["currentIndex"]):
+        for i in range(from_index, to_index):
             stmt_usage = info["IdentUses"][i]
             usage = usage.union(stmt_usage)
         return usage
     
-    def get_nested_scope_definitions(self, compound: Compound):
-        pass
+    def get_nested_scope_definitions(self, compound: Compound, from_stmt = None, to_stmt = None):
+        definitions = self.get_scope_definitions(compound, from_stmt, to_stmt)
+        if from_stmt is not None:
+            from_stmt = self.info[compound]["stmtIndexes"][from_stmt]
+        if to_stmt is not None:
+            to_stmt = self.info[compound]["stmtIndexes"][to_stmt]
+        for child, index in self.info[compound]["children"]:
+            index = self.info[compound]["stmtIndexes"][index]
+            if from_stmt is not None and index < from_stmt:
+                continue
+            if to_stmt is not None and index > to_stmt:
+                continue
+            child_defs = self.get_nested_scope_definitions(child)
+            definitions = definitions.union(child_defs)
+        return definitions
     
-    def get_nested_scope_usage(self, compound: Compound):
-        pass
-    
-    def get_stmt_definitions(self, stmt: Node):
-        pass
-    
-    def get_stmt_usage(self, stmt: Node):
-        pass
+    def get_nested_scope_usage(self, compound: Compound, from_stmt = None, to_stmt = None):
+        usage = self.get_scope_usage(compound, from_stmt, to_stmt)
+        if from_stmt is not None:
+            from_stmt = self.info[compound]["stmtIndexes"][from_stmt]
+        if to_stmt is not None:
+            to_stmt = self.info[compound]["stmtIndexes"][to_stmt]
+        for child, index in self.info[compound]["children"]:
+            index = self.info[compound]["stmtIndexes"][index]
+            if from_stmt is not None and index < from_stmt:
+                continue
+            if to_stmt is not None and index > to_stmt:
+                continue
+            child_usage = self.get_nested_scope_usage(child)
+            usage = usage.union(child_usage)
+        return usage
     
     def get_stmt_compound(self, stmt: Node) -> Optional[Compound]:
-        pass
+        return self.parent_block[stmt]
+    
+    def get_stmt_definitions(self, stmt: Node, compound: Compound = None):
+        if compound is None:
+            compound = self.get_stmt_compound(stmt)
+        info = self.info[compound]
+        return info["IdentDefs"][info["stmtIndexes"][stmt]]
+    
+    def get_stmt_usage(self, stmt: Node, compound: Compound = None):
+        if compound is None:
+            compound = self.get_stmt_compound(stmt)
+        info = self.info[compound]
+        return info["IdentUses"][info["stmtIndexes"][stmt]]
     
     def get_definitions_at_stmt(self, stmt: Node, compound: Compound = None):
-        pass
+        # Get containing scope (compound)
+        if compound is None:
+            compound = self.get_stmt_compound(stmt)
+        # Generate the stack path of scopes back to the program root (FileAST)
+        scope_path = [compound]
+        while compound is not None:
+            compound = self.info[compound]["parent"]
+            scope_path.append(compound)
+        # Compute definitions for each scope up to the statement, and find their union
+        if len(scope_path) == 1:
+            return self.get_scope_definitions(scope_path[0], None, stmt)
+        definitions = set()
+        for i, scope in [s for s in enumerate(scope_path)][-1:0:-1]:
+            child = scope_path[i-1]
+            compound_stmt = None
+            for c in self.info[scope]["children"]:
+                if c[0] == child:
+                    compound_stmt = c[1]
+                    break
+            scope_defs = self.get_scope_definitions(scope, None, compound_stmt)
+            definitions = definitions.union(scope_defs)
+        # Handle last scope (current scope)
+        scope_defs = self.get_scope_definitions(scope_path[0], None, stmt)
+        definitions = definitions.union(scope_defs)
+        return definitions
     
-    def get_usage_at_stmt(self, stmt: Node, compound: Compound = None):
-        pass
+    def get_usage_from_stmt(self, stmt: Node, compound: Compound = None):
+        if compound is None:
+            compound = self.get_stmt_compound(stmt)
+        return self.get_nested_scope_usage(compound, stmt, None)
     
     def is_stmt(self, stmt_node) -> bool:
         info = self.info[self.processing_stack[-1]]
         return stmt_node in info["stmtIndexes"]
+    
+    def get_stmt(self, ast_node):
+        return self.parent_statement[ast_node]
     
     def record_stmt(self, stmt_node):
         node = self.processing_stack[-1]
@@ -119,6 +200,7 @@ class VariableUseAnalyzer(NodeVisitor):
         info["stmtIndexes"][stmt_node] = index
         info["IdentUses"][index] = set()
         info["IdentDefs"][index] = set()
+        self.parent_block[stmt_node] = node
     
     def record_ident_usage(self, name, kind):
         if self.current_structure is not None:
@@ -143,6 +225,7 @@ class VariableUseAnalyzer(NodeVisitor):
     def visit_FileAST(self, node):
         self.processing_stack.append(None)
         self.info[None] = {
+            "parent": None,
             "children": [],
             "currentStmt": None,
             "currentIndex": 0,
@@ -156,11 +239,15 @@ class VariableUseAnalyzer(NodeVisitor):
         self.processing_stack = self.processing_stack[:-1]
     
     def visit_Compound(self, node, params=None):
+        if self.is_stmt(node): # TODO check and test with this added
+            self.info[self.processing_stack[-1]]["currentStmt"] = node
         # Record the Compound Statement in the scope tree if necessary
-        self.info[self.processing_stack[-1]]["children"].append(node)
+        parent = self.processing_stack[-1]
+        currentStmt = self.info[parent]["currentStmt"]
+        self.info[parent]["children"].append((node, currentStmt))
         # Initialise information tracking about the block, and add to the processing stack.
-        self.processing_stack.append(node)
         self.info[node] = {
+            "parent": self.processing_stack[-1],
             "children": [],
             "currentStmt": None,
             "currentIndex": 0,
@@ -168,6 +255,7 @@ class VariableUseAnalyzer(NodeVisitor):
             "IdentUses": {},
             "IdentDefs": {},
         }
+        self.processing_stack.append(node)
         # Record parameters if any given
         if params is not None:
             self.record_stmt(params)
@@ -186,7 +274,7 @@ class VariableUseAnalyzer(NodeVisitor):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
         # First we log information about the function as a statement
         if node.decl is not None and node.decl.name is not None:
-            self.record_ident_def(node.decl.name, self.TypeKinds.NONSTRUCTURE)
+            self.record_ident_def(node.decl.name, TypeKinds.NONSTRUCTURE)
         # Next we log information for the function and its block.
         temp = self.current_function
         if node.body is not None:
@@ -197,6 +285,9 @@ class VariableUseAnalyzer(NodeVisitor):
         """# Finally, we continue walking the tree as normal
         if node.decl is not None:
             self.visit(node.decl)"""
+        self.parent_statement[node.decl] = self.info[self.processing_stack[-1]]["currentStmt"]
+        self.parent_statement[node.decl.type] = self.info[self.processing_stack[-1]]["currentStmt"]
+        self.parent_statement[node.decl.type.args] = self.info[self.processing_stack[-1]]["currentStmt"]
         # TODO can we just ignore walking the tree like I do above?
         # TODO should I make the compound run the entire decl instead of just the params? idk
         self.current_function = temp
@@ -206,33 +297,33 @@ class VariableUseAnalyzer(NodeVisitor):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
         if node.name is not None:
             self.typedefs.add(node.name)
-            self.record_ident_def(node.name, self.TypeKinds.NONSTRUCTURE)
+            self.record_ident_def(node.name, TypeKinds.NONSTRUCTURE)
         NodeVisitor.generic_visit(self, node)
     
     def visit_Enumerator(self, node):
         if node.name is not None:
-            self.record_ident_def(node.name, self.TypeKinds.NONSTRUCTURE)
+            self.record_ident_def(node.name, TypeKinds.NONSTRUCTURE)
         NodeVisitor.generic_visit(self, node)
     
     def visit_Decl(self, node): # Handle variable and function definitions
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
         if node.name is not None and (node.type is None or not isinstance(node.type, FuncDecl)): # Don't re-add funcdefs
-            self.record_ident_def(node.name, self.TypeKinds.NONSTRUCTURE)
+            self.record_ident_def(node.name, TypeKinds.NONSTRUCTURE)
         if node.name is None and node.type is not None and isinstance(node.type, (Enum, Struct, Union,)):
-            self.record_ident_def(node.type.name, self.TypeKinds.STRUCTURE)
+            self.record_ident_def(node.type.name, TypeKinds.STRUCTURE)
         if node.name is not None and node.type is not None and node.type.type is not None and \
             isinstance(node.type.type, (Enum, Struct, Union,)):
-                self.record_ident_usage(node.type.type.name, self.TypeKinds.STRUCTURE)
+                self.record_ident_usage(node.type.type.name, TypeKinds.STRUCTURE)
         if node.name is not None and node.type is not None and node.type.type is not None and \
             isinstance(node.type.type, Struct) and node.init is not None and isinstance(node.init, InitList) \
             and node.init.exprs is not None:
                 temp = self.current_structure
                 for expr in node.init.exprs:
-                    name = ".".join([n.name for n in expr.name])
-                    self.current_structure = (expr, node.type.type.name)
                     if isinstance(expr, NamedInitializer):
-                        self.record_ident_usage(name, self.TypeKinds.NONSTRUCTURE)
+                        name = ".".join([n.name for n in expr.name])
+                        self.current_structure = (expr, node.type.type.name)
+                        self.record_ident_usage(name, TypeKinds.NONSTRUCTURE)
                 self.current_structure = temp
         NodeVisitor.generic_visit(self, node)
     
@@ -252,14 +343,14 @@ class VariableUseAnalyzer(NodeVisitor):
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
         if node.name is not None:
-            self.record_ident_def(node.name, self.TypeKinds.LABEL)
+            self.record_ident_def(node.name, TypeKinds.LABEL)
         NodeVisitor.generic_visit(self, node)
     
     def visit_ID(self, node): 
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
         if node.name is not None:
-            self.record_ident_usage(node.name, self.TypeKinds.NONSTRUCTURE)
+            self.record_ident_usage(node.name, TypeKinds.NONSTRUCTURE)
         NodeVisitor.generic_visit(self, node)
     
     def visit_IdentifierType(self, node):
@@ -267,7 +358,7 @@ class VariableUseAnalyzer(NodeVisitor):
         if node.names is not None:
             for name in node.names:
                 if name in self.typedefs:
-                    self.record_ident_usage(name, self.TypeKinds.NONSTRUCTURE)
+                    self.record_ident_usage(name, TypeKinds.NONSTRUCTURE)
         NodeVisitor.generic_visit(self, node)
     
     def visit_StructRef(self, node):
@@ -282,7 +373,7 @@ class VariableUseAnalyzer(NodeVisitor):
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
         if node.name is not None:
-            self.record_ident_usage(node.name, self.TypeKinds.LABEL)
+            self.record_ident_usage(node.name, TypeKinds.LABEL)
         NodeVisitor.generic_visit(self, node)
     
     def visit_NamedInitializer(self, node):
@@ -294,6 +385,8 @@ class VariableUseAnalyzer(NodeVisitor):
     def generic_visit(self, node):
         if self.is_stmt(node): # TODO this is double-checked in some cases - see if I can avoid (maybe replace generic_visit in specified functions?)
             self.info[self.processing_stack[-1]]["currentStmt"] = node
+        # Record the statement the node is related to
+        self.parent_statement[node] = self.info[self.processing_stack[-1]]["currentStmt"]
         NodeVisitor.generic_visit(self, node)
 
 

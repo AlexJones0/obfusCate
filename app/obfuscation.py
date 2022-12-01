@@ -4,11 +4,12 @@ import random
 from typing import Iterable, Optional
 from ctypes import Union
 from .io import CSource, menu_driven_option, get_float, get_int
-from .utils import VariableUseAnalyzer # TODO remove if not used
+from .utils import VariableUseAnalyzer, TypeKinds # TODO remove if not used
 from abc import ABC, abstractmethod
 from pycparser.c_ast import NodeVisitor, PtrDecl, ArrayDecl, InitList, Constant, \
     CompoundLiteral, Typename, TypeDecl, IdentifierType, BinaryOp, ID, StructRef, \
-    Cast, FuncCall, ArrayRef, UnaryOp, BinaryOp, FuncDecl
+    Cast, FuncCall, ArrayRef, UnaryOp, BinaryOp, FuncDecl, ParamList, Decl, TypeDecl, \
+    IdentifierType, EllipsisParam
 from pycparser import c_generator, c_lexer
 from random import choices as randchoice, randint
 from string import ascii_letters, digits as ascii_digits
@@ -108,7 +109,16 @@ class Pipeline:
             source = t.transform(source)
             if source is None:
                 break
+        # TODO remove - this is temporary
+        analyzer = VariableUseAnalyzer(source.t_unit)
+        analyzer.process()
+        #abcd = analyzer.get_definitions_at_stmt(source.t_unit.ext[-2].body.block_items[0].iffalse.iffalse.block_items[1])
+        #efgh = analyzer.get_usage_from_stmt(source.t_unit.ext[-2].body.block_items[0].iffalse.iffalse.block_items[2])
+        #needed = abcd.intersection(efgh)
         return source
+
+# TODO have had a bug in pipeline where transform was added at end in spite of cursor position?
+# TODO re-order transformations to put them in the recommended order
 
 
 class IdentityUnit(ObfuscationUnit):
@@ -154,6 +164,134 @@ class IdentityUnit(ObfuscationUnit):
     def __str__(self):
         return "Identity()"
 
+class NEWIdentifierTraverser(NodeVisitor): # TODO not finished yet, maybe extend the analyzer instead? Could be easier?
+    # TODO basically just struggling because I need a way to tell the kind of an identifier - as in the analyzer logic.
+    """Traverses the program AST looking for non-external identifiers (except main),
+    transforming them to some random scrambled identifier."""
+    
+    class Style(Enum):
+        COMPLETE_RANDOM  = "Complete Randomness"
+        ONLY_UNDERSCORES = "Only underscores" # TODO will this break anything?
+        MINIMAL_LENGTH   = "Minimal length"
+    
+    def __init__(self, style: Style, minimiseIdents: bool):
+        self.idents = {("main", TypeKinds.NONSTRUCTURE): "main",}
+        self._new_idents = set()
+        self.in_use_idents = []
+        self._scopes = list()
+        self.style = style
+        self.minimiseIdents = minimiseIdents
+        self.analyzer = VariableUseAnalyzer() # TODO add input
+    
+    def get_new_ident(self, ident, kind, node):
+        if self.minimiseIdents:
+            # If minimising idents, try and find an existing ident that is not in use any more
+            # (i.e. it can be shadowed). Find the earliest-defined such identifier, and reassign
+            # its new value to be the current identifier's mapping
+            stmt = self.analyzer.get_stmt(node)
+            still_needed = self.analyzer.get_usage_from_stmt(stmt)
+            for i, using in enumerate(self.in_use_idents):
+                if using not in still_needed:
+                    self.idents[(ident, kind)] = self.idents[using]
+                    self.in_use_idents = self.in_use_idents[:i] + self.in_use_idents[(i+1):]
+                    self.in_use_idents.append((ident, kind))
+                    return self.idents[using]
+        new_ident = ""
+        while len(new_ident) == 0 or new_ident in self._new_idents:
+            if self.style == self.Style.COMPLETE_RANDOM:
+                size_ = randint(4, 19)
+                new_ident = randchoice(ascii_letters)[0]
+                new_ident += "".join(
+                    randchoice(ascii_letters + ascii_digits + "_" * 6, k=size_)
+                )
+            elif self.style == self.Style.ONLY_UNDERSCORES:
+                new_ident = "_" * (len(self._new_idents) + 1)
+            elif self.style == self.Style.MINIMAL_LENGTH:
+                cur_num = len(self._new_idents) + 1
+                #choices = "_" + ascii_letters + ascii_digits
+                choices = ascii_letters
+                new_ident = ""
+                #new_ident += choices[cur_num // len(ascii_digits)]
+                while cur_num >= 0:
+                    new_ident += choices[cur_num % len(choices)]
+                    cur_num = cur_num // len(choices)
+                    if cur_num == 0:
+                        break
+        self._new_idents.add(new_ident)
+        self.idents[(ident, kind)] = new_ident
+        self.in_use_idents.append((ident, kind))
+        return new_ident
+            
+    def visit_FileAST(self, node):
+        self.analyzer.input(node)
+        self.analyzer.process()
+        NodeVisitor.generic_visit(node)
+
+    # Haven't updated code below this point yet
+
+    def visit_Decl(self, node):
+        self.scramble_ident(node)
+        NodeVisitor.generic_visit(self, node)
+
+    def visit_Union(self, node):
+        self.scramble_ident(node)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_Enum(self, node):
+        self.scramble_ident(node)
+        NodeVisitor.generic_visit(self, node)
+        self._in_scope.remove(node.name)
+    
+    def visit_Enumerator(self, node):
+        self.scramble_ident(node)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_Label(self, node):
+        self.scramble_ident(node)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_Goto(self, node):
+        self.scramble_ident(node)
+        NodeVisitor.generic_visit(self, node)
+
+    def visit_TypeDecl(self, node):
+        if node.declname is not None:
+            if node.declname not in self.idents:
+                self.get_new_ident(node.declname)
+            node.declname = self.idents[node.declname]
+            self._scopes[-1].add(node.declname)
+        NodeVisitor.generic_visit(self, node)
+
+    def visit_ID(self, node):
+        if node.name in self.idents:
+            node.name = self.idents[node.name]
+        NodeVisitor.generic_visit(self, node)
+
+    def visit_FuncCall(self, node):
+        if node.name in self.idents:
+            node.name = self.idents[node.name]
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_IdentifierType(self, node):
+        for i, name in enumerate(node.names):
+            if name in self.idents:
+                node.names[i] = self.idents[name]
+        NodeVisitor.generic_visit(self, node)
+        
+    def visit_Pragma(self, node): # TODO maybe warn on pragma?
+        # TODO something's not working with pragmas because of how pycparser handles them!
+        import debug
+        debug.print_error("Error: cannot currently handle pragmas!")
+        debug.log("Could not continue obfuscation because the obfuscator cannot handle pragmas!")
+        exit()
+    
+    def visit_StaticAssert(self, node): # TODO what's breaking here?
+        import debug
+        debug.print_error("Error: cannot currently handle static assertions!")
+        debug.log("Could not continue obfuscation because the obfuscator cannot handle static asserts!")
+        exit()
+        
+
 class IdentifierTraverser(NodeVisitor):
     """Traverses the program AST looking for non-external identifiers (except main),
     transforming them to some random scrambled identifier."""
@@ -170,7 +308,7 @@ class IdentifierTraverser(NodeVisitor):
         self.style = style
         self.minimiseIdents = minimiseIdents
 
-    def get_new_ident(self, ident):
+    def get_new_ident(self, ident): # TODO could add an option for variable reuse as well using liveness?
         if self.minimiseIdents: # TODO THIS OPTION IS VERY BROKE BUT COMPLEX SO JUST LEAVE IT FOR NOW?
             for new_ident in self._new_idents:
                 in_scope = False # TODO maintain a list of unused idents - will be cleaner and cheaper
@@ -727,7 +865,11 @@ class IntegerEncodeTraverser(NodeVisitor):
             if isinstance(child[1], Constant) and child[1].type == "int":
                 new_child = self.encode_int(child[1])
                 if new_child is not None:
-                    setattr(node, child[0], new_child)  # TODO clean up earlier code to be like this?
+                    parts = [p[:-1] if p[-1] == "]" else p for p in child[0].split("[")]
+                    if len(parts) == 1: # TODO this will be broke wherever else I did this also
+                        setattr(node, child[0], new_child)
+                    else:
+                        getattr(node, parts[0])[int(parts[1])] = new_child
         NodeVisitor.generic_visit(self, node)
 
 
@@ -975,54 +1117,116 @@ class ArithmeticEncodeUnit(ObfuscationUnit):
 
     def __str__(self) -> str:
         level_flag = f"depth={self.level}"
-        return f"IntegerEncode({level_flag})" # TODO finish/fix this method
+        return f"ArithmeticEncode({level_flag})" # TODO finish/fix this method
 
 
 class FuncArgRandomiserTraverser(NodeVisitor):
     """ TODO """
     
+    # TODO add signed types in the future as well
+    types = {
+        'short': lambda: Constant('short', str(random.randint(-32767, 32767))), 
+        'int': lambda: Constant('int', str(random.randint(-32767, 32767))), 
+        'long': lambda: Constant('long', str(random.randint(-2147483647, 2147483647))), 
+        'long long': lambda: Constant('long long', str(random.randint(-9223372036854775807, 9223372036854775807))), 
+        'char': lambda: Constant('char', f"\'{random.choice(ascii_letters + ascii_digits)}\'"),
+        'char *': lambda: Constant('string', "\"{}\"".format(''.join(random.choices(ascii_letters + ascii_digits + " ", \
+                                                            k=random.randint(0, 50))))),   # TODO better random strings? 
+        '_Bool': lambda: Constant('_Bool', str(random.choice([1,0]))), 
+        'float': lambda: Constant('float', str(round(random.uniform(-10000000000,10000000000), 4))), 
+        'double': lambda: Constant('double', str(round(random.uniform(-10000000000000,10000000000000), 6))),
+    }
+    
     def __init__(self, extra: int):
         self.extra = extra
         self.func_args = dict()
         self.walk_num = 1
+        self.analyzer = VariableUseAnalyzer()
     
-    def get_extra_args(self, args): 
-        # TODO need some variable name reachability/liveness analysis to avoid shadowing a name outside of 
-        # scope
+    def get_extra_args(self, idents): 
         extra_args = []
         basename = "extra"
         count = 0
         for i in range(self.extra):
             argname = basename + str(count)
             count += 1
-            while argname in args:
-                pass
+            while argname in idents:
+                argname = basename + str(count)
+                count += 1
+            argtype = IdentifierType([random.choice(list(self.types.keys()))])
+            typedecl = TypeDecl(argname, [], None, argtype)
+            # TODO support for pointer arguments in the future?
+            #rand = random.random()
+            #if rand < 0.4:
+            #    typedecl = PtrDecl([], typedecl)
+            #    if random < 0.075:
+            #        typedecl = PtrDecl([], typedecl)
+            arg = Decl(argname, [], [], [], [], typedecl, None, None, None)
+            extra_args.append(arg)
+        return extra_args
     
-    def visit_FuncDecl(self, node):
-        # TODO check if a function prototype - edit if so, not otherwise
-        if self.walk_num == 1:
-            fname = node.type.name
-            if fname not in self.func_args:
-                if node.args is None or len(node.args) == 0:
-                    extra_args = []
-                    #for i in range # TODO do this
-                    self.func_args[fname] = None 
-                    # Create a new ParamList, generate extra args, and store
-                elif node.args[0].type.type.names[0] == "void":
-                    self.func_args[fname] = node.args
+    def visit_FuncDecl(self, node): # TODO does this need to be FuncDef instead?
+        if self.walk_num != 1:
+            return NodeVisitor.generic_visit(self, node)
+        stmt = self.analyzer.get_stmt(node)
+        defined_idents = self.analyzer.get_definitions_at_stmt(stmt) # TODO - definitions at or used from? Which is correct?
+        defined_idents = [ident[0] for ident in defined_idents]
+        fname = node.type.declname
+        if fname not in self.func_args:
+            if node.args is None or node.args.params is None or len(node.args.params) == 0:
+                # For empty functions, create a new ParamList, generate random extra args, and store
+                extra_args = self.get_extra_args(defined_idents)
+                node.args = ParamList(extra_args)
+                self.func_args[fname] = (node.args, dict())
+            elif node.args.params[0].type.type.names[0] == "void":
+                # Don't change anything for void functions
+                self.func_args[fname] = (node.args, dict())
+            else:
+                # For non-empty functions, generate random extra args, randomise order, and store
+                args = [arg.name for arg in node.args.params if not isinstance(arg, EllipsisParam)]
+                extra_args = self.get_extra_args(defined_idents + args)
+                before_change = node.args.params.copy()
+                if isinstance(node.args.params[-1], EllipsisParam):
+                    node.args.params = node.args.params[:-1] + extra_args
+                    random.shuffle(node.args.params)
+                    node.args.params.append(node.args.params[-1])
                 else:
-                    self.func_args[fname] = None
-                    # generate extra args, add to existing ParamList, randomise and store
-                    # make sure to take care for EllipsisParam (variadic functions)
-                
-                self.func_args[node.name] = "TODO"
-                print(node.type.type)
+                    node.args.params += extra_args
+                    random.shuffle(node.args.params)
+                mapping = {}
+                for i, arg in enumerate(before_change):
+                    mapping[i] = node.args.params.index(arg)
+                self.func_args[fname] = (node.args, mapping)
+        else:
+            node.args = self.func_args[fname][0]
         NodeVisitor.generic_visit(self, node)
     
+    def get_random_val(self, node): # TODO currently only supports a constant option - should be option to only randomise
+        # using variables in the program, wherever possible - very sick idea!
+        return self.types[node.type.type.names[0]]()
+    
     def visit_FuncCall(self, node):
-        # TODO edit
-        if self.walk_num > 1:
-            pass
+        fname = node.name.name
+        if self.walk_num == 1 or fname not in self.func_args or node.args is None:
+            return NodeVisitor.generic_visit(self, node)
+        new_args, mapping = self.func_args[fname]
+        if new_args.params[0].type.type.names[0] == "void":
+            return NodeVisitor.generic_visit(self, node)
+        call_args = [None] * len(new_args.params)
+        for before, after in mapping.items():
+            call_args[after] = node.args.exprs[before]
+        for i, arg in enumerate(call_args):
+            if arg is not None:
+                continue
+            call_args[i] = self.get_random_val(new_args.params[i])
+        node.args.exprs = call_args
+        NodeVisitor.generic_visit(self, node)
+        
+    def visit_FileAST(self, node):
+        self.analyzer.input(node)
+        self.analyzer.process()
+        NodeVisitor.generic_visit(self, node)
+        self.walk_num += 1
         NodeVisitor.generic_visit(self, node)
 
 

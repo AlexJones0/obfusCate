@@ -21,3 +21,7 @@ int main() {
         printf("%d: %d\n", i + 1, fib(i));
     }
 }
+
+int f(int a, float* b, int **c) {
+    ;
+}
