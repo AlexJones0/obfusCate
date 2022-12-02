@@ -225,9 +225,9 @@ class VariableUseAnalyzer(NodeVisitor):
     def record_ident_def(self, node, attr, kind, altname=None):
         name = altname if altname is not None else getattr(node, attr)
         if node in self.idents:
-            self.idents[node].append((attr, kind))
+            self.idents[node].append((attr, kind, self.current_structure))
         else:
-            self.idents[node] = [(attr, kind)]
+            self.idents[node] = [(attr, kind, self.current_structure)]
         if self.current_structure is not None:
             if self.current_structure.name is not None:
                 name = self.current_structure.name + "." + name
@@ -333,13 +333,23 @@ class VariableUseAnalyzer(NodeVisitor):
                     self.idents[node] = [('name', TypeKinds.NONSTRUCTURE)]
             else: # Regular parameter/function definition
                 self.record_ident_def(node, 'name', TypeKinds.NONSTRUCTURE)
-        if node.name is None and node.type is not None and isinstance(node.type, (Enum, Struct, Union,)):
-            self.record_ident_def(node.type, 'name', TypeKinds.STRUCTURE)
-        if node.name is not None and node.type is not None and node.type.type is not None:
-            if isinstance(node.type.type, Enum) and node.type.type.values is None or \
-               isinstance(node.type.type, (Struct, Union,)) and node.type.type.decls is None:
-                # TODO technically generating in wrong order - should visit _then_ record ident?
-                self.record_ident_usage(node.type.type, 'name', TypeKinds.STRUCTURE)
+        # TODO coalesce the below two if statements into one simple conditional?
+        #      why does the second conditional need a name? does it? prob not?
+        types = []
+        if node.type is not None:
+            types.append(node.type) # Consider enum/struct/union declarations
+            if hasattr(node.type, 'type') and node.type.type is not None:
+                types.append(node.type.type) # Consider enum/struct/union usages (which may also be declarations)
+        for i, type_ in enumerate(types):
+            if isinstance(type_, (Enum, Struct, Union,)):
+                if isinstance(type_, Enum) and type_.values is not None or \
+                   isinstance(type_, (Struct, Union,)) and type_.decls is not None:
+                    # Record enum/struct/union definition
+                    self.record_ident_def(type_, 'name', TypeKinds.STRUCTURE)
+                    if i == 1: # Consider edge case where declaring and using at the same time
+                        self.record_ident_usage(type_, 'name', TypeKinds.STRUCTURE)
+                else: # Record enum/struct/union usage
+                    self.record_ident_usage(type_, 'name', TypeKinds.STRUCTURE)                
         if node.name is not None and node.type is not None and node.type.type is not None and \
             isinstance(node.type.type, Struct) and node.init is not None and isinstance(node.init, InitList) \
             and node.init.exprs is not None:
@@ -364,7 +374,6 @@ class VariableUseAnalyzer(NodeVisitor):
         else:
             NodeVisitor.generic_visit(self, node)
         
-    
     def visit_Union(self, node):
         temp = self.current_structure
         self.current_structure = node

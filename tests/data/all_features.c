@@ -20,6 +20,9 @@ union ImportantData {
     _Bool thing4;
 } data; // Union 
 
+union test1del { int thing1; };
+enum test2del{X,Y,Z} test3del;
+
 dims do_something(dims x, float y, short *z);
 int do_something2();
 int do_something3(void);
