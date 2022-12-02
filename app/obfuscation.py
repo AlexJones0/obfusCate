@@ -266,9 +266,14 @@ class FuncArgRandomiserTraverser(NodeVisitor):
         first_arg = new_args.params[0].type.type
         if isinstance(first_arg, IdentifierType) and first_arg.names[0] == "void":
             return NodeVisitor.generic_visit(self, node)
-        call_args = [None] * len(new_args.params)
-        for before, after in mapping.items(): # TODO make work with variadic functions.
-            call_args[after] = node.args.exprs[before]
+        call_args = [None] * (len(node.args.exprs) + self.extra)
+        for before, after in mapping.items():
+            if after == -1: # Ellipsis Param (variadic function)
+                for i in range(len(node.args.exprs)-1, before-1, -1):
+                    call_args[after] = node.args.exprs[i]
+                    after -= 1
+            else:
+                call_args[after] = node.args.exprs[before]
         for i, arg in enumerate(call_args):
             if arg is not None:
                 continue
