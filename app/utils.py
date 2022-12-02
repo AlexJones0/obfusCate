@@ -228,8 +228,11 @@ class VariableUseAnalyzer(NodeVisitor):
             self.idents[node].append((attr, kind))
         else:
             self.idents[node] = [(attr, kind)]
-        if self.current_structure is not None and self.current_structure.name is not None:
-            name = self.current_structure.name + "." + name
+        if self.current_structure is not None:
+            if self.current_structure.name is not None:
+                name = self.current_structure.name + "." + name
+            else: # Using an anonymous (no-name) struct/union, so don't record variables
+                return
         info = self.info[self.processing_stack[-1]]
         index = info["stmtIndexes"][info["currentStmt"]]
         info["IdentDefs"][index].add((name, kind))

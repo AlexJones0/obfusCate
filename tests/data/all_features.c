@@ -38,6 +38,7 @@ int f(int n, float m) { // Function Declaration + Parameters
     enum day{Monday, Tuesday, Wednesday, Thursday, Friday=100, Saturday, Sunday}; // Enum
     enum day today = Friday; // Enum reference
     Thing acct = {.idNum = 4596, .username = "JohnDoe92"}; // Named initializer, Struct Ref (?)
+    acct.username[0] = 'j';
     struct mything {int first; float second;};
     struct mything yes = {1, 2.0};
     typedef int mything;
