@@ -20,7 +20,7 @@ union ImportantData {
     _Bool thing4;
 } data; // Union 
 
-int do_something(int x, float y, short *z);
+dims do_something(dims x, float y, short *z);
 int do_something2();
 int do_something3(void);
 int do_something4(int x, ...) {}

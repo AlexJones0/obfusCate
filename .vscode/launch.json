@@ -9,7 +9,7 @@
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/obf_cli.py",
-            "args": ["./tests/data/fibonacci_recursive.c", "./out/obfs.c"],
+            "args": ["./tests/data/all_features.c", "./out/obfs.c"],
             "console": "integratedTerminal",
             "justMyCode": true
         }

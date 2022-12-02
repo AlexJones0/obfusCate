@@ -15,6 +15,8 @@ import enum
 from math import sqrt, floor
 
 # TODO remove unnecesary imports when done
+# TODO a lot of ident parsing is done in the wrong order through the AST, which will 
+# give random stuff in the wrong order - not a huge deal but would be nice to fix
 
 class TypeKinds(enum.Enum): # Could also call tags?
     STRUCTURE = 0
@@ -279,33 +281,30 @@ class VariableUseAnalyzer(NodeVisitor):
         # Pop the compound from the processing stack
         self.processing_stack = self.processing_stack[:-1]
     
+    def visit_FuncDecl(self, node):
+        # Visit all children as normal except for the parameter list, as this will be 
+        # walked by the body to record the parameters inside the compound.
+        for child in node.children():
+            if child[0] != 'args' or self.current_function is None:
+                self.visit(child[1])
+    
     def visit_FuncDef(self, node):
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
-        # First we log information about the function as a statement
-        if node.decl is not None and node.decl.name is not None:
-            self.record_ident_def(node.decl, 'name', TypeKinds.NONSTRUCTURE)
         # Next we log information for the function and its block.
         temp = self.current_function
         if node.body is not None:
             self.functions.add(node)
             self.current_function = node
         # Then we augment the following compound with parameter definitions
+        for child in node.children():
+            if child[0] != 'body':
+                self.visit(child[1])
         self.visit_Compound(node.body, params=node.decl.type.args)
-        """# Finally, we continue walking the tree as normal
-        if node.decl is not None:
-            self.visit(node.decl)"""
-        # TODO check issues related to not walking the tree here - e.g. using an alised type as a function type - think this will break
-        # Also what about function pointer types?
-        self.parent_statement[node] = self.info[self.processing_stack[-1]]["currentStmt"] # TODO do this better?
-        self.parent_statement[node.decl] = self.info[self.processing_stack[-1]]["currentStmt"]
-        self.parent_statement[node.decl.type] = self.info[self.processing_stack[-1]]["currentStmt"]
-        self.parent_statement[node.decl.type.args] = self.info[self.processing_stack[-1]]["currentStmt"]
-        # TODO can we just ignore walking the tree like I do above?
-        # TODO should I make the compound run the entire decl instead of just the params? idk
         self.current_function = temp
     
     def visit_Typedef(self, node):
+        # TODO technically generating in wrong order - should visit _then_ record ident?
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
         if node.name is not None:
@@ -321,12 +320,21 @@ class VariableUseAnalyzer(NodeVisitor):
     def visit_Decl(self, node): # Handle variable and function definitions
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
-        if node.name is not None and (node.type is None or not isinstance(node.type, FuncDecl)): # Don't re-add funcdefs
-            self.record_ident_def(node, 'name', TypeKinds.NONSTRUCTURE)
+        if node.name is not None: # TODO changed this to add FuncDef's here, check it is still right
+            # TODO technically generating in wrong order - should visit _then_ record ident?
+            if self.current_function == "IGNORE":
+                # Parameter in function prototype - record instance but not definition
+                if node in self.idents:
+                    self.idents[node].append(('name', TypeKinds.NONSTRUCTURE))
+                else:
+                    self.idents[node] = [('name', TypeKinds.NONSTRUCTURE)]
+            else: # Regular parameter/function definition
+                self.record_ident_def(node, 'name', TypeKinds.NONSTRUCTURE)
         if node.name is None and node.type is not None and isinstance(node.type, (Enum, Struct, Union,)):
             self.record_ident_def(node.type, 'name', TypeKinds.STRUCTURE)
         if node.name is not None and node.type is not None and node.type.type is not None and \
             isinstance(node.type.type, (Enum, Struct, Union,)):
+                # TODO technically generating in wrong order - should visit _then_ record ident?
                 self.record_ident_usage(node.type.type, 'name', TypeKinds.STRUCTURE)
         if node.name is not None and node.type is not None and node.type.type is not None and \
             isinstance(node.type.type, Struct) and node.init is not None and isinstance(node.init, InitList) \
@@ -339,6 +347,19 @@ class VariableUseAnalyzer(NodeVisitor):
                         self.record_ident_usage(expr, 'name', TypeKinds.NONSTRUCTURE, altname=name)
                 self.current_structure = temp
         NodeVisitor.generic_visit(self, node)
+    
+    def visit_ParamList(self, node):
+        if self.current_function is None:
+            # If parsing parameters but not in a function (i.e. just parsing a function
+            # prototype), then record ident instances but don't note them as definitions
+            # as there is no body for them to be defined in.
+            temp = self.current_function
+            self.current_function = "IGNORE"
+            NodeVisitor.generic_visit(self, node)
+            self.current_function = temp
+        else:
+            NodeVisitor.generic_visit(self, node)
+        
     
     def visit_Union(self, node):
         temp = self.current_structure
