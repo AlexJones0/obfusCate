@@ -10,6 +10,9 @@ from .obfuscation import *
 from app import settings as config
 
 
+# TODO add and update args
+# TODO add approrpiate log instructiosn throughout code
+# TODO add args for loading and saving recipes?
 def help_menu() -> None:  # TODO change from 'python cli' to actual name
     """Prints the help menu detailing usage of the CLI command interface."""
     hstr = """################ CLI Help Manual ################
@@ -191,6 +194,8 @@ def handle_CLI() -> bool:
     if source.contents is None or not source.valid_parse:
         return False
     obfuscated = get_transformations(source, config.SEED)
+    if obfuscated is None:
+        return False
     
     # Handle obfuscation interface
     if len(args) == 1:  # 1 argument - take as input source file, and print output
