@@ -211,45 +211,47 @@ class FuncArgRandomiserTraverser(NodeVisitor):
             extra_args.append(arg)
         return extra_args
     
-    def visit_FuncDecl(self, node): # TODO does this need to be FuncDef instead?
+    def visit_FuncDef(self, node):
         if self.walk_num != 1:
             return NodeVisitor.generic_visit(self, node)
-        stmt = self.analyzer.get_stmt(node)
-        defined_idents = self.analyzer.get_definitions_at_stmt(stmt) # TODO - definitions at or used from? Which is correct?
+        defined_idents = self.analyzer.get_definitions_at_stmt(node) # TODO - definitions at or used from? Which is correct?
         defined_idents = [ident[0] for ident in defined_idents]
-        fname = node.type.declname
+        fname = node.decl.name
+        if fname == "main":
+            return NodeVisitor.generic_visit(self, node)
+        fdecl = node.decl.type
         if fname not in self.func_args:
-            if node.args is None or node.args.params is None or len(node.args.params) == 0:
+            if fdecl.args is None or fdecl.args.params is None or len(fdecl.args.params) == 0:
                 # For empty functions, create a new ParamList, generate random extra args, and store
                 extra_args = self.get_extra_args(defined_idents)
-                node.args = ParamList(extra_args)
-                self.func_args[fname] = (node.args, dict())
-            elif isinstance(node.args.params[0], Typename) and node.args.params[0].type.type.names[0] == "void":
+                fdecl.args = ParamList(extra_args)
+                self.func_args[fname] = (fdecl.args, dict())
+            elif isinstance(fdecl.args.params[0], Typename) and fdecl.args.params[0].type.type.names[0] == "void":
                 # TODO check AST for this - might be easier with Typename?
                 # Don't change anything for void functions
-                self.func_args[fname] = (node.args, dict())
+                self.func_args[fname] = (fdecl.args, dict())
             else:
                 # For non-empty functions, generate random extra args, randomise order, and store
-                args = [arg.name for arg in node.args.params if not isinstance(arg, EllipsisParam)]
+                args = [arg.name for arg in fdecl.args.params if not isinstance(arg, EllipsisParam)]
                 extra_args = self.get_extra_args(defined_idents + args)
-                before_change = node.args.params.copy()
-                if isinstance(node.args.params[-1], EllipsisParam):
-                    ellipsis_arg = node.args.params[-1]
-                    node.args.params = node.args.params[:-1] + extra_args
-                    random.shuffle(node.args.params)
-                    node.args.params.append(ellipsis_arg)
+                before_change = fdecl.args.params.copy()
+                if isinstance(fdecl.args.params[-1], EllipsisParam):
+                    ellipsis_arg = fdecl.args.params[-1]
+                    fdecl.args.params = fdecl.args.params[:-1] + extra_args
+                    random.shuffle(fdecl.args.params)
+                    fdecl.args.params.append(ellipsis_arg)
                 else:
-                    node.args.params += extra_args
-                    random.shuffle(node.args.params)
+                    fdecl.args.params += extra_args
+                    random.shuffle(fdecl.args.params)
                 mapping = {}
                 for i, arg in enumerate(before_change):
                     if isinstance(arg, EllipsisParam): # TODO currently broken on variadic functions
                         mapping[i] = -1
                     else:
-                        mapping[i] = node.args.params.index(arg)
-                self.func_args[fname] = (node.args, mapping)
+                        mapping[i] = fdecl.args.params.index(arg)
+                self.func_args[fname] = (fdecl.args, mapping)
         else:
-            node.args = self.func_args[fname][0]
+            fdecl.args = self.func_args[fname][0]
         NodeVisitor.generic_visit(self, node)
     
     def get_random_val(self, node): # TODO currently only supports a constant option - should be option to only randomise
@@ -261,10 +263,11 @@ class FuncArgRandomiserTraverser(NodeVisitor):
         if self.walk_num == 1 or fname not in self.func_args or node.args is None:
             return NodeVisitor.generic_visit(self, node)
         new_args, mapping = self.func_args[fname]
-        if new_args.params[0].type.type.names[0] == "void":
+        first_arg = new_args.params[0].type.type
+        if isinstance(first_arg, IdentifierType) and first_arg.names[0] == "void":
             return NodeVisitor.generic_visit(self, node)
         call_args = [None] * len(new_args.params)
-        for before, after in mapping.items():
+        for before, after in mapping.items(): # TODO make work with variadic functions.
             call_args[after] = node.args.exprs[before]
         for i, arg in enumerate(call_args):
             if arg is not None:

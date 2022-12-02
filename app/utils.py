@@ -295,6 +295,9 @@ class VariableUseAnalyzer(NodeVisitor):
         """# Finally, we continue walking the tree as normal
         if node.decl is not None:
             self.visit(node.decl)"""
+        # TODO check issues related to not walking the tree here - e.g. using an alised type as a function type - think this will break
+        # Also what about function pointer types?
+        self.parent_statement[node] = self.info[self.processing_stack[-1]]["currentStmt"] # TODO do this better?
         self.parent_statement[node.decl] = self.info[self.processing_stack[-1]]["currentStmt"]
         self.parent_statement[node.decl.type] = self.info[self.processing_stack[-1]]["currentStmt"]
         self.parent_statement[node.decl.type.args] = self.info[self.processing_stack[-1]]["currentStmt"]

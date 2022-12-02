@@ -21,4 +21,5 @@ int main() {
     for (int i = 0; i <= attempts; i++) {
         printf("%d: %d\n", i + 1, fib(i));
     }
+    "hel \"{}\" lo";
 }
