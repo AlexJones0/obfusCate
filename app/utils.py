@@ -369,7 +369,8 @@ class VariableUseAnalyzer(NodeVisitor):
     def visit_IdentifierType(self, node):
         # TODO not sure why there can be multiple names here - need to check TODO
         name = ".".join(node.names)
-        self.record_ident_usage(node, 'names', TypeKinds.NONSTRUCTURE, altname=name)
+        if name in self.typedefs:
+            self.record_ident_usage(node, 'names', TypeKinds.NONSTRUCTURE, altname=name)
         #if node.names is not None:
         #    for name in node.names:
         #        if name in self.typedefs:
