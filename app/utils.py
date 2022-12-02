@@ -332,8 +332,9 @@ class VariableUseAnalyzer(NodeVisitor):
                 self.record_ident_def(node, 'name', TypeKinds.NONSTRUCTURE)
         if node.name is None and node.type is not None and isinstance(node.type, (Enum, Struct, Union,)):
             self.record_ident_def(node.type, 'name', TypeKinds.STRUCTURE)
-        if node.name is not None and node.type is not None and node.type.type is not None and \
-            isinstance(node.type.type, (Enum, Struct, Union,)):
+        if node.name is not None and node.type is not None and node.type.type is not None:
+            if isinstance(node.type.type, Enum) and node.type.type.values is None or \
+               isinstance(node.type.type, (Struct, Union,)) and node.type.type.decls is None:
                 # TODO technically generating in wrong order - should visit _then_ record ident?
                 self.record_ident_usage(node.type.type, 'name', TypeKinds.STRUCTURE)
         if node.name is not None and node.type is not None and node.type.type is not None and \
