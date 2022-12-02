@@ -23,7 +23,7 @@ union ImportantData {
 int do_something(int x, float y, short *z);
 int do_something2();
 int do_something3(void);
-int do_something4(int x, ...);
+int do_something4(int x, ...) {}
 
 void start(); // Prototype
 
@@ -80,7 +80,7 @@ int f(int n, float m) { // Function Declaration + Parameters
         }
     }
     return 4;
-    static_assert(sizeof(int) == 2 * sizeof(short), "The program requires an integer is the size of 2 shorts.");
+    //static_assert(sizeof(int) == 2 * sizeof(short), "The program requires an integer is the size of 2 shorts.");
     int test = 3 + x + Friday + acct.idNum + (int) 4.56 + f(3,2.4) + z[0][1];
     return n + m;
     out: // Label
@@ -93,5 +93,6 @@ void variadic(char *f, ...) { // Elipsis param (variadic function)
 
 int main() {
     f(x, y); // Function call
+    do_something4(0, "1", 2, 3.0, 2 + 2); // Variadic function call
     return abs(0);
 }

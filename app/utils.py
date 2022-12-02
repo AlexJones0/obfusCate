@@ -48,14 +48,12 @@ class VariableUseAnalyzer(NodeVisitor):
     # TODO it feels like switches might break this? Maybe need to
     # do some testing?
     
-    # TODO add some functionality for getting the statement of an AST node?
-    # also just - if node is child of a FileAST or compound, it is a statement
-    
     def __init__(self, t_unit=None):
         self.functions = set()
         self.typedefs = set()
         self.parent_block = dict()
         self.parent_statement = dict()
+        self.idents = dict() # Maps AST node to ident name attr, Kind
         self.current_function = None
         self.info = {}
         self.processing_stack = []
@@ -202,7 +200,14 @@ class VariableUseAnalyzer(NodeVisitor):
         info["IdentDefs"][index] = set()
         self.parent_block[stmt_node] = node
     
-    def record_ident_usage(self, name, kind):
+    # TODO check all analysis still works after changes to record_ident_usage and record_ident_def
+    
+    def record_ident_usage(self, node, attr, kind, altname=None):
+        name = altname if altname is not None else getattr(node, attr)
+        if node in self.idents:
+            self.idents[node].append((attr, kind))
+        else:
+            self.idents[node] = [(attr, kind)]
         if self.current_structure is not None:
             if isinstance(self.current_structure, StructRef) and name == self.current_structure.field.name:
                 name = self.current_structure.name.name + "." + name
@@ -215,7 +220,12 @@ class VariableUseAnalyzer(NodeVisitor):
         index = info["stmtIndexes"][info["currentStmt"]]
         info["IdentUses"][index].add((name, kind))
     
-    def record_ident_def(self, name, kind):
+    def record_ident_def(self, node, attr, kind, altname=None):
+        name = altname if altname is not None else getattr(node, attr)
+        if node in self.idents:
+            self.idents[node].append((attr, kind))
+        else:
+            self.idents[node] = [(attr, kind)]
         if self.current_structure is not None and self.current_structure.name is not None:
             name = self.current_structure.name + "." + name
         info = self.info[self.processing_stack[-1]]
@@ -274,7 +284,7 @@ class VariableUseAnalyzer(NodeVisitor):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
         # First we log information about the function as a statement
         if node.decl is not None and node.decl.name is not None:
-            self.record_ident_def(node.decl.name, TypeKinds.NONSTRUCTURE)
+            self.record_ident_def(node.decl, 'name', TypeKinds.NONSTRUCTURE)
         # Next we log information for the function and its block.
         temp = self.current_function
         if node.body is not None:
@@ -297,24 +307,24 @@ class VariableUseAnalyzer(NodeVisitor):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
         if node.name is not None:
             self.typedefs.add(node.name)
-            self.record_ident_def(node.name, TypeKinds.NONSTRUCTURE)
+            self.record_ident_def(node, 'name', TypeKinds.NONSTRUCTURE)
         NodeVisitor.generic_visit(self, node)
     
     def visit_Enumerator(self, node):
         if node.name is not None:
-            self.record_ident_def(node.name, TypeKinds.NONSTRUCTURE)
+            self.record_ident_def(node, 'name', TypeKinds.NONSTRUCTURE)
         NodeVisitor.generic_visit(self, node)
     
     def visit_Decl(self, node): # Handle variable and function definitions
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
         if node.name is not None and (node.type is None or not isinstance(node.type, FuncDecl)): # Don't re-add funcdefs
-            self.record_ident_def(node.name, TypeKinds.NONSTRUCTURE)
+            self.record_ident_def(node, 'name', TypeKinds.NONSTRUCTURE)
         if node.name is None and node.type is not None and isinstance(node.type, (Enum, Struct, Union,)):
-            self.record_ident_def(node.type.name, TypeKinds.STRUCTURE)
+            self.record_ident_def(node.type, 'name', TypeKinds.STRUCTURE)
         if node.name is not None and node.type is not None and node.type.type is not None and \
             isinstance(node.type.type, (Enum, Struct, Union,)):
-                self.record_ident_usage(node.type.type.name, TypeKinds.STRUCTURE)
+                self.record_ident_usage(node.type.type, 'name', TypeKinds.STRUCTURE)
         if node.name is not None and node.type is not None and node.type.type is not None and \
             isinstance(node.type.type, Struct) and node.init is not None and isinstance(node.init, InitList) \
             and node.init.exprs is not None:
@@ -323,7 +333,7 @@ class VariableUseAnalyzer(NodeVisitor):
                     if isinstance(expr, NamedInitializer):
                         name = ".".join([n.name for n in expr.name])
                         self.current_structure = (expr, node.type.type.name)
-                        self.record_ident_usage(name, TypeKinds.NONSTRUCTURE)
+                        self.record_ident_usage(expr, 'name', TypeKinds.NONSTRUCTURE, altname=name)
                 self.current_structure = temp
         NodeVisitor.generic_visit(self, node)
     
@@ -343,22 +353,24 @@ class VariableUseAnalyzer(NodeVisitor):
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
         if node.name is not None:
-            self.record_ident_def(node.name, TypeKinds.LABEL)
+            self.record_ident_def(node, 'name', TypeKinds.LABEL)
         NodeVisitor.generic_visit(self, node)
     
     def visit_ID(self, node): 
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
         if node.name is not None:
-            self.record_ident_usage(node.name, TypeKinds.NONSTRUCTURE)
+            self.record_ident_usage(node, 'name', TypeKinds.NONSTRUCTURE)
         NodeVisitor.generic_visit(self, node)
     
     def visit_IdentifierType(self, node):
         # TODO not sure why there can be multiple names here - need to check TODO
-        if node.names is not None:
-            for name in node.names:
-                if name in self.typedefs:
-                    self.record_ident_usage(name, TypeKinds.NONSTRUCTURE)
+        name = ".".join(node.names)
+        self.record_ident_usage(node, 'names', TypeKinds.NONSTRUCTURE, altname=name)
+        #if node.names is not None:
+        #    for name in node.names:
+        #        if name in self.typedefs:
+        #            self.record_ident_usage(name, TypeKinds.NONSTRUCTURE)
         NodeVisitor.generic_visit(self, node)
     
     def visit_StructRef(self, node):
@@ -373,7 +385,7 @@ class VariableUseAnalyzer(NodeVisitor):
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
         if node.name is not None:
-            self.record_ident_usage(node.name, TypeKinds.LABEL)
+            self.record_ident_usage(node, 'name', TypeKinds.LABEL)
         NodeVisitor.generic_visit(self, node)
     
     def visit_NamedInitializer(self, node):

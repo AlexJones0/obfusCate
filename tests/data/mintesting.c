@@ -4,6 +4,7 @@ int attempts = 10;
 
 int fib(int n) {
     if (n < 0) {
+        int abcdefgh;
         return -1;
     } else if (n <= 1) {
         return n;
@@ -20,8 +21,4 @@ int main() {
     for (int i = 0; i <= attempts; i++) {
         printf("%d: %d\n", i + 1, fib(i));
     }
-}
-
-int f(int a, float* b, int **c) {
-    ;
 }

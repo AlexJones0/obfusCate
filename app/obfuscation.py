@@ -169,6 +169,7 @@ class FuncArgRandomiserTraverser(NodeVisitor):
     """ TODO """
     
     # TODO add signed types in the future as well
+    # TODO get types defined in scope also? Like enums/structs/unions etc.
     types = {
         'short': lambda: Constant('short', str(random.randint(-32767, 32767))), 
         'int': lambda: Constant('int', str(random.randint(-32767, 32767))), 
@@ -223,7 +224,8 @@ class FuncArgRandomiserTraverser(NodeVisitor):
                 extra_args = self.get_extra_args(defined_idents)
                 node.args = ParamList(extra_args)
                 self.func_args[fname] = (node.args, dict())
-            elif node.args.params[0].type.type.names[0] == "void":
+            elif isinstance(node.args.params[0], Typename) and node.args.params[0].type.type.names[0] == "void":
+                # TODO check AST for this - might be easier with Typename?
                 # Don't change anything for void functions
                 self.func_args[fname] = (node.args, dict())
             else:
@@ -232,15 +234,19 @@ class FuncArgRandomiserTraverser(NodeVisitor):
                 extra_args = self.get_extra_args(defined_idents + args)
                 before_change = node.args.params.copy()
                 if isinstance(node.args.params[-1], EllipsisParam):
+                    ellipsis_arg = node.args.params[-1]
                     node.args.params = node.args.params[:-1] + extra_args
                     random.shuffle(node.args.params)
-                    node.args.params.append(node.args.params[-1])
+                    node.args.params.append(ellipsis_arg)
                 else:
                     node.args.params += extra_args
                     random.shuffle(node.args.params)
                 mapping = {}
                 for i, arg in enumerate(before_change):
-                    mapping[i] = node.args.params.index(arg)
+                    if isinstance(arg, EllipsisParam): # TODO currently broken on variadic functions
+                        mapping[i] = -1
+                    else:
+                        mapping[i] = node.args.params.index(arg)
                 self.func_args[fname] = (node.args, mapping)
         else:
             node.args = self.func_args[fname][0]
@@ -302,8 +308,9 @@ class FuncArgumentRandomiseUnit(ObfuscationUnit):
         return True
     
     def get_cli() -> Optional["FuncArgumentRandomiseUnit"]:
+        # TODO should I add an option to make randomisation optional?
         print("How many extra arguments should be inserted?")
-        extra = get_int(1, None)
+        extra = get_int(0, None)
         if extra is None:
             return False
         return FuncArgumentRandomiseUnit(extra)
@@ -877,7 +884,7 @@ class IdentifierTraverser(NodeVisitor):
     def visit_Enum(self, node):
         self.scramble_ident(node)
         NodeVisitor.generic_visit(self, node)
-        self._in_scope.remove(node.name)
+        self._scopes[-1].remove(node.name)
     
     def visit_Enumerator(self, node):
         self.scramble_ident(node)
@@ -917,15 +924,15 @@ class IdentifierTraverser(NodeVisitor):
         
     def visit_Pragma(self, node): # TODO maybe warn on pragma?
         # TODO something's not working with pragmas because of how pycparser handles them!
-        import debug
-        debug.print_error("Error: cannot currently handle pragmas!")
-        debug.log("Could not continue obfuscation because the obfuscator cannot handle pragmas!")
+        from .debug import log, print_error
+        print_error("Error: cannot currently handle pragmas!")
+        log("Could not continue obfuscation because the obfuscator cannot handle pragmas!")
         exit()
     
     def visit_StaticAssert(self, node): # TODO what's breaking here?
-        import debug
-        debug.print_error("Error: cannot currently handle static assertions!")
-        debug.log("Could not continue obfuscation because the obfuscator cannot handle static asserts!")
+        from .debug import log, print_error
+        print_error("Error: cannot currently handle static assertions!")
+        log("Could not continue obfuscation because the obfuscator cannot handle static asserts!")
         exit()
         
 
