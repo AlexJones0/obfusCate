@@ -55,9 +55,9 @@ class VariableUseAnalyzer(NodeVisitor):
         self.typedefs = set()
         self.parent_block = dict()
         self.parent_statement = dict()
-        self.idents = dict() # Maps AST node to ident name attr, Kind
         self.current_function = None
         self.info = {}
+        self.types = {}
         self.processing_stack = []
         self.current_structure = None
         self.t_unit = t_unit
@@ -206,10 +206,11 @@ class VariableUseAnalyzer(NodeVisitor):
     
     def record_ident_usage(self, node, attr, kind, altname=None):
         name = altname if altname is not None else getattr(node, attr)
-        if node in self.idents:
-            self.idents[node].append((attr, kind))
+        info = self.info[self.processing_stack[-1]]
+        if node in info["idents"]:
+            info["idents"][node].append((attr, kind, self.current_structure, False))
         else:
-            self.idents[node] = [(attr, kind)]
+            info["idents"][node] = [(attr, kind, self.current_structure, False)]
         if self.current_structure is not None:
             if isinstance(self.current_structure, StructRef) and name == self.current_structure.field.name:
                 name = self.current_structure.name.name + "." + name
@@ -218,22 +219,21 @@ class VariableUseAnalyzer(NodeVisitor):
             elif isinstance(self.current_structure, tuple) and len(self.current_structure) == 2 and \
                 isinstance(self.current_structure[0], NamedInitializer):
                     name = self.current_structure[1] + "." + name
-        info = self.info[self.processing_stack[-1]]
         index = info["stmtIndexes"][info["currentStmt"]]
         info["IdentUses"][index].add((name, kind))
     
     def record_ident_def(self, node, attr, kind, altname=None):
         name = altname if altname is not None else getattr(node, attr)
-        if node in self.idents:
-            self.idents[node].append((attr, kind, self.current_structure))
+        info = self.info[self.processing_stack[-1]]
+        if node in info["idents"]:
+            info["idents"][node].append((attr, kind, self.current_structure, True))
         else:
-            self.idents[node] = [(attr, kind, self.current_structure)]
+            info["idents"][node] = [(attr, kind, self.current_structure, True)]
         if self.current_structure is not None:
             if self.current_structure.name is not None:
                 name = self.current_structure.name + "." + name
             else: # Using an anonymous (no-name) struct/union, so don't record variables
                 return
-        info = self.info[self.processing_stack[-1]]
         index = info["stmtIndexes"][info["currentStmt"]]
         info["IdentDefs"][index].add((name, kind))
     
@@ -242,6 +242,7 @@ class VariableUseAnalyzer(NodeVisitor):
         self.info[None] = {
             "parent": None,
             "children": [],
+            "idents": {},
             "currentStmt": None,
             "currentIndex": 0,
             "stmtIndexes": {},
@@ -250,12 +251,13 @@ class VariableUseAnalyzer(NodeVisitor):
         }
         for child in node.children():
             self.record_stmt(child[1])
-        NodeVisitor.generic_visit(self, node)
+        self.generic_visit(node)
         self.processing_stack = self.processing_stack[:-1]
     
     def visit_Compound(self, node, params=None):
         if self.is_stmt(node): # TODO check and test with this added
             self.info[self.processing_stack[-1]]["currentStmt"] = node
+        self.parent_statement[node] = self.info[self.processing_stack[-1]]["currentStmt"]
         # Record the Compound Statement in the scope tree if necessary
         parent = self.processing_stack[-1]
         currentStmt = self.info[parent]["currentStmt"]
@@ -264,6 +266,7 @@ class VariableUseAnalyzer(NodeVisitor):
         self.info[node] = {
             "parent": self.processing_stack[-1],
             "children": [],
+            "idents": {},
             "currentStmt": None,
             "currentIndex": 0,
             "stmtIndexes": {},
@@ -287,6 +290,7 @@ class VariableUseAnalyzer(NodeVisitor):
     def visit_FuncDecl(self, node):
         # Visit all children as normal except for the parameter list, as this will be 
         # walked by the body to record the parameters inside the compound.
+        self.parent_statement[node] = self.info[self.processing_stack[-1]]["currentStmt"]
         for child in node.children():
             if child[0] != 'args' or self.current_function is None:
                 self.visit(child[1])
@@ -294,6 +298,7 @@ class VariableUseAnalyzer(NodeVisitor):
     def visit_FuncDef(self, node):
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
+        self.parent_statement[node] = self.info[self.processing_stack[-1]]["currentStmt"]
         # Next we log information for the function and its block.
         temp = self.current_function
         if node.body is not None:
@@ -306,10 +311,19 @@ class VariableUseAnalyzer(NodeVisitor):
         self.visit_Compound(node.body, params=node.decl.type.args)
         self.current_function = temp
     
+    def visit_TypeDecl(self, node):
+        info = self.info[self.processing_stack[-1]]
+        if node in info["idents"]:
+            info["idents"][node].append(('declname', TypeKinds.NONSTRUCTURE, self.current_structure, False))
+        else:
+            info["idents"][node] = [('declname', TypeKinds.NONSTRUCTURE, self.current_structure, False)]
+        self.generic_visit(node)
+    
     def visit_Typedef(self, node):
         # TODO technically generating in wrong order - should visit _then_ record ident?
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
+        self.parent_statement[node] = self.info[self.processing_stack[-1]]["currentStmt"]
         if node.name is not None:
             self.typedefs.add(node.name)
             self.record_ident_def(node, 'name', TypeKinds.NONSTRUCTURE)
@@ -318,21 +332,24 @@ class VariableUseAnalyzer(NodeVisitor):
     def visit_Enumerator(self, node):
         if node.name is not None:
             self.record_ident_def(node, 'name', TypeKinds.NONSTRUCTURE)
-        NodeVisitor.generic_visit(self, node)
+        self.generic_visit(node)
     
     def visit_Decl(self, node): # Handle variable and function definitions
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
+        self.parent_statement[node] = self.info[self.processing_stack[-1]]["currentStmt"]
         if node.name is not None: # TODO changed this to add FuncDef's here, check it is still right
             # TODO technically generating in wrong order - should visit _then_ record ident?
             if self.current_function == "IGNORE":
                 # Parameter in function prototype - record instance but not definition
-                if node in self.idents:
-                    self.idents[node].append(('name', TypeKinds.NONSTRUCTURE))
+                info = self.info[self.processing_stack[-1]]
+                if node in info["idents"]:
+                    info["idents"][node].append(('name', TypeKinds.NONSTRUCTURE, "IGNORE", True))
                 else:
-                    self.idents[node] = [('name', TypeKinds.NONSTRUCTURE)]
+                    info["idents"][node] = [('name', TypeKinds.NONSTRUCTURE, "IGNORE", True)]
             else: # Regular parameter/function definition
                 self.record_ident_def(node, 'name', TypeKinds.NONSTRUCTURE)
+                self.types[node.name] = node # TODO is this correcT? was a quick fix
         # TODO coalesce the below two if statements into one simple conditional?
         #      why does the second conditional need a name? does it? prob not?
         types = []
@@ -369,26 +386,27 @@ class VariableUseAnalyzer(NodeVisitor):
             # as there is no body for them to be defined in.
             temp = self.current_function
             self.current_function = "IGNORE"
-            NodeVisitor.generic_visit(self, node)
+            self.generic_visit(node)
             self.current_function = temp
         else:
-            NodeVisitor.generic_visit(self, node)
+            self.generic_visit(node)
         
     def visit_Union(self, node):
         temp = self.current_structure
         self.current_structure = node
-        NodeVisitor.generic_visit(self, node)
+        self.generic_visit(node)
         self.current_structure = temp
     
     def visit_Struct(self, node):
         temp = self.current_structure
         self.current_structure = node
-        NodeVisitor.generic_visit(self, node)
+        self.generic_visit(node)
         self.current_structure = temp
     
     def visit_Label(self, node):
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
+        self.parent_statement[node] = self.info[self.processing_stack[-1]]["currentStmt"]
         if node.name is not None:
             self.record_ident_def(node, 'name', TypeKinds.LABEL)
         NodeVisitor.generic_visit(self, node)
@@ -396,6 +414,7 @@ class VariableUseAnalyzer(NodeVisitor):
     def visit_ID(self, node): 
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
+        self.parent_statement[node] = self.info[self.processing_stack[-1]]["currentStmt"]
         if node.name is not None:
             self.record_ident_usage(node, 'name', TypeKinds.NONSTRUCTURE)
         NodeVisitor.generic_visit(self, node)
@@ -409,19 +428,25 @@ class VariableUseAnalyzer(NodeVisitor):
         #    for name in node.names:
         #        if name in self.typedefs:
         #            self.record_ident_usage(name, TypeKinds.NONSTRUCTURE)
-        NodeVisitor.generic_visit(self, node)
+        self.generic_visit(node)
     
     def visit_StructRef(self, node):
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
+        self.parent_statement[node] = self.info[self.processing_stack[-1]]["currentStmt"]
         temp = self.current_structure
-        self.current_structure = node
-        NodeVisitor.generic_visit(self, node)
+        self.current_structure = (node, 'field')
+        if node.field is not None: 
+            self.visit(node.field)
+        self.current_structure = (node, 'name')
+        if node.name is not None:
+            self.visit(node.name)
         self.current_structure = temp
         
     def visit_Goto(self, node):
         if self.is_stmt(node):
             self.info[self.processing_stack[-1]]["currentStmt"] = node
+        self.parent_statement[node] = self.info[self.processing_stack[-1]]["currentStmt"]
         if node.name is not None:
             self.record_ident_usage(node, 'name', TypeKinds.LABEL)
         NodeVisitor.generic_visit(self, node)
@@ -429,7 +454,7 @@ class VariableUseAnalyzer(NodeVisitor):
     def visit_NamedInitializer(self, node):
         temp = self.current_structure
         self.current_structure = node
-        NodeVisitor.generic_visit(self, node)
+        self.generic_visit(node)
         self.current_structure = temp
     
     def generic_visit(self, node):
