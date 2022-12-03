@@ -682,13 +682,8 @@ class IntegerEncodeUnit(ObfuscationUnit):
 class IdentifierRenamer:
     """Traverses the program AST looking for non-external identifiers (except main),
     transforming them to some random scrambled identifier."""
-
-    class Style(Enum):
-        COMPLETE_RANDOM  = "Complete Randomness"
-        ONLY_UNDERSCORES = "Only underscores" # TODO will this break anything?
-        MINIMAL_LENGTH   = "Minimal length"
     
-    def __init__(self, style: Style, minimiseIdents: bool):
+    def __init__(self, style: "IdentifierTraverser.Style", minimiseIdents: bool):
         self.mappings = [{
             TypeKinds.NONSTRUCTURE: {"main": "main",},
             TypeKinds.STRUCTURE: {},
@@ -709,17 +704,27 @@ class IdentifierRenamer:
         self.analyzer = VariableUseAnalyzer() 
     
     def generate_new_ident(self):
-        # TODO temp replace
-        cur_num = len(self.new_idents) - 1 + 1
-        #choices = "_" + ascii_letters + ascii_digits
-        choices = ascii_letters
         new_ident = ""
-        #new_ident += choices[cur_num // len(ascii_digits)]
-        while cur_num >= 0:
-            new_ident += choices[cur_num % len(choices)]
-            cur_num = cur_num // len(choices)
-            if cur_num == 0:
-                break
+        while len(new_ident) == 0 or new_ident in self.new_idents_set:
+            if self.style == IdentifierTraverser.Style.COMPLETE_RANDOM:
+                size_ = randint(4, 19)
+                new_ident = randchoice(ascii_letters)[0]
+                new_ident += "".join(
+                    randchoice(ascii_letters + ascii_digits + "_" * 6, k=size_)
+                )
+            elif self.style == IdentifierTraverser.Style.ONLY_UNDERSCORES:
+                new_ident = "_" * (len(self.new_idents) + 1)
+            elif self.style == IdentifierTraverser.Style.MINIMAL_LENGTH:
+                cur_num = len(self.new_idents)
+                #choices = "_" + ascii_letters + ascii_digits
+                choices = ascii_letters
+                new_ident = ""
+                #new_ident += choices[cur_num // len(ascii_digits)]
+                while cur_num >= 0:
+                    new_ident += choices[cur_num % len(choices)]
+                    cur_num = cur_num // len(choices)
+                    if cur_num == 0:
+                        break
         self.new_idents_set.add(new_ident)
         self.new_idents.append(new_ident)
         return new_ident
@@ -736,7 +741,9 @@ class IdentifierRenamer:
                 return scope[kind][new_ident]
         return None
     
-    def transform_idents(self, scope): # TODO make handle not-minimal idents as well
+    def transform_idents(self, scope):
+        # TODO this also doesn't work with labels currently - they should be handled separately and scoped
+        # by function, not compound! Why is this so hard...
         scope_info = self.analyzer.info[scope]
         self.mappings.append({
             TypeKinds.NONSTRUCTURE: {},
@@ -851,124 +858,6 @@ class IdentifierRenamer:
         self.analyzer.input(source)
         self.analyzer.process()
         self.transform_idents(None) # Perform DFS, transforming idents
-        
-    
-    """def transform(self, source: CSource) -> None:
-        self.analyzer.input(source)
-        self.analyzer.process()
-        frontier = [None]
-        while len(frontier) > 0: # Depth-first search on scope tree
-            current_scope = frontier[0]
-            scope_info = self.analyzer.info[current_scope]
-            frontier = scope_info["children"] + frontier[1:]
-            for ASTnode, ident_infos in scope_info["idents"].items():
-                for info in ident_infos:
-                    attr, kind, structure, is_definition = info
-                    name = getattr(ASTnode, attr)
-                    if is_definition:
-                        if structure is not None and not isinstance(structure, Enum):
-                            # If a Struct/Union field, we can reuse any name
-                            # We first reset the index if using a new struct
-                            if structure != self.current_struct:
-                                self.struct_ident_index = 0
-                            if self.struct_ident_index == len(self.new_idents):
-                                # Out of idents, must generate more
-                                new_ident = self.generate_new_ident()
-                                self.new_idents_set.add(new_ident)
-                                self.new_idents.append(new_ident)
-                            else: # Fetch the next available ident and use it
-                                new_ident = self.new_idents[self.struct_ident_index]
-                                self.struct_ident_index += 1
-                            setattr(ASTnode, attr, new_ident)
-                            if self.struct_ident_index <= 1:
-                                self.struct_idents[structure] = {}
-                            self.struct_idents[structure][name] = new_ident
-                            continue
-                        
-                        # Otherwise, we check what idents are defined in the current scope,
-                        # and which idents are used from this point forward
-                        # TODO I'm pretty sure this is WILDLY inefficient, need to figure out a way
-                        # to compute this information per-statement in one pass so that this is O(n) and not O(n^2)
-                        # TODO - could I also do it by maintaining a list of used/defined for each scope
-                        # and just modifying as I go??? Maybe a decent idea?
-                        current_stmt = self.analyzer.get_stmt(ASTnode)
-                        scope_defs = self.analyzer.get_scope_definitions(current_scope, None, current_stmt)
-                        current_defs = self.analyzer.get_definitions_at_stmt(current_stmt, current_scope)
-                        used_after = self.analyzer.get_usage_from_stmt(current_stmt, current_scope)
-                        still_used = current_defs.intersection(used_after)
-                        found_reuse = False
-                        for new_ident in self.new_idents:
-                            if new_ident not in self.reverse[kind] or ((self.reverse[kind][new_ident], kind) not in scope_defs and \
-                                (self.reverse[kind][new_ident], kind) not in still_used): # TODO CLEANUP BADLY!
-                                # We found an ident that hasn't been used for this kind, or that has been used
-                                # for this kind but is no longer needed (and not defined in this scope), so
-                                # we can repurpose it.
-                                setattr(ASTnode, attr, new_ident)
-                                self.mappings[kind][name] = new_ident
-                                self.reverse[kind][new_ident] = name
-                                found_reuse = True
-                                break
-                        if found_reuse:
-                            continue
-                        
-                        # At this point we are not in a structure, have used all mappings for this kind, and have tried 
-                        # and failed to re-use every mapping, so we must define a new mapping
-                        new_ident = self.generate_new_ident()
-                        self.mappings[kind][name] = new_ident
-                        self.reverse[kind][new_ident] = name
-                    else:  # Is a use (reference) to an identifer
-                        if structure is not None and not isinstance(structure, Enum):
-                            if name not in self.struct_idents[structure]:
-                                continue
-                            new_ident = self.struct_idents[structure][name]
-                            setattr(ASTnode, attr, new_ident)
-                        else:
-                            if name not in"""
-            
-    
-    def get_new_ident(self, ident, kind, node):
-        if self.minimiseIdents:
-            # If minimising idents, try and find an existing ident that is not in use any more
-            # (i.e. it can be shadowed). Find the earliest-defined such identifier, and reassign
-            # its new value to be the current identifier's mapping
-            stmt = self.analyzer.get_stmt(node)
-            still_needed = self.analyzer.get_usage_from_stmt(stmt)
-            for i, using in enumerate(self.in_use_idents):
-                if using not in still_needed:
-                    self.idents[(ident, kind)] = self.idents[using]
-                    self.in_use_idents = self.in_use_idents[:i] + self.in_use_idents[(i+1):]
-                    self.in_use_idents.append((ident, kind))
-                    return self.idents[using]
-        new_ident = ""
-        while len(new_ident) == 0 or new_ident in self._new_idents:
-            if self.style == self.Style.COMPLETE_RANDOM:
-                size_ = randint(4, 19)
-                new_ident = randchoice(ascii_letters)[0]
-                new_ident += "".join(
-                    randchoice(ascii_letters + ascii_digits + "_" * 6, k=size_)
-                )
-            elif self.style == self.Style.ONLY_UNDERSCORES:
-                new_ident = "_" * (len(self._new_idents) + 1)
-            elif self.style == self.Style.MINIMAL_LENGTH:
-                cur_num = len(self._new_idents) + 1
-                #choices = "_" + ascii_letters + ascii_digits
-                choices = ascii_letters
-                new_ident = ""
-                #new_ident += choices[cur_num // len(ascii_digits)]
-                while cur_num >= 0:
-                    new_ident += choices[cur_num % len(choices)]
-                    cur_num = cur_num // len(choices)
-                    if cur_num == 0:
-                        break
-        self._new_idents.add(new_ident)
-        self.idents[(ident, kind)] = new_ident
-        self.in_use_idents.append((ident, kind))
-        return new_ident
-            
-    def visit_FileAST(self, node):
-        self.analyzer.input(node)
-        self.analyzer.process()
-        NodeVisitor.generic_visit(node)
 
 
 class IdentifierTraverser(NodeVisitor):
@@ -1009,7 +898,7 @@ class IdentifierTraverser(NodeVisitor):
             elif self.style == self.Style.ONLY_UNDERSCORES:
                 new_ident = "_" * (len(self._new_idents) + 1)
             elif self.style == self.Style.MINIMAL_LENGTH:
-                cur_num = len(self._new_idents) + 1
+                cur_num = len(self._new_idents)
                 #choices = "_" + ascii_letters + ascii_digits
                 choices = ascii_letters
                 new_ident = ""
@@ -1123,10 +1012,15 @@ class IdentitifierRenameUnit(ObfuscationUnit):
         self.transformer = IdentifierRenamer(style, minimiseIdents)
 
     def transform(self, source: CSource) -> CSource:
-        self.transformer.transform(source.t_unit)
+        if self.minimiseIdents:
+            transformer = IdentifierRenamer(self.style, True)
+            transformer.transform(source.t_unit)
+        else:
+            traverser = IdentifierTraverser(self.style, False)
+            traverser.visit(source.t_unit)
         new_contents = generate_new_contents(source)
         return CSource(source.fpath, new_contents, source.t_unit)
-    # TODO update rest of this with new IdentifierRenamer if it works
+    
     def edit_cli(self) -> bool:
         options = [s.value for s in IdentifierTraverser.Style]
         options.append("placeholder")
@@ -1134,20 +1028,18 @@ class IdentitifierRenameUnit(ObfuscationUnit):
         while True:
             prompt = f'\nChoose a style for the identifier renaming. Your current style is "{self.style.value}".\n'
             if self.minimiseIdents:
-                options[len(IdentifierTraverser.Style)] = "Disable minimal identifier usage option (currently: ENABLED)"
+                options[len(IdentifierTraverser.Style)] = "Disable minimal identifier usage option [WARNING:EXPERIMENTAL] (currently: ENABLED)"
             else:
-                options[len(IdentifierTraverser.Style)] = "Enable minimal identifer usage option (currently: Disabled)"
+                options[len(IdentifierTraverser.Style)] = "Enable minimal identifer usage option [WARNING:EXPERIMENTAL] (currently: DISABLED)"
             choice = menu_driven_option(options, prompt)
             if choice == -1:
                 return False
             elif choice == len(IdentifierTraverser.Style):
                 self.minimiseIdents = not self.minimiseIdents
-                self.traverser.minimiseIdents = self.minimiseIdents
             elif choice == len(options) - 1:
                 return True
             else:
                 self.style = IdentifierTraverser.Style(options[choice])
-                self.traverser.style = self.style
 
     def get_cli() -> Optional["IdentitifierRenameUnit"]:
         options = [s.value for s in IdentifierTraverser.Style]
@@ -1156,9 +1048,9 @@ class IdentitifierRenameUnit(ObfuscationUnit):
         validChoice = False
         while not validChoice:
             if minimiseIdents:
-                options.append("Disable minimal identifier usage option (currently: ENABLED)")
+                options.append("Disable minimal identifier usage option [WARNING:EXPERIMENTAL] (currently: ENABLED)")
             else:
-                options.append("Enable minimal identifer usage option (currently: DISABLED)")
+                options.append("Enable minimal identifer usage option [WARNING:EXPERIMENTAL] (currently: DISABLED)")
             choice = menu_driven_option(options, prompt)
             if choice == -1:
                 return None
