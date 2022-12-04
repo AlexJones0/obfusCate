@@ -19,7 +19,7 @@ float my_func(float n) {
     return n;
 }
 
-
 int main() {
     my_func(4.5);
 }
+
