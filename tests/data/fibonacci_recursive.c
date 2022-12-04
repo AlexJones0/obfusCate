@@ -1,5 +1,4 @@
 #include <stdio.h>
-
 int attempts = 10;
 
 int fib(int n) {
@@ -17,7 +16,7 @@ int fib(int n) {
 }
 
 int main() {
-    for (int i = 0; i <= attempts; i++) {
+    for (int i = 0; i < attempts; i++) {
         printf("%d: %d\n", i + 1, fib(i));
     }
 }

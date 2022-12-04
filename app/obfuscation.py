@@ -236,6 +236,10 @@ class FuncArgRandomiserTraverser(NodeVisitor):
                 extra_args = self.get_extra_args(defined_idents + args)
                 before_change = fdecl.args.params.copy()
                 if isinstance(fdecl.args.params[-1], EllipsisParam):
+                    # TODO this is wrong - all arguments need to be 
+                    # in the same order, bogus arguments can be inserted
+                    # at the start but other args need to be in the same
+                    # order otherwise va_args stuff breaks
                     ellipsis_arg = fdecl.args.params[-1]
                     fdecl.args.params = fdecl.args.params[:-1] + extra_args
                     random.shuffle(fdecl.args.params)
