@@ -4,29 +4,159 @@ such that it can be used through text interaction in a terminal window."""
 from select import select
 import sys
 from typing import Optional, Union
-from .debug import print_error, create_log_file, log
-from .io import CSource, menu_driven_option
+from .debug import print_error, create_log_file, delete_log_file, log
+from .interaction import CSource, menu_driven_option, save_composition as save_comp
 from .obfuscation import *
 from app import settings as config
 
+def disable_logging() -> None:
+    """Sets the config to disable logging during program execution."""
+    config.LOGS_ENABLED = False
+    delete_log_file()
 
-# TODO add and update args
-# TODO add approrpiate log instructiosn throughout code
-# TODO add args for loading and saving recipes?
-def help_menu() -> None:  # TODO change from 'python cli' to actual name
-    """Prints the help menu detailing usage of the CLI command interface."""
-    hstr = """################ CLI Help Manual ################
+
+def set_seed(supplied_args: Iterable[str]) -> bool:
+    """Sets the random seed to be used during program execution.
+
+    Args:
+        supplied_args (Iterable[str]): The list of arguments following this argument.
+
+    Returns:
+        (bool) Whether the supplied arguments were valid or not."""
+    if len(supplied_args) <= 0:
+        print_error(
+            "Some integer seed must be supplied with the -s and --seed options. Use the -h or --help options to see usage information."
+        )
+        log("Failed to supply seed alongside seed option.")
+        return False
+    try:
+        config.SEED = int(supplied_args[0])
+        log(f"Set option to use random seed {config.SEED}")
+    except:
+        print_error(
+            "Some integer seed must be supplied with the -s and --seed options. Use the -h or --help options to see usage information."
+        )
+        log("Failed to supply a valid integer seed alongside seed option.")
+        return False
+
+
+def suppress_errors() -> None:
+    """Sets the config to suppress displaying of errors that may occur."""
+    config.SUPPRESS_ERRORS = True
+    log("Set option to suppress errors during execution.")
+
+
+def display_progress() -> None:
+    """Sets the config to display progress during obfuscation transformations."""
+    config.DISPLAY_PROGRESS = True
+    log("Set option to display obfuscation progress during transformation.")
+
+
+def save_composition() -> None:
+    """Sets the config to save the selected transformation composition to a JSON file when done."""
+    config.SAVE_COMPOSITION = True
+    log("Set option to save the final obfuscation transformation sequence.")
+
+
+def load_composition(supplied_args: Iterable[str]) -> bool:
+    """Sets the file to load initial obfuscation transformation information from.
+
+    Args:
+        supplied_args (Iterable[str]): The list of arguments following this argument.
+
+    Returns:
+        (bool) Whether the supplied arguments were valid or not."""
+    if len(supplied_args) <= 0:
+        print_error(
+            "Some composition file must be supplied with the -l and --load options. Use the -h or --help options to see usage information."
+        )
+        log("Fail to supply composition file alongside composition load option.")
+        return False
+    config.COMPOSITION = supplied_args[0]
+    log(
+        f"Set option to load initial obfuscation transformation sequence from file {config.COMPOSITION}."
+    )
+    return True
+
+
+# The list of command line arguments/options supported by the command line interface.
+options = [
+    (
+        None,  # Function to call if argument supplied
+        ["-h", "--help"],  # Arguments that can be provided for this function
+        "Displays this help menu.",  # A help menu description for this argument
+        [],  # Names of proceeding values used by the function
+    ),
+    (
+        disable_logging,
+        ["-l", "--noLogs"],
+        "Stops a log file being created for this execution.",
+        [],
+    ),
+    (
+        set_seed,
+        ["-s", "--seed"],
+        "Initialises the program with the random seed x (some integer).",
+        ["x"],
+    ),
+    (
+        suppress_errors,
+        ["-S", "--supress-errors"],
+        "Attempts to obfsucate in spite of errors (WARNING: MAY CAUSE UNEXPECTED BEHAVIOUR).",
+        [],
+    ),
+    (
+        display_progress,  # TODO implement progress display
+        ["-p", "--progress"],
+        "Outputs obfuscation pipleline progress (transformation completion) during obfuscation.",
+        [],
+    ),
+    (
+        save_composition,  # TODO add composition saving
+        ["-c", "--save-comp"],
+        "Saves the selected composition of obfuscation transformations as a JSON file to be reused.",
+        [],
+    ),
+    (
+        load_composition,  # TODO add composition loading
+        ["-l", "--load-comp"],
+        "Loads a given JSON file containing the composition of obfuscation transformations to use.",
+        ["file"],
+    ),
+]
+
+
+def help_menu() -> bool:
+    """Prints the help menu detailing usage of the CLI command interface.
+
+    Returns:
+        (bool) Always returns False, to signal that program execution should stop."""
+    help_str = """################ CLI Help Manual ################
 This program takes as an argument some input C source program file and allows the application of a sequence of obfuscation transformations, resulting in an obfuscated C source file being produced. For more information on usage and options, see below.
 
-Usage: python cli input_c_file [output_file] [options]
+Usage: python {} input_c_file [output_file] [options]
 
-Options:
-    -h --help           | Displays this help menu.
-    -l --noLogs         | Stops a log file being created for this execution.
-    -s --seed x         | Initialises the program with the random seed x (some integer).
-    -S --supress-errors | Attempts to obfuscate in spite of errors (WARNING: MAY CAUSE UNEXPECTED BEHAVIOUR)
-"""
-    print(hstr)
+Options:\n""".format(
+        __file__.split("\\")[-1]
+    )
+    opt_strings = [" ".join(opt[1] + opt[3]) for opt in options]
+    max_len = max([len(opt_str) for opt_str in opt_strings])
+    for i, option in enumerate(options):
+        opt_str = opt_strings[i]
+        help_str += (
+            "    "
+            + opt_str
+            + (max_len - len(opt_str) + 1) * " "
+            + "| "
+            + option[2]
+            + "\n"
+        )
+    print(help_str)
+    log("Displayed the help menu.")
+    return False
+
+
+options[0] = (help_menu, *options[0][1:])
 
 
 def get_transformations(
@@ -44,56 +174,61 @@ def get_transformations(
         Optional[CSource]: If successful, returns the obfuscated C source code. If an
         error occurs or the user quits, returns None.
     """
-    selected_transforms = []
+    selected = []
     cursor_index = 0  # Cursor to allow traversal of transforms in CLI.
 
     # Generate available transforms from implemented classes
     available_transforms = ObfuscationUnit.__subclasses__()
     num_transforms = len(available_transforms)
     options = [f"{t.name}: {t.description}" for t in available_transforms]
-    options.append("Move cursor left")
-    options.append("Move cursor right")
-    options.append("Remove transform after cursor")
-    options.append("Edit transform after cursor")
-    options.append("Finish selecting transforms and continue")
+    options += [
+        "Move cursor left",
+        "Move cursor right",
+        "Remove transform after cursor",
+        "Edit transform after cursor",
+        "Finish selecting transforms and continue",
+    ]
 
-    # Iteratively get transform info until user selects to continue/quit.
+    # Iteratively get transform information until user selects to continue/quit.
     done_selecting = False
     while not done_selecting:
         # Format current transforms with cursor location for printing
         prompt = "\nCurrent transforms: {} >>> {}\n".format(
-            " -> ".join(str(t) for t in selected_transforms[:cursor_index]),
-            ""
-            if cursor_index == len(selected_transforms)
-            else (" -> ".join(str(t) for t in selected_transforms[cursor_index:])),
+            " -> ".join(str(t) for t in selected[:cursor_index]),
+            " -> ".join(str(t) for t in selected[cursor_index:]),
         )
         choice = menu_driven_option(options, prompt=prompt)
         if choice == -1:  # Quit
+            log("Selected to exit the transformation selection menu.")
             return None
-        elif choice < num_transforms:  # Add a transform # TODO fix - should add after cursor, not at end
-            new_transform = available_transforms[choice].get_cli()
-            if new_transform is None:
+        elif choice < num_transforms:  # Selected transform
+            new_t = available_transforms[choice].get_cli()
+            if new_t is None:
                 return None
-            selected_transforms = selected_transforms[:cursor_index] + [new_transform] \
-                                  + selected_transforms[cursor_index:]
-            cursor_index += 1  # Move cursor 1 right with new transform
+            selected = selected[:cursor_index] + [new_t] + selected[cursor_index:]
+            log(
+                "Added transform {} at index {}. Current transforms: {}".format(
+                    new_t.name, cursor_index, " -> ".join(str(t) for t in selected)
+                )
+            )
+            cursor_index += 1
         elif choice == num_transforms:  # Move cursor left
             cursor_index = max(cursor_index - 1, 0)
         elif choice == num_transforms + 1:  # Move cursor right
-            cursor_index = min(cursor_index + 1, len(selected_transforms))
+            cursor_index = min(cursor_index + 1, len(selected))
         elif choice == num_transforms + 2:  # Delete transform after cursor
-            selected_transforms = (
-                selected_transforms[:cursor_index]
-                + selected_transforms[(cursor_index + 1) :]
-            )
+            selected = selected[:cursor_index] + selected[(cursor_index + 1) :]
         elif choice == num_transforms + 3:  # Edit transform after cursor
-            if cursor_index < len(selected_transforms):
-                selected_transforms[cursor_index].edit_cli()
+            if cursor_index < len(selected):
+                selected[cursor_index].edit_cli()
         else:  # Finished selecting
             done_selecting = True
 
     # Apply selected transform pipeline to given source code
-    obfuscated = Pipeline(seed, *selected_transforms).process(source)
+    pipeline = Pipeline(seed, *selected)
+    if config.SAVE_COMPOSITION:
+        save_comp(pipeline.to_json())
+    obfuscated = pipeline.process(source)
     return obfuscated
 
 
@@ -112,46 +247,31 @@ def handle_arguments(supplied_args: Iterable[str]) -> Iterable[str] | bool:
         a valid or failed execution respectively.
     """
     args = []
-    skipNext = False
+    skip_next = False
     for i, arg in enumerate(supplied_args):
         # Handle skipping for giving values with options
-        if skipNext:
-            skipNext = False
+        if skip_next:
+            skip_next = False
             continue
-        match arg:
-            case "-h" | "--help" | "--man" | "--manual":  
-                # View help
-                help_menu()
-                return True
-            case "-l" | "--noLogs":  
-                # Disable logging
-                config.LOGS_ENABLED = False
-            case "-s" | "--seed":  
-                # Set seed for randomness
-                skipNext = True
-                if len(supplied_args) <= i:
-                    print_error(
-                        "Some integer seed must be supplied with the -s and --seed options. Use the -h or --help options to see usage information."
-                    )
+        matched = False
+        for opt in options:
+            if arg in opt[1]:
+                res = opt[0]() if len(opt[3]) == 0 else opt[0](supplied_args[(i + 1) :])
+                if res is not None and not res:
                     return False
-                try:
-                    config.SEED = int(supplied_args[i + 1])
-                except:
-                    print_error(
-                        "Some integer seed must be supplied with the -s and --seed options. Use the -h or --help options to see usage information."
-                    )
-                    return False
-            case "-S" | "--supress-errors": 
-                # Supress errors and try to obfuscate anyway
-                config.SUPPRESS_ERRORS = True
-            case _:
-                if arg.startswith("-"):  # Handle unknown options
-                    print_error(
-                        f"Unknown option '{arg}' supplied. Use the -h or --help options to see usage information."
-                    )
-                    return False
-                else:  # Store valid arguments
-                    args.append(arg)
+                skip_next = len(opt[2]) != 0
+                matched = True
+                break
+        if matched:
+            continue
+        if arg.startswith("-"):  # Handle unknown options
+            print_error(
+                f"Unknown option '{arg}' supplied. Use the -h or --help options to see usage information."
+            )
+            log(f"Unknown option {arg} supplied.")
+            return False
+        else:  # Store valid arguments
+            args.append(arg)
     return args
 
 
@@ -166,22 +286,22 @@ def handle_CLI() -> bool:
     """
     supplied_args = sys.argv
     if len(supplied_args) != 0 and supplied_args[0].endswith(".py"):
-        # Handle execution as python script rather than binary # TODO CHANGE?
         supplied_args = supplied_args[1:]
 
     # Setup logging information
     create_log_file()
     log(f"Began execution of CLI script.")
     log(f"Supplied arguments: {str(supplied_args)}")
-    
+
+    # Handle supplied arguments/options
     args = handle_arguments(supplied_args)
-    if (isinstance(args, bool)):
+    if isinstance(args, bool):
         return args
 
     # Determine subsequent execution based on number of supplied arguments.
     if len(args) == 0:  # No arguments - error
         print_error(
-            "No source file was supplied. Use the -h or --help options to see usage information."
+            "No source file supplied. Use the -h or --help options to see usage information."
         )
         log("Aborting executions because no arguments were supplied.")
         return False
@@ -193,18 +313,24 @@ def handle_CLI() -> bool:
     obfuscated = get_transformations(source, config.SEED)
     if obfuscated is None:
         return False
-    
+
     # Handle obfuscation interface
     if len(args) == 1:  # 1 argument - take as input source file, and print output
         if obfuscated is not None:
+            log("Displaying obfuscation output.")
             print(obfuscated.contents)
+        log("Execution finished normally.")
         return True
     elif len(args) == 2:  # 2 arguments - input and output files
         try:
+            log("Writing obfuscation output")
             with open(args[1], "w+") as write_file:
                 write_file.write(obfuscated.contents)
             print("Obfuscation finished successfully.")
+            log("Obfuscation written successfully.")
+            log("Execution finished normally.")
             return True
-        except:
+        except Exception as e:
             print_error(f"Error creating output file '{args[1]}'")
+            log(f"Error when writing output to file: {str(e)}")
     return False

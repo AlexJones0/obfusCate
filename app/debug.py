@@ -46,16 +46,28 @@ def create_log_file(filepath: str = None) -> bool:
     return False
 
 
-def log(log_str: str) -> bool:
+def delete_log_file():
+    try:
+        os.remove(cfg.LOG_FILE)
+        return True
+    except OSError:
+        print_error("Unable to remove log file.")
+    return False
+
+
+def log(log_str: str, print_err: bool = False) -> bool:
     """Writes a log message to the log file, attaching relevant time information.
     Requires a log file to have been created first during program runtime.
 
     Args:
         log_str (str): The message to log.
+        print_err (bool): Whether to display the log message as an error to the user.
 
     Returns:
         bool: Whether execution was successful or not.
     """
+    if print_err:
+        print_error(log_str)
     if not cfg.LOGS_ENABLED:
         return True
     if len(cfg.LOG_FILE) == 0:

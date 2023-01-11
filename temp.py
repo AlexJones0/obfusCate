@@ -1,4 +1,4 @@
-from app.io import CSource
+from app.interaction import CSource
 import sys
 
 
