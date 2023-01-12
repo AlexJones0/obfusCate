@@ -4,6 +4,9 @@ from typing import Iterable, Optional, Tuple, Union
 from .debug import print_error, log
 from pycparser import parse_file
 from pycparser.c_ast import FileAST
+from app import settings as cfg
+import os
+from time import localtime
 
 
 class CSource:
@@ -73,7 +76,7 @@ class CSource:
                 use_cpp=True,
                 cpp_path="clang",
                 cpp_args=["-E", r"-Iutils/fake_libc_include"],
-            ) # TODO check cpp stuff here? + with github actions
+            )  # TODO check cpp stuff here? + with github actions
             fname = self.fpath.split("\\")[-1]
             t_unit.ext = [x for x in t_unit.ext if fname in x.coord.file]
             # TODO could also modify contents to cut off directives?
@@ -173,29 +176,35 @@ def menu_driven_option(
             )
     return choice - 1
 
+
 def get_float(lower_bound: float = None, upper_bound: float = None) -> float:
-    """ Gets an input float from the user, applying appropriate boundary checks if either bound
+    """Gets an input float from the user, applying appropriate boundary checks if either bound
     is specified. Returns NaN if the user quits the input selection, and a valid float otherwise."""
     while True:
         user_input = input("\n>").lower().strip()
         # Check for quit inputs
         if user_input in ["q", "quit", "exit", "leave", "x"]:
-            return float('nan')
+            return float("nan")
         try:
             user_input = float(user_input)
         except:
             print("Invalid input for a decimal number. Please try again...")
             continue
         if lower_bound is not None and user_input < lower_bound:
-            print(f"Input {user_input} is too small. The value must be at least {lower_bound}.")
+            print(
+                f"Input {user_input} is too small. The value must be at least {lower_bound}."
+            )
             continue
         if upper_bound is not None and user_input > upper_bound:
-            print(f"Input {user_input} is too large. The value must be at most {upper_bound}.")
+            print(
+                f"Input {user_input} is too large. The value must be at most {upper_bound}."
+            )
             continue
         return user_input
 
+
 def get_int(lower_bound: int = None, upper_bound: int = None) -> Optional[int]:
-    """ Gets an input integer from the user, applying appropriate boundary checks if either bound
+    """Gets an input integer from the user, applying appropriate boundary checks if either bound
     is specified. Returns None if the user quits the input selecion, and a valid integer otherwise."""
     while True:
         user_input = input("\n>").lower().strip()
@@ -208,9 +217,48 @@ def get_int(lower_bound: int = None, upper_bound: int = None) -> Optional[int]:
             print("Invalid input for an integer. Please try again...")
             continue
         if lower_bound is not None and user_input < lower_bound:
-            print(f"Input {user_input} is too small. The value must be at least {lower_bound}.")
+            print(
+                f"Input {user_input} is too small. The value must be at least {lower_bound}."
+            )
             continue
         if upper_bound is not None and user_input > upper_bound:
-            print(f"Input {user_input} is too large. The value must be at most {upper_bound}.")
+            print(
+                f"Input {user_input} is too large. The value must be at most {upper_bound}."
+            )
             continue
         return user_input
+
+
+def save_composition(json: str, filepath: str = None) -> bool:
+    """Creates a composition file and saves the JSON string representing the
+    composition to it.
+
+    Args:
+        json (str): The JSON string to save to the composition file.
+        filepath (str, optional): The path to the directory that the composition file
+        should be created in. Defaults to the COMP_PATH location stored in the config.
+
+    Returns:
+        bool: Whether execution was successful or not.
+    """
+    if filepath is None:
+        filepath = cfg.COMP_PATH
+    filepath = os.getcwd() + filepath
+    t = localtime()
+    fname = "{}-{:02d}-{:02d}--{:02d}.{:02d}.{:02d}.txt".format(
+        t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec
+    )
+    full_path = filepath + fname
+    try:
+        if not os.path.isdir(filepath):
+            os.makedirs(filepath)
+        with open(full_path, "w+") as comp_file:
+            comp_file.write(json)
+        log(f"Saved composition in file {full_path}.")
+        return True
+    except OSError:
+        print_error("Unable to open composition file to save the composition.")
+        log(
+            "Failed to save composition file due to errors in accessing and writing to the file."
+        )
+    return False
