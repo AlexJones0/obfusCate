@@ -136,7 +136,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
         scope_path = scope_path[:-1]
         # Compute definitions for each scope up to the statement, and find their union
         if len(scope_path) == 1:
-            return self.get_scope_definitions(compound, None, stmt)
+            return self.get_scope_definitions(scope_path[0], None, stmt)
         definitions = set()
         for i, scope in [s for s in enumerate(scope_path)][-1:0:-1]:
             child = scope_path[i-1]
@@ -158,10 +158,10 @@ class NewVariableUseAnalyzer(NodeVisitor):
         return self.get_nested_scope_usage(compound, stmt, None)
 
     def get_unique_identifier(self, node, type):
-        stmt = self.get_stmt(node)
+        stmt = self.get_stmt_from_node(node)
         compound = self.get_stmt_compound(stmt)
         defined = self.get_usage_from_stmt(stmt).union(self.get_scope_definitions(compound))
-        defined = set(x for x in defined if x[1] == type)
+        defined = set(x[0] for x in defined if x[1] == type)
         new_ident = "a"
         count = 0
         while new_ident in defined:
@@ -177,10 +177,21 @@ class NewVariableUseAnalyzer(NodeVisitor):
         return new_ident
     
     def change_ident(self, node, name, kind, new_name):
+        # Update AST attributes for all locations referring to 
+        # this specific definition to propagate identifier change.
         stmt_node = self.get_stmt_from_node(node)
         for location_set in self.definition_uses[(stmt_node, name, kind)]:
             for (change_node, attr) in location_set:
                 setattr(change_node, attr, new_name)
+        # Update processed tracking variables accordingly to allow further analyzer usage
+        if (name, kind) in self.stmt_usage[stmt_node]:
+            self.stmt_usage[stmt_node].remove((name, kind))
+            self.stmt_usage[stmt_node].add((new_name, kind))
+        if (name, kind) in self.stmt_definitions[stmt_node]:
+            self.stmt_definitions[stmt_node].remove((name, kind))
+            self.stmt_definitions[stmt_node].add((new_name, kind))
+        self.definition_uses[(stmt_node, new_name, kind)] = self.definition_uses[(stmt_node, name, kind)]
+        del self.definition_uses[(stmt_node, name, kind)]
 
     def is_stmt(self, stmt_node):
         return stmt_node in self.stmts
@@ -293,10 +304,11 @@ class NewVariableUseAnalyzer(NodeVisitor):
     def visit_Typedef(self, node):
         if node.name is not None:
             self.typedefs.add(node.name)
-            attributes = [(node, 'name'), (node.type, 'declname')]
+            attributes = [(node, 'name'), (node.type, 'declname')] # TODO all 'declname' stuff doesn't account for arraydecls and pointerdecls
             self.record_ident_def(node, node.name, attributes, TypeKinds.NONSTRUCTURE)
         NodeVisitor.generic_visit(self, node)
 
+    @stmt_wrapper
     def visit_Enumerator(self, node):
         if node.name is not None:
             self.record_ident_def(node, node.name, [(node, 'name')], TypeKinds.NONSTRUCTURE) # TODO is NONSTRUCTURE correct?
@@ -319,7 +331,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
                                              # types of declarations)
         for i, type_ in enumerate(types):
             if isinstance(type_, (Enum, Struct, Union)):
-                if isinstance(type_, Enum) and type.values is not None or \
+                if isinstance(type_, Enum) and type_.values is not None or \
                    isinstance(type_, (Struct, Union)) and type_.decls is not None:
                     # Enum/Struct/Union definition
                     self.record_ident_def(node, type_.name, [(type_, 'name')], TypeKinds.STRUCTURE)  # TODO slightly different from original - both now link to node instead of type_
@@ -604,8 +616,9 @@ class VariableUseAnalyzer(NodeVisitor):
     def get_stmt(self, ast_node):
         return self.parent_statement[ast_node]
 
-    def get_unique_identifier(self, node, type):
+    def get_unique_identifier(self, node, type): # TODO not needed anymore?
         defined = self.get_usage_from_stmt(self.get_stmt(node))
+        defined = self.get_nested_scope_usage()
         defined = set(x for x in defined if x[1] == type)
         new_ident = "a"
         count = 0
