@@ -926,8 +926,3 @@ class VariableUseAnalyzer(NodeVisitor):
         # Record the statement the node is related to
         self.parent_statement[node] = self.info[self.processing_stack[-1]]["currentStmt"]
         NodeVisitor.generic_visit(self, node)
-
-
-# Control Flow Graph generation - we need ...
-
-# Expression type evaluation - we need ...

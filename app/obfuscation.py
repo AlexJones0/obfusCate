@@ -1851,7 +1851,7 @@ class InsertOpaqueUnit:
 # TODO control flow flattening
 
 
-class GenerateCFG(NodeVisitor):
+class ControlFlowFlattener(NodeVisitor):
     
     def __init__(self):
         self.levels = []
@@ -2204,18 +2204,17 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
     description = "Flatten all Control Flow in functions into a single level to help prevent code analysis"
 
     def __init__(self):
-        self.traverser = GenerateCFG()
-        pass  # TODO
+        self.traverser = ControlFlowFlattener()
 
     def transform(self, source: CSource) -> CSource:
         self.traverser.visit(source.t_unit)
         new_contents = generate_new_contents(source)
         return CSource(source.fpath, new_contents, source.t_unit)
 
-    def edit_cli(self) -> bool:
+    def edit_cli(self) -> bool: # TODO case number randomisation options
         return True  # TODO
 
-    def get_cli() -> Optional["ControlFlowFlattenUnit"]:
+    def get_cli() -> Optional["ControlFlowFlattenUnit"]: # TODO case number randomisation options
         return ControlFlowFlattenUnit()  # TODO
     
     def to_json():
