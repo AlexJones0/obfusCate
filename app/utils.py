@@ -205,14 +205,17 @@ class NewVariableUseAnalyzer(NodeVisitor):
                 return scope[(name, kind)]
         return None
     
-    def record_ident_def(self, node, name, locations, kind):
+    def record_ident_def(self, node, name, locations, kind, alt_scope=None):
         node = self.get_stmt_from_node(node)
         if self.current_structure is not None:
             if self.current_structure.name is not None:
                 name = self.current_structure.name + "." + name
             else: # Using an anonymous (no-name) struct/union, so don't record variables
                 return
-        self.current_definitions[-1][(name, kind)] = (node, locations)
+        if alt_scope is None:
+            self.current_definitions[-1][(name, kind)] = (node, locations)
+        else:
+            alt_scope[(name, kind)] = (node, locations)
         self.definition_uses[(node, name, kind)] = [locations]
         self.stmt_definitions[node].add((name, kind)) # TODO do I need to store locations here as well?
                                                       # TODO also do I need to store self.current_structure?
@@ -384,7 +387,10 @@ class NewVariableUseAnalyzer(NodeVisitor):
     @stmt_wrapper
     def visit_Label(self, node):
         if node.name is not None:
-            self.record_ident_def(node, node.name, [(node, 'name')], TypeKinds.LABEL)
+            self.record_ident_def(node, node.name, [(node, 'name')], TypeKinds.LABEL,
+                                  alt_scope = self.current_definitions[1])
+            # TODO check the above - should restore the label definition as a per-function
+            # item, not a per-scope item. But need to check this
         NodeVisitor.generic_visit(self, node)
     
     @stmt_wrapper

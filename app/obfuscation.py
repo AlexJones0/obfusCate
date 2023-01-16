@@ -14,6 +14,8 @@ from string import ascii_letters, digits as ascii_digits
 import random
 import json
 
+# TODO some combinations aren't working? Why :(
+
 # TODO need to consider transformation ordering?
 # TODO add print statements to report pipeline progress, as it could take a while for large programs?
 # TODO also, add log statements throughout!
@@ -39,6 +41,13 @@ def generate_new_contents(source: CSource) -> str:
     return new_contents
 
 
+class TransformType(Enum):
+    LEXICAL = 1
+    ENCODING = 2
+    PROCEDURAL = 3
+    STRUCTURAL = 4 # TODO better names / category split
+
+
 class ObfuscationUnit(ABC):
     """An abstract base class representing some obfuscation transformation unit, such that
     any implemented transformations will be subclasses of this class. Implements methods
@@ -48,6 +57,7 @@ class ObfuscationUnit(ABC):
     description = (
         "An abstract base class representing some obfuscation transformation unit"
     )
+    type = TransformType.LEXICAL
 
     @abstractmethod
     def transform(self, source: CSource) -> Optional[CSource]:
@@ -206,6 +216,7 @@ class IdentityUnit(ObfuscationUnit):
 
     name = "Identity"
     description = "Does nothing - returns the same code entered."
+    type = TransformType.LEXICAL
 
     def transform(self, source: CSource) -> CSource:
         """Performs the identity transformation on the source.
@@ -430,6 +441,7 @@ class FuncArgumentRandomiseUnit(ObfuscationUnit):
 
     name = "Function Interface Randomisation"
     description = "Randomise Function Arguments to make them less compehensible"
+    type = TransformType.PROCEDURAL
 
     def __init__(self, extra_args: int):
         self.extra_args = extra_args
@@ -662,6 +674,7 @@ class StringEncodeUnit(ObfuscationUnit):
 
     name = "String Literal Encoding"
     description = "Encodes string literals to make them incomprehensible"
+    type = TransformType.ENCODING
 
     def __init__(self, style):
         self.style = style
@@ -726,8 +739,6 @@ class IntegerEncodeTraverser(NodeVisitor):
     class Style(Enum):
         SIMPLE = "Simple Encoding (Multiply-Add)"
         # SPLIT = "Split Integer Literals (Not Yet Implemented)"
-        LINKEDlIST = "Linked List Opaque Expression Encoding (Not Yet Implemented)"
-        ARRAY = "Array Opaque Expression Encoding (Not Yet Implemented)"
         MBA = "Mixed-Boolean Arithmetic (Not Yet Implemented)"  # TODO input dependent? Entropy-based
 
     def __init__(self, style):
@@ -813,6 +824,7 @@ class IntegerEncodeUnit(ObfuscationUnit):
 
     name = "Integer Literal Encoding"
     description = "Encode integer literals to make them hard to determine"
+    type = TransformType.ENCODING
 
     def __init__(self, style):
         self.style = style
@@ -871,6 +883,19 @@ class IntegerEncodeUnit(ObfuscationUnit):
         return f"IntegerEncode({style_flag})"
 
 
+class NewNewIdentifierRenamer:
+    """ Traverses the program AST looking for non-external identifiers (except main),
+    transform them to some random scrambled identifier. """
+    
+    def __init__(self, style: "IdentifierTraverser.Style", minimiseIdents: bool):
+        self.new_idents_set = set()
+        self.new_idents = []
+        self.current_struct = None
+        self.struct_ident_index = 0
+        self.style = style
+    
+    # comehere TODO finish
+
 class IdentifierRenamer:
     """Traverses the program AST looking for non-external identifiers (except main),
     transforming them to some random scrambled identifier."""
@@ -896,9 +921,7 @@ class IdentifierRenamer:
             }
         ]
         self.new_idents_set = set()  # Maintain a set for fast checking
-        self.new_idents = (
-            []
-        )  # Maintain a list for ordering (try and re-use as much as possible)
+        self.new_idents = []  # Maintain a list for ordering (try and re-use when possible)
         self.current_struct = None
         self.struct_ident_index = 0
         self.style = style
@@ -948,8 +971,6 @@ class IdentifierRenamer:
         #   > if I have two loops with i then i should count as being delcared inside the scope
         #     but it's currently declared outside, meaning that only the latest i naming
         #     is used, generating broken code.
-        # TODO this also doesn't work with labels currently - they should be handled separately and scoped
-        # by function, not compound! Why is this so hard...
         scope_info = self.analyzer.info[scope]
         self.mappings.append(
             {
@@ -1247,6 +1268,7 @@ class IdentitifierRenameUnit(ObfuscationUnit):
 
     name = "Identifier Renaming"
     description = "Renames variable/function names to make them incomprehensible."
+    type = TransformType.LEXICAL
 
     def __init__(self, style, minimiseIdents):
         self.style = style
@@ -1523,6 +1545,7 @@ class ArithmeticEncodeUnit(ObfuscationUnit):
 
     name = "Integer Arithmetic Encoding"
     description = "Encode integer variable arithmetic to make code less comprehensible"
+    type = TransformType.ENCODING
 
     def __init__(self, level):
         self.level = level
@@ -1580,252 +1603,6 @@ class ArithmeticEncodeUnit(ObfuscationUnit):
         return f"ArithmeticEncode({level_flag})"  # TODO finish/fix this method
 
 
-class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
-    """Implements simple source-level whitespace cluttering, breaking down the high-level abstraction of
-    indentation and program structure by altering whitespace in the file."""
-
-    # TODO WARNING ORDERING - SHOULD COME LAST (BUT BEFORE DiTriGraphEncodeUnit)
-    name = "Clutter Whitespace"
-    description = "Clutters program whitespace, making it difficult to read"
-
-    def __init__(self):
-        pass
-
-    def transform(self, source: CSource) -> CSource:
-        # Preprocess contents
-        new_contents = ""
-        for line in source.contents.splitlines():
-            if line.strip().startswith("#"):
-                new_contents += line + "\n"
-        generator = c_generator.CGenerator()
-        contents = generator.visit(source.t_unit)
-        # Initialise lexer
-        discard_f = lambda: None
-        lexer = c_lexer.CLexer(discard_f, discard_f, discard_f, lambda tok: None)
-        lexer.build()
-        lexer.input(contents)
-        # Lex tokens and format according to whitespace rules
-        cur_line_length = 0
-        max_line_length = 100
-        token = lexer.token()
-        prev = None
-        spaced_tokens = c_lexer.CLexer.keywords + c_lexer.CLexer.keywords_new + ("ID",)
-        spaced_end_tokens = spaced_tokens + (
-            "INT_CONST_DEC",
-            "INT_CONST_OCT",
-            "INT_CONST_HEX",
-            "INT_CONST_BIN",
-            "INT_CONST_CHAR",
-            "FLOAT_CONST",
-            "HEX_FLOAT_CONST",
-        )
-        while token is not None:
-            addSpace = (
-                prev is not None
-                and prev.type in spaced_tokens
-                and token.type in spaced_end_tokens
-            )
-            cur_line_length += len(token.value) + (1 if addSpace else 0)
-            if cur_line_length <= max_line_length:
-                if addSpace:
-                    new_contents += " "
-                new_contents += token.value
-            elif (
-                token.type
-                in (
-                    "STRING_LITERAL",
-                    "WSTRING_LITERAL",
-                    "U8STRING_LITERAL",
-                    "U16STRING_LITERAL",
-                    "U32STRING_LITERAL",
-                )
-                and cur_line_length - len(token.value) >= 4
-            ):
-                split_size = max_line_length - cur_line_length + len(token.value) - 1
-                if addSpace:
-                    new_contents += " "
-                    split_size -= 1
-                new_contents += token.value[:split_size] + token.value[0] + "\n"
-                cur_line_length = 0
-                token.value = token.value[0] + token.value[split_size:]
-                continue
-            else:
-                cur_line_length = len(token.value)
-                new_contents += "\n" + token.value
-            prev = token
-            token = lexer.token()
-        return CSource(source.fpath, new_contents)
-
-    def edit_cli(self) -> bool:
-        return True
-
-    def get_cli() -> Optional["ClutterWhitespaceUnit"]:
-        return ClutterWhitespaceUnit()
-
-    def to_json(self) -> str:
-        """Converts the whitespace cluttering unit to a JSON string.
-
-        Returns:
-            (str) The corresponding serialised JSON string."""
-        return json.dumps({"type": str(__class__)})
-
-    def from_json(json: str) -> Optional["ClutterWhitespaceUnit"]:
-        """Converts the provided JSON string to a whitespace cluttering transformation, if possible.
-
-        Args:
-            json (str): The JSON string to attempt to load.
-
-        Returns:
-            The corresponding whitespace cluttering unit object if the given json is valid, or None otherwise."""
-        # TODO loading the string & rest of the function
-        pass
-
-    def __eq__(self, other: ObfuscationUnit) -> bool:
-        return isinstance(other, ClutterWhitespaceUnit)
-
-    def __str__(self):
-        return "ClutterWhitespace()"
-
-
-class DiTriGraphEncodeUnit(ObfuscationUnit):
-    """Implements a string literal encoding (SLE) obfuscation transformation, which takes the
-    input source code and encodes string literals in the code according to some encoding method
-    such that the program still performs the same functionality, but strings can no longer be
-    easily read in the code."""
-
-    # TODO WARNING ORDERING - SHOULD COME LAST?
-    name = "Digraph/Trigraph Encoding"
-    description = (
-        "Encodes certain symbols with Digraphs/Trigraphs to make them incomprehensible"
-    )
-
-    digraph_map = {
-        "[": "<:",
-        "]": ":>",
-        "{": "<%",
-        "}": "%>",
-        "#": "%:",
-    }
-
-    trigraph_map = {
-        "#": "??=",
-        "\\": "??/",
-        "^": "??'",
-        "[": "??(",
-        "]": "??)",
-        "|": "??!",
-        "{": "??<",
-        "}": "??>",
-        "~": "??-",
-    }
-
-    class Style(Enum):
-        DIGRAPH = "Digraph Encoding"
-        TRIGRAPH = "Trigraph Encoding"
-        MIXED = "Mixed Digraph/Trigraph Encoding"
-
-    def __init__(self, style: Style, chance: float):
-        self.style = style
-        if chance < 0.0:
-            self.chance = 0.0
-        elif chance > 1.0:
-            self.chance = 1.0
-        else:
-            self.chance = chance
-
-    def transform(self, source: CSource) -> CSource:
-        new_contents = ""
-        prev = None
-        str_top = None
-        for char in source.contents:
-            if (char == "'" or char == '"') and prev != "\\":
-                if str_top is None:
-                    str_top = char
-                elif str_top == char:
-                    str_top = None
-            if str_top is not None or random.random() > self.chance:
-                new_contents += char
-                prev = char
-                continue
-            if (
-                self.style == self.Style.MIXED
-                and char in self.digraph_map
-                or char in self.trigraph_map
-            ):
-                if random.randint(1, 2) == 1 and char in self.digraph_map:
-                    new_contents += self.digraph_map[char]
-                else:
-                    new_contents += self.trigraph_map[char]
-            elif self.style == self.Style.DIGRAPH and char in self.digraph_map:
-                new_contents += self.digraph_map[char]
-            elif self.style == self.Style.TRIGRAPH and char in self.trigraph_map:
-                new_contents += self.trigraph_map[char]
-            else:
-                new_contents += char
-            prev = char
-        return CSource(source.fpath, new_contents)
-
-    def edit_cli(self) -> bool:
-        options = [s.value for s in self.Style]
-        prompt = f"\nThe current encoding style is {self.style.value}.\n"
-        prompt += "Choose a new style for the digraph/trigraph encoding.\n"
-        choice = menu_driven_option(options, prompt)
-        if choice == -1:
-            return False
-        style = self.Style(options[choice])
-        print(f"The current probability of encoding is {self.chance}.")
-        print("What is the new probability (0.0 <= p <= 1.0) of the encoding?")
-        prob = get_float(0.0, 1.0)
-        if prob == float("nan"):
-            return False
-        self.style = style
-        self.chance = prob
-        return True
-
-    def get_cli() -> Optional["DiTriGraphEncodeUnit"]:
-        options = [s.value for s in DiTriGraphEncodeUnit.Style]
-        prompt = "\nChoose a style for the digraph/trigraph encoding.\n"
-        choice = menu_driven_option(options, prompt)
-        if choice == -1:
-            return None
-        style = DiTriGraphEncodeUnit.Style(options[choice])
-        print("What is the probability (0.0 <= p <= 1.0) of the encoding?")
-        prob = get_float(0.0, 1.0)
-        if prob == float("nan"):
-            return None
-        return DiTriGraphEncodeUnit(style, prob)
-
-    def to_json(self) -> str:
-        """Converts the digraph/trigraph encoding unit to a JSON string.
-
-        Returns:
-            (str) The corresponding serialised JSON string."""
-        return json.dumps(
-            {"type": str(__class__), "style": self.style.name, "chance": self.chance}
-        )
-
-    def from_json(json: str) -> Optional["ArithmeticEncodeUnit"]:
-        """Converts the provided JSON string to a digraph/trigraph encoding transformation, if possible.
-
-        Args:
-            json (str): The JSON string to attempt to load.
-
-        Returns:
-            The corresponding digraph/trigraph encoding unit object if the given json is valid, or None otherwise."""
-        # TODO loading the string & rest of the function
-        pass
-
-    def __eq__(self, other: ObfuscationUnit) -> bool:
-        if not isinstance(other, DiTriGraphEncodeUnit):
-            return False
-        return self.style == other.style and self.chance == other.chance
-
-    def __str__(self):
-        style_flag = f"style={self.style.name}"
-        probability_flag = f"p={self.chance}"
-        return f"DiTriGraphEncode({style_flag},{probability_flag})"
-
-
 class AugmentOpaque:
     """Augments exiting conditional statements in the program with opaque predicates,
     obfuscating the true conditional test by introducing invariants on inputs or entropy
@@ -1833,6 +1610,33 @@ class AugmentOpaque:
 
     name = "Opaque Predicate Augmentation"
     description = "Augments existing conditionals with invariant opaque predicates."
+    type = TransformType.STRUCTURAL
+
+    def __init__(self):
+        self.traverser = None # TODO TODO TODO COMEHERE URGENT COMEHERE TODO TODO TODO
+
+    def transform(self, source: CSource) -> CSource:
+        self.traverser.visit(source.t_unit)
+        new_contents = generate_new_contents(source)
+        return CSource(source.fpath, new_contents, source.t_unit)
+
+    def edit_cli(self) -> bool: # TODO select from inputs, entropy and other (linked list / array) 
+        return True
+
+    def get_cli() -> Optional["ControlFlowFlattenUnit"]: # TODO case number randomisation options
+        return ControlFlowFlattenUnit()  # TODO
+    
+    def to_json():
+        pass # TODO
+    
+    def from_json(json):
+        pass # TODO
+
+    def __eq__(self, other: ObfuscationUnit) -> bool:
+        return isinstance(other, ControlFlowFlattenUnit)  # TODO
+
+    def __str__(self) -> str:
+        return "FlattenControlFlow()"
 
     pass
 
@@ -1844,6 +1648,7 @@ class InsertOpaqueUnit:
 
     name = "Opaque Predicate Insertion"
     description = "Inserts new conditionals with invariant opaque predicates"
+    type = TransformType.STRUCTURAL
 
     pass
 
@@ -1948,7 +1753,6 @@ class ControlFlowFlattener(NodeVisitor):
             block_parts.append(block)
         else:
             block_parts.append([block])
-        #print([[type(z) for z in y] for y in block_parts])
         for part in block_parts:
             part_exit = exit if part == block_parts[-1] else self.get_unique_number()
             if isinstance(part, Compound):
@@ -2202,6 +2006,7 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
 
     name = "Flatten Control Flow"
     description = "Flatten all Control Flow in functions into a single level to help prevent code analysis"
+    type = TransformType.STRUCTURAL
 
     def __init__(self):
         self.traverser = ControlFlowFlattener()
@@ -2228,3 +2033,252 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
 
     def __str__(self) -> str:
         return "FlattenControlFlow()"
+
+
+class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
+    """Implements simple source-level whitespace cluttering, breaking down the high-level abstraction of
+    indentation and program structure by altering whitespace in the file."""
+
+    # TODO WARNING ORDERING - SHOULD COME LAST (BUT BEFORE DiTriGraphEncodeUnit)
+    name = "Clutter Whitespace"
+    description = "Clutters program whitespace, making it difficult to read"
+    type = TransformType.LEXICAL
+
+    def __init__(self):
+        pass
+
+    def transform(self, source: CSource) -> CSource:
+        # Preprocess contents
+        new_contents = ""
+        for line in source.contents.splitlines():
+            if line.strip().startswith("#"):
+                new_contents += line + "\n"
+        generator = c_generator.CGenerator()
+        contents = generator.visit(source.t_unit)
+        # Initialise lexer
+        discard_f = lambda: None
+        lexer = c_lexer.CLexer(discard_f, discard_f, discard_f, lambda tok: None)
+        lexer.build()
+        lexer.input(contents)
+        # Lex tokens and format according to whitespace rules
+        cur_line_length = 0
+        max_line_length = 100
+        token = lexer.token()
+        prev = None
+        spaced_tokens = c_lexer.CLexer.keywords + c_lexer.CLexer.keywords_new + ("ID",)
+        spaced_end_tokens = spaced_tokens + (
+            "INT_CONST_DEC",
+            "INT_CONST_OCT",
+            "INT_CONST_HEX",
+            "INT_CONST_BIN",
+            "INT_CONST_CHAR",
+            "FLOAT_CONST",
+            "HEX_FLOAT_CONST",
+        )
+        while token is not None:
+            addSpace = (
+                prev is not None
+                and prev.type in spaced_tokens
+                and token.type in spaced_end_tokens
+            )
+            cur_line_length += len(token.value) + (1 if addSpace else 0)
+            if cur_line_length <= max_line_length:
+                if addSpace:
+                    new_contents += " "
+                new_contents += token.value
+            elif (
+                token.type
+                in (
+                    "STRING_LITERAL",
+                    "WSTRING_LITERAL",
+                    "U8STRING_LITERAL",
+                    "U16STRING_LITERAL",
+                    "U32STRING_LITERAL",
+                )
+                and cur_line_length - len(token.value) >= 4
+            ):
+                split_size = max_line_length - cur_line_length + len(token.value) - 1
+                if addSpace:
+                    new_contents += " "
+                    split_size -= 1
+                new_contents += token.value[:split_size] + token.value[0] + "\n"
+                cur_line_length = 0
+                token.value = token.value[0] + token.value[split_size:]
+                continue
+            else:
+                cur_line_length = len(token.value)
+                new_contents += "\n" + token.value
+            prev = token
+            token = lexer.token()
+        return CSource(source.fpath, new_contents, source.t_unit)
+
+    def edit_cli(self) -> bool:
+        return True
+
+    def get_cli() -> Optional["ClutterWhitespaceUnit"]:
+        return ClutterWhitespaceUnit()
+
+    def to_json(self) -> str:
+        """Converts the whitespace cluttering unit to a JSON string.
+
+        Returns:
+            (str) The corresponding serialised JSON string."""
+        return json.dumps({"type": str(__class__)})
+
+    def from_json(json: str) -> Optional["ClutterWhitespaceUnit"]:
+        """Converts the provided JSON string to a whitespace cluttering transformation, if possible.
+
+        Args:
+            json (str): The JSON string to attempt to load.
+
+        Returns:
+            The corresponding whitespace cluttering unit object if the given json is valid, or None otherwise."""
+        # TODO loading the string & rest of the function
+        pass
+
+    def __eq__(self, other: ObfuscationUnit) -> bool:
+        return isinstance(other, ClutterWhitespaceUnit)
+
+    def __str__(self):
+        return "ClutterWhitespace()"
+
+
+class DiTriGraphEncodeUnit(ObfuscationUnit):
+    """Implements a string literal encoding (SLE) obfuscation transformation, which takes the
+    input source code and encodes string literals in the code according to some encoding method
+    such that the program still performs the same functionality, but strings can no longer be
+    easily read in the code."""
+
+    # TODO WARNING ORDERING - SHOULD COME LAST?
+    name = "Digraph/Trigraph Encoding"
+    description = (
+        "Encodes certain symbols with Digraphs/Trigraphs to make them incomprehensible"
+    )
+    type = TransformType.LEXICAL
+
+    digraph_map = {
+        "[": "<:",
+        "]": ":>",
+        "{": "<%",
+        "}": "%>",
+        "#": "%:",
+    }
+
+    trigraph_map = {
+        "#": "??=",
+        "\\": "??/",
+        "^": "??'",
+        "[": "??(",
+        "]": "??)",
+        "|": "??!",
+        "{": "??<",
+        "}": "??>",
+        "~": "??-",
+    }
+
+    class Style(Enum):
+        DIGRAPH = "Digraph Encoding"
+        TRIGRAPH = "Trigraph Encoding"
+        MIXED = "Mixed Digraph/Trigraph Encoding"
+
+    def __init__(self, style: Style, chance: float):
+        self.style = style
+        if chance < 0.0:
+            self.chance = 0.0
+        elif chance > 1.0:
+            self.chance = 1.0
+        else:
+            self.chance = chance
+
+    def transform(self, source: CSource) -> CSource:
+        new_contents = ""
+        prev = None
+        str_top = None
+        for char in source.contents:
+            if (char == "'" or char == '"') and prev != "\\":
+                if str_top is None:
+                    str_top = char
+                elif str_top == char:
+                    str_top = None
+            if str_top is not None or random.random() > self.chance:
+                new_contents += char
+                prev = char
+                continue
+            if (
+                self.style == self.Style.MIXED
+                and char in self.digraph_map
+                or char in self.trigraph_map
+            ):
+                if random.randint(1, 2) == 1 and char in self.digraph_map:
+                    new_contents += self.digraph_map[char]
+                else:
+                    new_contents += self.trigraph_map[char]
+            elif self.style == self.Style.DIGRAPH and char in self.digraph_map:
+                new_contents += self.digraph_map[char]
+            elif self.style == self.Style.TRIGRAPH and char in self.trigraph_map:
+                new_contents += self.trigraph_map[char]
+            else:
+                new_contents += char
+            prev = char
+        return CSource(source.fpath, new_contents)
+
+    def edit_cli(self) -> bool:
+        options = [s.value for s in self.Style]
+        prompt = f"\nThe current encoding style is {self.style.value}.\n"
+        prompt += "Choose a new style for the digraph/trigraph encoding.\n"
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return False
+        style = self.Style(options[choice])
+        print(f"The current probability of encoding is {self.chance}.")
+        print("What is the new probability (0.0 <= p <= 1.0) of the encoding?")
+        prob = get_float(0.0, 1.0)
+        if prob == float("nan"):
+            return False
+        self.style = style
+        self.chance = prob
+        return True
+
+    def get_cli() -> Optional["DiTriGraphEncodeUnit"]:
+        options = [s.value for s in DiTriGraphEncodeUnit.Style]
+        prompt = "\nChoose a style for the digraph/trigraph encoding.\n"
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return None
+        style = DiTriGraphEncodeUnit.Style(options[choice])
+        print("What is the probability (0.0 <= p <= 1.0) of the encoding?")
+        prob = get_float(0.0, 1.0)
+        if prob == float("nan"):
+            return None
+        return DiTriGraphEncodeUnit(style, prob)
+
+    def to_json(self) -> str:
+        """Converts the digraph/trigraph encoding unit to a JSON string.
+
+        Returns:
+            (str) The corresponding serialised JSON string."""
+        return json.dumps(
+            {"type": str(__class__), "style": self.style.name, "chance": self.chance}
+        )
+
+    def from_json(json: str) -> Optional["ArithmeticEncodeUnit"]:
+        """Converts the provided JSON string to a digraph/trigraph encoding transformation, if possible.
+
+        Args:
+            json (str): The JSON string to attempt to load.
+
+        Returns:
+            The corresponding digraph/trigraph encoding unit object if the given json is valid, or None otherwise."""
+        # TODO loading the string & rest of the function
+        pass
+
+    def __eq__(self, other: ObfuscationUnit) -> bool:
+        if not isinstance(other, DiTriGraphEncodeUnit):
+            return False
+        return self.style == other.style and self.chance == other.chance
+
+    def __str__(self):
+        style_flag = f"style={self.style.name}"
+        probability_flag = f"p={self.chance}"
+        return f"DiTriGraphEncode({style_flag},{probability_flag})"
+
