@@ -1,7 +1,12 @@
 """ File: obfuscation.py
 Implements classes for obfuscation transformations and the transform pipeline. """
 from .interaction import CSource, menu_driven_option, get_float, get_int
-from .utils import VariableUseAnalyzer, NewVariableUseAnalyzer, TypeKinds  # TODO remove if not used
+from .utils import (
+    VariableUseAnalyzer,
+    NewVariableUseAnalyzer,
+    TypeKinds,
+    is_initialised,
+)  # TODO remove if not used
 from .debug import *
 from typing import Iterable, Optional
 from ctypes import Union
@@ -45,7 +50,7 @@ class TransformType(Enum):
     LEXICAL = 1
     ENCODING = 2
     PROCEDURAL = 3
-    STRUCTURAL = 4 # TODO better names / category split
+    STRUCTURAL = 4  # TODO better names / category split
 
 
 class ObfuscationUnit(ABC):
@@ -138,13 +143,13 @@ class Pipeline:
         # TODO remove - this is temporary
         analyzer = NewVariableUseAnalyzer(source.t_unit)
         analyzer.process()
-        #defined_before = analyzer.get_definitions_at_stmt(source.t_unit.ext[-2].body.block_items[0].iffalse.iffalse.block_items[1])
-        #used_from = analyzer.get_usage_from_stmt(source.t_unit.ext[-2].body.block_items[0].iffalse.iffalse.block_items[2])
-        #needed_defs = defined_before.intersection(used_from)
-        #print("Defined before this statement: \n  {}".format("  ".join([" ".join([str(x[1].name), x[0]]) for x in defined_before])))
-        #print("Used in and after this statement: \n  {}".format("  ".join([" ".join([str(x[1].name), x[0]]) for x in used_from])))
-        #print("Identifiers that must stay defined: \n  {}".format("  ".join([" ".join([str(x[1].name), x[0]]) for x in needed_defs])))
-        #print(source.t_unit)
+        # defined_before = analyzer.get_definitions_at_stmt(source.t_unit.ext[-2].body.block_items[0].iffalse.iffalse.block_items[1])
+        # used_from = analyzer.get_usage_from_stmt(source.t_unit.ext[-2].body.block_items[0].iffalse.iffalse.block_items[2])
+        # needed_defs = defined_before.intersection(used_from)
+        # print("Defined before this statement: \n  {}".format("  ".join([" ".join([str(x[1].name), x[0]]) for x in defined_before])))
+        # print("Used in and after this statement: \n  {}".format("  ".join([" ".join([str(x[1].name), x[0]]) for x in used_from])))
+        # print("Identifiers that must stay defined: \n  {}".format("  ".join([" ".join([str(x[1].name), x[0]]) for x in needed_defs])))
+        # print(source.t_unit)
         return source
 
     def to_json(self) -> str:
@@ -884,17 +889,18 @@ class IntegerEncodeUnit(ObfuscationUnit):
 
 
 class NewNewIdentifierRenamer:
-    """ Traverses the program AST looking for non-external identifiers (except main),
-    transform them to some random scrambled identifier. """
-    
+    """Traverses the program AST looking for non-external identifiers (except main),
+    transform them to some random scrambled identifier."""
+
     def __init__(self, style: "IdentifierTraverser.Style", minimiseIdents: bool):
         self.new_idents_set = set()
         self.new_idents = []
         self.current_struct = None
         self.struct_ident_index = 0
         self.style = style
-    
+
     # comehere TODO finish
+
 
 class IdentifierRenamer:
     """Traverses the program AST looking for non-external identifiers (except main),
@@ -921,7 +927,9 @@ class IdentifierRenamer:
             }
         ]
         self.new_idents_set = set()  # Maintain a set for fast checking
-        self.new_idents = []  # Maintain a list for ordering (try and re-use when possible)
+        self.new_idents = (
+            []
+        )  # Maintain a list for ordering (try and re-use when possible)
         self.current_struct = None
         self.struct_ident_index = 0
         self.style = style
@@ -1603,7 +1611,460 @@ class ArithmeticEncodeUnit(ObfuscationUnit):
         return f"ArithmeticEncode({level_flag})"  # TODO finish/fix this method
 
 
-class AugmentOpaque:
+class OpaquePredicate:  # TODO use class as namespace or no?
+    VALID_INT_TYPES = [
+        "int8_t",
+        "uint8_t",
+        "int16_t",
+        "uint16_t",
+        "int32_t",
+        "uint32_t",
+        "int64_t",
+        "uint64_t",
+        "char",
+        "unsigned char",
+        "signed char",
+        "unsigned int",
+        "signed int",
+        "int",
+        "unsigned short",
+        "signed short",
+        "short",
+        "unsigned long",
+        "signed long",
+        "long",
+        "unsigned long long",
+        "signed long long",
+        "long long",
+    ]
+    VALID_REAL_TYPES = ["float", "double", "long double"]
+    VALID_INPUT_TYPES = VALID_INT_TYPES + VALID_REAL_TYPES
+
+    PREDICATES = [
+        # (x * x) >= 0
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "46340")),
+            BinaryOp(">=", BinaryOp("*", x, x), Constant("int", "0")),
+        ),
+        # (x * -x) <= 0
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "23170")),
+            BinaryOp(
+                "<=",
+                BinaryOp("*", x, UnaryOp("-", x)),
+                Constant("int", "0"),
+            ),
+        ),
+        # (7 * (y * y)) != ((x * x) + 1)
+        lambda x, y: BinaryOp(
+            "||",
+            BinaryOp("&&", BinaryOp(">", y, Constant("int", "6620")), BinaryOp(">", x, Constant("int", "46339"))),
+            BinaryOp(
+                "!=",
+                BinaryOp("*", Constant("int", "7"), BinaryOp("*", y, y)),
+                BinaryOp("+", BinaryOp("*", x, x), Constant("int", "1")),
+            ),
+        ),
+        # ((7 * (y * y)) - 1) != (x * x)
+        lambda x, y: BinaryOp(
+            "||",
+            BinaryOp("&&", BinaryOp(">", y, Constant("int", "6620")), BinaryOp(">", x, Constant("int", "46339"))),
+            BinaryOp(
+                "!=",
+                BinaryOp(
+                    "-",
+                    BinaryOp(
+                        "*",
+                        Constant("int", "7"),
+                        BinaryOp("*", y, y),
+                    ),
+                    Constant("int", "1"),
+                ),
+                BinaryOp("*", x, x),
+            ),
+        ),
+        # ((x * (x + 1)) % 2) == 0
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "46339")),
+            BinaryOp(
+                "==",
+                BinaryOp(
+                    "%",
+                    BinaryOp("*", x, BinaryOp("+", x, Constant("int", "1"))),
+                    Constant("int", "2"),
+                ),
+                Constant("int", "0"),
+            ),
+        ),
+        # ((x * (1 + x)) % 2) != 1
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "46339")),
+            BinaryOp(
+                "!=",
+                BinaryOp(
+                    "%",
+                    BinaryOp("*", x, BinaryOp("+", Constant("int", "1"), x)),
+                    Constant("int", "2"),
+                ),
+                Constant("int", "1"),
+            ),
+        ),
+        # ((x * ((x + 1) * (x + 2))) % 3) == 0
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "1280")),
+            BinaryOp(
+                "==",
+                BinaryOp(
+                    "%",
+                    BinaryOp(
+                        "*",
+                        x,
+                        BinaryOp(
+                            "*",
+                            BinaryOp("+", x, Constant("int", "1")),
+                            BinaryOp("+", x, Constant("int", "2")),
+                        ),
+                    ),
+                    Constant("int", "3"),
+                ),
+                Constant("int", "0"),
+            ),
+        ),
+        # (((x + 1) * (x * (x + 2))) % 3) != 1
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "1200")),
+            BinaryOp(
+                "!=",
+                BinaryOp(
+                    "%",
+                    BinaryOp(
+                        "*",
+                        BinaryOp("+", x, Constant("int", "1")),
+                        BinaryOp(
+                            "*",
+                            x,
+                            BinaryOp("+", x, Constant("int", "2")),
+                        ),
+                    ),
+                    Constant("int", "3"),
+                ),
+                Constant("int", "1"),
+            ),
+        ),
+        # (((x + 1) * ((x + 2) * x)) % 3) != 2
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "1200")),
+            BinaryOp(
+                "!=",
+                BinaryOp(
+                    "%",
+                    BinaryOp(
+                        "*",
+                        BinaryOp("+", x, Constant("int", "2")),
+                        BinaryOp("*", BinaryOp("+", x, Constant("int", "1")), x),
+                    ),
+                    Constant("int", "3"),
+                ),
+                Constant("int", "2"),
+            ),
+        ),
+        # (((7 * x) * x) + 1) % 7) != 0
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "6620")),
+            BinaryOp(
+                "!=",
+                BinaryOp(
+                    "%",
+                    BinaryOp(
+                        "+",
+                        BinaryOp("*", BinaryOp("*", Constant("int", "7"), x), x),
+                        Constant("int", "1"),
+                    ),
+                    Constant("int", "7"),
+                ),
+                Constant("int", "0"),
+            ),
+        ),
+        # ((((x * x) + x) + 7) % 81) != 0
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "46000")),
+            BinaryOp(
+                "!=",
+                BinaryOp(
+                    "%",
+                    BinaryOp(
+                        "+",
+                        BinaryOp("+", BinaryOp("*", x, x), x),
+                        Constant("int", "7"),
+                    ),
+                    Constant("int", "81"),
+                ),
+                Constant("int", "0"),
+            ),
+        ),
+        # ((((x + 1) * x) + 7) % 81) != 0
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "46000")),
+            BinaryOp(
+                "!=",
+                BinaryOp(
+                    "%",
+                    BinaryOp(
+                        "+",
+                        BinaryOp("*", BinaryOp("+", x, Constant("int", "1")), x),
+                        Constant("int", "7"),
+                    ),
+                    Constant("int", "81"),
+                ),
+                Constant("int", "0"),
+            ),
+        ),
+    ]
+
+    def negate(expr: Node) -> Node:
+        if isinstance(expr, BinaryOp):
+            if expr.op == "==":
+                expr.op = "!="
+                return expr
+            elif expr.op == "!=":
+                expr.op = "=="
+                return expr
+            elif expr.op == "&&":  # TODO De Morgan's - check
+                expr.op = "||"
+                expr.left = OpaquePredicate.negate(expr.left)
+                expr.right = OpaquePredicate.negate(expr.right)
+                return expr
+            elif expr.op == "||":
+                expr.op = "&&"
+                expr.left = OpaquePredicate.negate(expr.left)
+                expr.right = OpaquePredicate.negate(expr.right)
+                return expr
+        return UnaryOp("!", expr)
+
+
+class OpaqueAugmenter(NodeVisitor):
+    class Style(Enum):
+        INPUT = "Predicates constructed from dynamic user input (function parameters)."
+        ENTROPY = "Predicates constructed from random entropic variables."
+        # LINKED_LIST = "Predicates constructed from intractable pointer aliasing on a linked list."
+        # TODO above is not implemented yet
+
+    def __init__(self, styles: Iterable[Style], probability: float = 1.0) -> None:
+        self.styles = styles
+        self.probability = probability
+        self.current_function = None
+        self.parameters = None
+        self.analyzer = None
+        self.source = None
+        self.entropic_vars = (
+            []
+        )  # TODO could add both global and function level entropic vars in the future?
+
+    def process(self, source):
+        self.analyzer = NewVariableUseAnalyzer(source.t_unit)
+        self.analyzer.process()
+        self.source = source
+        self.visit(source.t_unit)
+
+    def generate_opaque_predicate(self, cond_expr):
+        # Retrieve a random opaque predicate and check its parameters
+        predicate = random.choice(OpaquePredicate.PREDICATES)
+        num_args = predicate.__code__.co_argcount
+        idents = []
+        # Iteratively choose variables to use in the predicate
+        while len(idents) < num_args:
+            styles = [s for s in self.styles]
+            # Select a random style for the list of chosen styles to use (if possible)
+            valid_style = False
+            while not valid_style and len(styles) != 0:
+                style = random.choice(styles)
+                styles.remove(style)
+                if style == self.Style.INPUT:
+                    valid_style = (
+                        self.parameters is not None
+                        and len(set(self.parameters).difference(set(idents))) != 0
+                    )  # TODO check logic here just in case
+                elif style == self.Style.ENTROPY:
+                    valid_style = True
+            if valid_style == False:
+                return cond_expr  # No variables to use as parameters, so exit out
+            if style == self.Style.INPUT:
+                # Choose a random function parameter (not used so far) to use
+                param = random.choice(self.parameters)
+            elif style == self.Style.ENTROPY:
+                # Randomly either choose an existing entropic variable or create a new one
+                available_vars = list(set(self.entropic_vars).difference(set(idents)))
+                use_new_var = len(available_vars) == 0 or random.random() >= 0.75
+                if use_new_var:
+                    # Create a new entropic variable to be used.
+                    # First determine if stdlib.h and time.h are included
+                    stdlib_init, time_init = is_initialised(
+                        self.source, ["stdlib.h", "time.h"]
+                    )
+                    # Next determine if srand has been initialised in main
+                    root = self.source.t_unit
+                    if root.ext is None:
+                        return cond_expr
+                    funcs = [
+                        f
+                        for f in root.ext
+                        if isinstance(f, FuncDef) and f.decl is not None
+                    ]
+                    main = [
+                        f
+                        for f in funcs
+                        if isinstance(f.decl, Decl)
+                        and f.decl.name is not None
+                        and f.decl.name == "main"
+                    ]
+                    if len(main) == 0:
+                        return cond_expr
+                    main = main[0]
+                    if main.body is None or main.body.block_items is None:
+                        return cond_expr
+                    srand_init = False
+                    for i, stmt in enumerate(main.body.block_items):
+                        if isinstance(stmt, FuncCall) and stmt.name is not None:
+                            if isinstance(stmt.name, ID) and stmt.name.name == "srand":
+                                srand_init = True
+                                break
+                    # Initialise stdlib.h/time.h/srand where necessary
+                    if not stdlib_init:
+                        self.source.contents = (
+                            "#include <stdlib.h>\n" + self.source.contents
+                        )
+                    if not time_init:
+                        # TODO could this break if the user already has functions used in these libraries? uh oh need to state this somewhere
+                        self.source.contents = (
+                            "#include <time.h>\n" + self.source.contents
+                        )
+                    if not srand_init:
+                        srand_call = FuncCall(
+                            ID("srand"),
+                            ExprList(
+                                [FuncCall(ID("time"), ExprList([Constant("int", "0")]))]
+                            ),
+                        )
+                        main.body.block_items = [srand_call] + main.body.block_items
+                    # Generate a new global entropic variable
+                    ident = self.analyzer.get_new_identifier(
+                        exclude=[v[0] for v in self.entropic_vars]
+                    )
+                    ident_decl = Decl(
+                        ident,
+                        None,
+                        None,
+                        None,
+                        None,
+                        TypeDecl(ident, None, None, IdentifierType(["int"])),
+                        None,
+                        None,
+                    )
+                    self.source.t_unit.ext = [ident_decl] + self.source.t_unit.ext
+                    assignment = Assignment("=", ID(ident), FuncCall(ID("rand"), None))
+                    for i, stmt in enumerate(main.body.block_items):
+                        if isinstance(stmt, FuncCall) and stmt.name is not None:
+                            if isinstance(stmt.name, ID) and stmt.name.name == "srand":
+                                main.body.block_items = (
+                                    main.body.block_items[: (i + 1)]
+                                    + [assignment]
+                                    + main.body.block_items[(i + 1) :]
+                                )
+                                break
+                    self.entropic_vars.append((ident, "int"))
+                    param = (ident, "int")
+                    # TODO could add float support in the future for entropic vars?
+                else:
+                    # Choose a random existing entropic variable to use
+                    param = random.choice(available_vars)
+            idents.append(param)
+        args = []
+        for ident in idents:
+            if ident[1] not in OpaquePredicate.VALID_REAL_TYPES:
+                args.append(ID(ident[0]))
+            else:
+                args.append(
+                    Cast(
+                        Typename(
+                            None,
+                            [],
+                            None,
+                            TypeDecl(None, [], None, IdentifierType(["int"])),
+                        ),
+                        ID(ident[0]),
+                    )
+                )
+        opaque_expr = predicate(*args)
+        is_true = random.random() >= 0.5
+        is_before = random.random() >= 0.5
+        if is_true:
+            if is_before:
+                return BinaryOp("&&", opaque_expr, cond_expr)
+            return BinaryOp("&&", cond_expr, opaque_expr)
+        opaque_expr = OpaquePredicate.negate(opaque_expr)
+        if is_before:
+            return BinaryOp("||", opaque_expr, cond_expr)
+        return BinaryOp("||", cond_expr, opaque_expr)
+
+    def test_add_predicate(self, node):
+        if node.cond is not None and random.random() < self.probability:
+            node.cond = self.generate_opaque_predicate(node.cond)
+
+    def visit_If(self, node):
+        self.test_add_predicate(node)
+        return self.generic_visit(node)
+
+    def visit_While(self, node):
+        self.test_add_predicate(node)
+        return self.generic_visit(node)
+
+    def visit_DoWhile(self, node):
+        self.test_add_predicate(node)
+        return self.generic_visit(node)
+
+    def visit_For(self, node):
+        self.test_add_predicate(node)
+        return self.generic_visit(node)
+
+    def visit_TernaryOp(self, node):
+        self.test_add_predicate(node)
+        return self.generic_visit(node)
+
+    def visit_ParamList(self, node):
+        if node.params is None:
+            return
+        for node in node.params:
+            if isinstance(node, Decl) and node.name is not None:
+                if (
+                    node.type is not None
+                    and isinstance(node.type, TypeDecl)
+                    and node.type.type is not None
+                    and node.type.type.names is not None
+                ):
+                    type_ = " ".join(node.type.type.names)
+                    if type_ in OpaquePredicate.VALID_INPUT_TYPES:
+                        self.parameters.append((node.name, type_))
+
+    def visit_FuncDef(self, node):
+        prev = self.current_function
+        self.current_function = node
+        self.parameters = []
+        self.generic_visit(node)
+        self.current_function = prev
+        self.parameters = None
+
+
+class AugmentOpaqueUnit(ObfuscationUnit):
     """Augments exiting conditional statements in the program with opaque predicates,
     obfuscating the true conditional test by introducing invariants on inputs or entropy
     that evaluate to known constants at runtime."""
@@ -1612,33 +2073,116 @@ class AugmentOpaque:
     description = "Augments existing conditionals with invariant opaque predicates."
     type = TransformType.STRUCTURAL
 
-    def __init__(self):
-        self.traverser = None # TODO TODO TODO COMEHERE URGENT COMEHERE TODO TODO TODO
+    def __init__(
+        self, styles: Iterable[OpaqueAugmenter.Style], probability: float
+    ) -> None:
+        self.styles = styles
+        self.probability = probability
+        self.traverser = OpaqueAugmenter(styles, probability)
 
     def transform(self, source: CSource) -> CSource:
-        self.traverser.visit(source.t_unit)
+        self.traverser.process(source)
         new_contents = generate_new_contents(source)
         return CSource(source.fpath, new_contents, source.t_unit)
 
-    def edit_cli(self) -> bool: # TODO select from inputs, entropy and other (linked list / array) 
+    def edit_cli(self) -> bool:
+        styles = AugmentOpaqueUnit.generic_styles(self.styles)
+        if styles is None:
+            return None
+        print(f"The current probability of augmentation is {self.probability}.")
+        print("What is the new probability (0.0 <= p <= 1.0) of the augmentation?")
+        prob = get_float(0.0, 1.0)
+        if prob == float("nan"):
+            return None
+        self.styles = styles
+        self.probability = prob
         return True
 
-    def get_cli() -> Optional["ControlFlowFlattenUnit"]: # TODO case number randomisation options
-        return ControlFlowFlattenUnit()  # TODO
-    
+    def get_cli() -> Optional[
+        "AugmentOpaqueUnit"
+    ]:  # TODO could also add a NUMBER field???
+        styles = AugmentOpaqueUnit.generic_styles([s for s in OpaqueAugmenter.Style])
+        if styles is None:
+            return None
+        print("What is the probability (0.0 <= p <= 1.0) of the augmentation?")
+        prob = get_float(0.0, 1.0)
+        if prob == float("nan"):
+            return None
+        return AugmentOpaqueUnit(styles, prob)
+
+    def generic_styles(
+        styles: Iterable[OpaqueAugmenter.Style],
+    ) -> Optional[Iterable[OpaqueAugmenter.Style]]:
+        available = [s for s in OpaqueAugmenter.Style]
+        choice = 0
+        while choice < len(OpaqueAugmenter.Style) or len(styles) == 0:
+            options = [
+                ("[X] " if s in styles else "[ ] ") + s.value
+                for s in OpaqueAugmenter.Style
+            ]
+            options.append("Finish selecting styles.")
+            prompt = "\nChoose which syles to enable for opaque predicate augmenting, or choose to finish.\n"
+            choice = menu_driven_option(options, prompt)
+            if choice == -1:
+                return None
+            elif choice < len(OpaqueAugmenter.Style):
+                style = OpaqueAugmenter.Style(available[choice])
+                if style in styles:
+                    styles.remove(style)
+                else:
+                    styles.append(style)
+            elif len(styles) == 0:
+                print(
+                    "No valid options are currently selected. Please select at least one option.\n"
+                )
+        return styles
+
     def to_json():
-        pass # TODO
-    
+        pass  # TODO
+
     def from_json(json):
-        pass # TODO
+        pass  # TODO
 
     def __eq__(self, other: ObfuscationUnit) -> bool:
-        return isinstance(other, ControlFlowFlattenUnit)  # TODO
+        return (
+            isinstance(other, AugmentOpaqueUnit)
+            and self.styles == other.styles
+            and self.probability == other.probability
+        )
 
     def __str__(self) -> str:
-        return "FlattenControlFlow()"
+        style_flag = "styles=[" + ", ".join([x.name for x in self.styles]) + "]"
+        probability_flag = f"p={self.probability}"
+        return f"AugmentOpaqueUnit({style_flag},{probability_flag})"
 
-    pass
+
+class OpaqueInserter(NodeVisitor):
+    class Style(Enum):
+        INPUT = "Predicates constructed from dynamic user input (function parameters)."
+        ENTROPY = "Predicates constructed from random entropic variables."
+        # LINKED_LIST = "Predicates constructed from intractable pointer aliasing on a linked list."
+        # TODO above is not implemented yet
+
+    class Granularity(Enum):
+        PROCEDURAL = "Predicates are constructed on a whole function-level"
+        BLOCK = "Predicates are constructed for random blocks of code (sequential statements)"
+        STMT = "Predictes are constructed for random individual statements"
+
+    class Kind(Enum):
+        CHECK = "If (true predicate) { YOUR CODE } "
+        FALSE = "If (false predicate) { function call } else { YOUR CODE } "
+        CALL = "If (false predicate) { function call } "
+        EITHER = "If (any predicate) { YOUR CODE } else { YOUR CODE } "
+        # TODO could add bug - where bogus/buggy code is generated
+
+    def __init__(
+        self,
+        styles: Iterable[Style],
+        granularities: Iterable[Granularity],
+        kinds: Iterable[Kind],
+        number: int,  # How many to add per function
+    ):
+        pass
 
 
 class InsertOpaqueUnit:
@@ -1657,7 +2201,6 @@ class InsertOpaqueUnit:
 
 
 class ControlFlowFlattener(NodeVisitor):
-    
     def __init__(self):
         self.levels = []
         self.breaks = []
@@ -1673,17 +2216,17 @@ class ControlFlowFlattener(NodeVisitor):
         self.attr = None
         self.analyzer = None
         self.count = 0
-        
+
     def get_unique_number(self):
         num = self.cur_number
         self.cur_number += 1
         return str(num)
-        
+
     def visit_FileAST(self, node):
         self.analyzer = NewVariableUseAnalyzer(node)
         self.analyzer.process()
         self.generic_visit(node)
-    
+
     # We first must break the function into the basic blocks that define it
     # TODO remove below - just logic
     # We get a potential branch on:
@@ -1705,37 +2248,41 @@ class ControlFlowFlattener(NodeVisitor):
     def flatten_function(self, node):
         if node.body is None or len(node.body.block_items) == 0:
             return
-        while_label = "L" #self.analyzer.get_unique_identifier(node, TypeKinds.LABEL)
-        switch_variable = "switchVar" #self.analyzer.get_unique_identifier(node, TypeKinds.NONSTRUCTURE)
+        while_label = "L"  # self.analyzer.get_unique_identifier(node, TypeKinds.LABEL)
+        switch_variable = "switchVar"  # self.analyzer.get_unique_identifier(node, TypeKinds.NONSTRUCTURE)
         exit = self.get_unique_number()
         entry = self.get_unique_number()
         self.cases = []
         new_statements = [
-            Decl(switch_variable, None, None, None, None, 
-                 TypeDecl(switch_variable, None, None, 
-                          IdentifierType(['int'])),
-                 Constant("int", entry), None
-            ), Label(while_label, 
-                     While(
-                         BinaryOp("!=", 
-                                  ID(switch_variable), 
-                                  Constant("int", exit)),
-                         Compound([
-                             Switch(
-                                 ID(switch_variable), 
-                                 Compound(self.cases))
-                         ]))
-            ) 
+            Decl(
+                switch_variable,
+                None,
+                None,
+                None,
+                None,
+                TypeDecl(switch_variable, None, None, IdentifierType(["int"])),
+                Constant("int", entry),
+                None,
+            ),
+            Label(
+                while_label,
+                While(
+                    BinaryOp("!=", ID(switch_variable), Constant("int", exit)),
+                    Compound([Switch(ID(switch_variable), Compound(self.cases))]),
+                ),
+            ),
         ]
         self.levels.append((switch_variable, while_label))
         self.transform_block(node.body, entry, exit)
         self.levels = self.levels[:-1]
         node.body.block_items = new_statements
-       
+
     def transform_block(self, block, entry, exit):
         block_parts = []
         current_seq = []
-        if isinstance(block, Compound): # TODO logic here is a bit messy? Can I clean up?
+        if isinstance(
+            block, Compound
+        ):  # TODO logic here is a bit messy? Can I clean up?
             for stmt in block.block_items:
                 if isinstance(stmt, (Compound, If, Switch, While, DoWhile, For)):
                     if len(current_seq) != 0:
@@ -1770,38 +2317,60 @@ class ControlFlowFlattener(NodeVisitor):
             elif isinstance(part, list):
                 self.transform_sequence(part, entry, part_exit)
             entry = part_exit
-    
+
     def transform_if(self, if_stmt, entry, exit):
         switch_variable = self.levels[-1][0]
         then_entry = self.get_unique_number()
         else_entry = self.get_unique_number() if if_stmt.iffalse is not None else exit
         # TODO: Labels?
-        case = Case(Constant("int", entry), Compound([
-            If(if_stmt.cond, 
-               Assignment("=", ID(switch_variable), Constant("int", then_entry)), 
-               Assignment("=", ID(switch_variable), Constant("int", else_entry))),
-            Break()]))
+        case = Case(
+            Constant("int", entry),
+            Compound(
+                [
+                    If(
+                        if_stmt.cond,
+                        Assignment(
+                            "=", ID(switch_variable), Constant("int", then_entry)
+                        ),
+                        Assignment(
+                            "=", ID(switch_variable), Constant("int", else_entry)
+                        ),
+                    ),
+                    Break(),
+                ]
+            ),
+        )
         self.cases.append(case)
         self.transform_block(if_stmt.iftrue, then_entry, exit)
         if if_stmt.iffalse is not None:
             self.transform_block(if_stmt.iffalse, else_entry, exit)
-    
+
     def transform_while(self, while_stmt, entry, exit):
         switch_variable = self.levels[-1][0]
         body_entry = self.get_unique_number()
         # TODO: Labels?
-        case = Case(Constant("int", entry), Compound([
-            If(while_stmt.cond, 
-               Assignment("=", ID(switch_variable), Constant("int", body_entry)), 
-               Assignment("=", ID(switch_variable), Constant("int", exit))),
-            Break()]))
+        case = Case(
+            Constant("int", entry),
+            Compound(
+                [
+                    If(
+                        while_stmt.cond,
+                        Assignment(
+                            "=", ID(switch_variable), Constant("int", body_entry)
+                        ),
+                        Assignment("=", ID(switch_variable), Constant("int", exit)),
+                    ),
+                    Break(),
+                ]
+            ),
+        )
         self.cases.append(case)
         self.breaks.append((len(self.levels), exit))
         self.continues.append((len(self.levels), entry))
         self.transform_block(while_stmt.stmt, body_entry, entry)
         self.breaks = self.breaks[:-1]
         self.continues = self.continues[:-1]
-    
+
     def transform_switch(self, switch_stmt, entry, exit):
         switch_variable = self.levels[-1][0]
         # TODO: Labels?
@@ -1809,7 +2378,9 @@ class ControlFlowFlattener(NodeVisitor):
         goto_labels = []
         for i, stmt in enumerate(switch_stmt.stmt.block_items):
             if isinstance(stmt, (Case, Default)):
-                goto_label = self.analyzer.get_unique_identifier(switch_stmt, TypeKinds.LABEL)
+                goto_label = self.analyzer.get_unique_identifier(
+                    switch_stmt, TypeKinds.LABEL
+                )
                 if isinstance(stmt, Case):
                     goto_labels.append(Case(stmt.expr, [Goto(goto_label)]))
                 else:
@@ -1821,64 +2392,108 @@ class ControlFlowFlattener(NodeVisitor):
                     switch_body.block_items += stmt.stmts[1:]
             else:
                 switch_body.block_items.append(stmt)
-        case = Case(Constant("int", entry), Compound([
-            Switch(switch_stmt.cond, Compound(goto_labels)),
-            Assignment("=", ID(switch_variable), Constant("int", exit)),
-            Break()]))
+        case = Case(
+            Constant("int", entry),
+            Compound(
+                [
+                    Switch(switch_stmt.cond, Compound(goto_labels)),
+                    Assignment("=", ID(switch_variable), Constant("int", exit)),
+                    Break(),
+                ]
+            ),
+        )
         self.cases.append(case)
         self.breaks.append((len(self.levels), exit))
         self.transform_block(switch_body, self.get_unique_number(), exit)
         self.breaks = self.breaks[:-1]
-    
+
     def transform_do_while(self, do_stmt, entry, exit):
         switch_variable = self.levels[-1][0]
         test_entry = self.get_unique_number()
         body_entry = self.get_unique_number()
         # TODO: Labels?
-        test_case = Case(Constant("int", test_entry), Compound([
-            If(do_stmt.cond, 
-               Assignment("=", ID(switch_variable), Constant("int", body_entry)), 
-               Assignment("=", ID(switch_variable), Constant("int", exit))),
-            Break()]))
+        test_case = Case(
+            Constant("int", test_entry),
+            Compound(
+                [
+                    If(
+                        do_stmt.cond,
+                        Assignment(
+                            "=", ID(switch_variable), Constant("int", body_entry)
+                        ),
+                        Assignment("=", ID(switch_variable), Constant("int", exit)),
+                    ),
+                    Break(),
+                ]
+            ),
+        )
         self.cases.append(test_case)
-        entry_case = Case(Constant("int", entry), Compound([
-            Assignment("=", ID(switch_variable), Constant("int", body_entry)),
-            Break()]))
+        entry_case = Case(
+            Constant("int", entry),
+            Compound(
+                [
+                    Assignment("=", ID(switch_variable), Constant("int", body_entry)),
+                    Break(),
+                ]
+            ),
+        )
         self.cases.append(entry_case)
         self.breaks.append((len(self.levels), exit))
         self.continues.append((len(self.levels), test_entry))
         self.transform_block(do_stmt.stmt, body_entry, test_entry)
         self.breaks = self.breaks[:-1]
         self.continues = self.continues[:-1]
-    
+
     def transform_for(self, for_stmt, entry, exit):
         switch_variable = self.levels[-1][0]
         test_entry = self.get_unique_number()
         inc_entry = self.get_unique_number()
         body_entry = self.get_unique_number()
         # TODO: Labels?
-        entry_case = Case(Constant("int", entry), Compound([
-            for_stmt.init, # TODO what if this is None? Need to deal with this
-            Assignment("=", ID(switch_variable), Constant("int", test_entry)),
-            Break()]))
+        entry_case = Case(
+            Constant("int", entry),
+            Compound(
+                [
+                    for_stmt.init,  # TODO what if this is None? Need to deal with this
+                    Assignment("=", ID(switch_variable), Constant("int", test_entry)),
+                    Break(),
+                ]
+            ),
+        )
         self.cases.append(entry_case)
-        test_case = Case(Constant("int", test_entry), Compound([
-            If(for_stmt.cond, 
-               Assignment("=", ID(switch_variable), Constant("int", body_entry)),
-               Assignment("=", ID(switch_variable), Constant("int", exit))),
-            Break()]))
+        test_case = Case(
+            Constant("int", test_entry),
+            Compound(
+                [
+                    If(
+                        for_stmt.cond,
+                        Assignment(
+                            "=", ID(switch_variable), Constant("int", body_entry)
+                        ),
+                        Assignment("=", ID(switch_variable), Constant("int", exit)),
+                    ),
+                    Break(),
+                ]
+            ),
+        )
         self.cases.append(test_case)
-        inc_case = Case(Constant("int", inc_entry), Compound([
-            for_stmt.next, # TODO what if this is None? Need to deal with this
-            Assignment("=", ID(switch_variable), Constant("int", test_entry)),
-            Break()]))
+        inc_case = Case(
+            Constant("int", inc_entry),
+            Compound(
+                [
+                    for_stmt.next,  # TODO what if this is None? Need to deal with this
+                    Assignment("=", ID(switch_variable), Constant("int", test_entry)),
+                    Break(),
+                ]
+            ),
+        )
         self.cases.append(inc_case)
         self.breaks.append((len(self.levels), exit))
         self.continues.append((len(self.levels), inc_entry))
         self.transform_block(for_stmt.stmt, body_entry, inc_entry)
         self.breaks = self.breaks[:-1]
         self.continues = self.continues[:-1]
-        
+
     def transform_sequence(self, sequence, entry, exit):
         # TODO: Labels?
         stmts = []
@@ -1886,22 +2501,26 @@ class ControlFlowFlattener(NodeVisitor):
         for stmt in sequence:
             if isinstance(stmt, Continue):
                 stmts.append(
-                    Assignment("=", 
-                               ID(self.levels[self.continues[-1][0]-1][0]),
-                               Constant("int", self.continues[-1][1])))
+                    Assignment(
+                        "=",
+                        ID(self.levels[self.continues[-1][0] - 1][0]),
+                        Constant("int", self.continues[-1][1]),
+                    )
+                )
                 if self.continues[-1][0] != len(self.levels):
-                    stmts.append(
-                        Goto(self.levels[self.continues[-1][0]-1][1]))
+                    stmts.append(Goto(self.levels[self.continues[-1][0] - 1][1]))
                 else:
                     stmts.append(Break())
             elif isinstance(stmt, Break):
                 stmts.append(
-                    Assignment("=", 
-                               ID(self.levels[self.breaks[-1][0]-1][0]),
-                               Constant("int", self.breaks[-1][1])))
+                    Assignment(
+                        "=",
+                        ID(self.levels[self.breaks[-1][0] - 1][0]),
+                        Constant("int", self.breaks[-1][1]),
+                    )
+                )
                 if self.breaks[-1][0] != len(self.levels):
-                    stmts.append(
-                        Goto(self.levels[self.breaks[-1][0]-1][1]))
+                    stmts.append(Goto(self.levels[self.breaks[-1][0] - 1][1]))
                 else:
                     stmts.append(Break())
             else:
@@ -1909,7 +2528,7 @@ class ControlFlowFlattener(NodeVisitor):
         stmts.append(Assignment("=", ID(self.levels[-1][0]), Constant("int", exit)))
         stmts.append(Break())
         self.cases.append(case)
-     
+
     def visit_FuncDef(self, node):
         self.current_function = node
         self.function_decls = set()
@@ -1928,7 +2547,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.function_decls = None
         self.current_function = None
         self.cur_number = 0
-        
+
     def visit_Decl(self, node):
         if self.current_function is None:
             return
@@ -1941,10 +2560,16 @@ class ControlFlowFlattener(NodeVisitor):
         for ident, kind in list(self.analyzer.get_stmt_definitions(stmt)):
             if isinstance(self.parent, ExprList) and ident != node.name:
                 continue
-            if (ident, kind) in self.function_decls or (ident, kind) in self.unavailable_idents: # Renaming required to avoid conflicts
+            if (ident, kind) in self.function_decls or (
+                ident,
+                kind,
+            ) in self.unavailable_idents:  # Renaming required to avoid conflicts
                 num = 2
                 new_ident = ident
-                while (new_ident, kind) in self.function_decls or (new_ident, kind) in self.unavailable_idents:
+                while (new_ident, kind) in self.function_decls or (
+                    new_ident,
+                    kind,
+                ) in self.unavailable_idents:
                     new_ident = ident + str(num)
                     num += 1
                 self.analyzer.change_ident(stmt, ident, kind, new_ident)
@@ -1954,31 +2579,52 @@ class ControlFlowFlattener(NodeVisitor):
         self.checked_stmts.add(stmt)
         # Create a relevant corresponding declaration at the start of the function
         func_body = self.current_function.body
-        decl = Decl(node.name, node.quals, node.align, node.storage, node.funcspec, node.type, None, node.bitsize)
+        decl = Decl(
+            node.name,
+            node.quals,
+            node.align,
+            node.storage,
+            node.funcspec,
+            node.type,
+            None,
+            node.bitsize,
+        )
         self.pending_decls.append(decl)
         # Replace the declaration with a corresponding assignment if appropriate
         if node.init is None:
             assign = None
-        elif isinstance(node.init, InitList): # TODO does this fail on multi-dimensional init lists? Check
+        elif isinstance(
+            node.init, InitList
+        ):  # TODO does this fail on multi-dimensional init lists? Check
             assign = []
             for i, expr in enumerate(node.init.exprs):
-                assign.append(Assignment("=", ArrayRef(ID(node.name), Constant("int", str(i))), expr))
+                assign.append(
+                    Assignment(
+                        "=", ArrayRef(ID(node.name), Constant("int", str(i))), expr
+                    )
+                )
         else:
             assign = [Assignment("=", ID(node.name), node.init)]
         if isinstance(self.parent, Compound):
             i = self.parent.block_items.index(node)
-            self.parent.block_items = self.parent.block_items[:i] + \
-                ([] if assign is None else assign) + self.parent.block_items[(i+1):]
-        elif isinstance(self.parent, ExprList): # DeclList after transformation
+            self.parent.block_items = (
+                self.parent.block_items[:i]
+                + ([] if assign is None else assign)
+                + self.parent.block_items[(i + 1) :]
+            )
+        elif isinstance(self.parent, ExprList):  # DeclList after transformation
             i = self.parent.exprs.index(node)
-            self.parent.exprs = self.parent.exprs[:i] + \
-                ([] if assign is None else assign) + self.parent.exprs[(i+1):]
+            self.parent.exprs = (
+                self.parent.exprs[:i]
+                + ([] if assign is None else assign)
+                + self.parent.exprs[(i + 1) :]
+            )
         elif assign is not None and len(assign) == 1:
             setattr(self.parent, self.attr, assign)
         else:
             setattr(self.parent, self.attr, Compound(assign))
         self.generic_visit(node)
-        
+
     def visit_DeclList(self, node):
         expr_list = ExprList(node.decls)
         if isinstance(self.parent, Compound):
@@ -1986,7 +2632,10 @@ class ControlFlowFlattener(NodeVisitor):
             self.parent.block_items[index] = expr_list
             self.generic_visit(expr_list)
             if len(expr_list.exprs) == 0:
-                self.parent.block_items = self.parent.block_items[:index] + self.parent.block_items[(index + 1):]
+                self.parent.block_items = (
+                    self.parent.block_items[:index]
+                    + self.parent.block_items[(index + 1) :]
+                )
         else:
             setattr(self.parent, self.attr, expr_list)
             self.generic_visit(expr_list)
@@ -2016,17 +2665,19 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
         new_contents = generate_new_contents(source)
         return CSource(source.fpath, new_contents, source.t_unit)
 
-    def edit_cli(self) -> bool: # TODO case number randomisation options
+    def edit_cli(self) -> bool:  # TODO case number randomisation options
         return True  # TODO
 
-    def get_cli() -> Optional["ControlFlowFlattenUnit"]: # TODO case number randomisation options
+    def get_cli() -> Optional[
+        "ControlFlowFlattenUnit"
+    ]:  # TODO case number randomisation options
         return ControlFlowFlattenUnit()  # TODO
-    
+
     def to_json():
-        pass # TODO
-    
+        pass  # TODO
+
     def from_json(json):
-        pass # TODO
+        pass  # TODO
 
     def __eq__(self, other: ObfuscationUnit) -> bool:
         return isinstance(other, ControlFlowFlattenUnit)  # TODO
@@ -2281,4 +2932,3 @@ class DiTriGraphEncodeUnit(ObfuscationUnit):
         style_flag = f"style={self.style.name}"
         probability_flag = f"p={self.chance}"
         return f"DiTriGraphEncode({style_flag},{probability_flag})"
-

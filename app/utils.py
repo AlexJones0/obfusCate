@@ -4,6 +4,26 @@ from pycparser.c_ast import *
 from string import ascii_letters
 import enum
 
+def is_initialised(source: CSource, libraries: Iterable[str]) -> Iterable[bool]:
+    """ Checks if each of the given libraries are initialised in the provided
+    source file's contents such that they can be used in code safely.
+    
+    Inputs:
+        - source (CSource): The source file to check within
+        - libraries (Iterable[str]): The names of the libraries to check for.
+    
+    Returns an Iterable[bool] of the same size as the input libraries describing
+    whether that library was initialised (included or not). """
+    libs = ["<" + l + ">" for l in libraries]
+    inits = [False for lib in libraries]
+    for line in source.contents.split("\n"):
+        line = [t for t in line.strip().split(" ") if len(t) > 0]
+        if len(line) >= 2 and line[0] == "#include":
+            for i, lib in enumerate(libs):
+                if line[1] == lib:
+                    inits[i] = True
+    return inits
+
 # TODO a lot of ident parsing is done in the wrong order through the AST, which will 
 # give random stuff in the wrong order - not a huge deal but would be nice to fix
 
@@ -12,7 +32,6 @@ class TypeKinds(enum.Enum): # Could also call tags?
     LABEL = 1
     NONSTRUCTURE = 2
 
-
 class NewVariableUseAnalyzer(NodeVisitor):
     """ TODO """
     
@@ -20,6 +39,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
         self.stmt_usage = {}
         self.stmt_definitions = {}
         self.stmts = set()
+        self.idents = set()
         self.typedefs = set()
         self.definition_uses = {}
         self.compound_children = {}
@@ -162,9 +182,16 @@ class NewVariableUseAnalyzer(NodeVisitor):
         compound = self.get_stmt_compound(stmt)
         defined = self.get_usage_from_stmt(stmt).union(self.get_scope_definitions(compound))
         defined = set(x[0] for x in defined if x[1] == type)
+        return self.__find_new_ident(defined)
+    
+    def get_new_identifier(self, exclude=None):
+        exclude = [] if exclude is None else exclude
+        return self.__find_new_ident(self.idents.union(set(exclude)))
+    
+    def __find_new_ident(self, banned):
         new_ident = "a"
         count = 0
-        while new_ident in defined:
+        while new_ident in banned:
             count += 1
             choices = ascii_letters
             new_ident = ""
@@ -219,6 +246,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
         self.definition_uses[(node, name, kind)] = [locations]
         self.stmt_definitions[node].add((name, kind)) # TODO do I need to store locations here as well?
                                                       # TODO also do I need to store self.current_structure?
+        self.idents.add(name)
         
     def record_ident_usage(self, node, name, locations, kind):
         node = self.get_stmt_from_node(node)
@@ -234,6 +262,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
         if last_definition is not None:
             self.definition_uses[(last_definition[0], name, kind)].append(locations)
         self.stmt_usage[node].add((name, kind))
+        
 
     def visit_FileAST(self, node) -> None:
         self.current_definitions.append({})
