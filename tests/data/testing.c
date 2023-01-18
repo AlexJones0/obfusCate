@@ -31,8 +31,6 @@ int main() {
     typedef int a;
     a fourth = 0;
     enum c fifth = ghi;
-    goto a;
-    a:
     printf("%d\n%d\n%d\n%d\n%d\n", first, second, third, fourth, fifth);
     return 0;
 }

@@ -2,7 +2,7 @@
 #include <time.h>
 
 int vals = 25;
-int runs = 10000;
+int runs = 1000;
 
 int fib(int n) {
     if (n < 0) {

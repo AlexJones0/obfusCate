@@ -79,7 +79,7 @@ int f(int n, float m) { // Function Declaration + Parameters
     { // Compound Statement
         int a;
         if (z[0][1]) { // Array reference, if statement
-            return 5; // return expression statement
+            return 5 + a; // return expression statement
         } else { // else statement
             return; // return void statement
         }
