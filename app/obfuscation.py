@@ -16,6 +16,7 @@ from pycparser import c_generator, c_lexer
 from enum import Enum
 from math import sqrt, floor
 from string import ascii_letters, digits as ascii_digits
+from copy import deepcopy
 import random
 import json
 
@@ -213,6 +214,354 @@ class Pipeline:
                     transformations.append(transform.from_json(t))
                     break
         return Pipeline(seed, *transformations)
+
+
+class OpaquePredicate:  # TODO use class as namespace or no?
+    VALID_INT_TYPES = [
+        "int8_t",
+        "uint8_t",
+        "int16_t",
+        "uint16_t",
+        "int32_t",
+        "uint32_t",
+        "int64_t",
+        "uint64_t",
+        "char",
+        "unsigned char",
+        "signed char",
+        "unsigned int",
+        "signed int",
+        "int",
+        "unsigned short",
+        "signed short",
+        "short",
+        "unsigned long",
+        "signed long",
+        "long",
+        "unsigned long long",
+        "signed long long",
+        "long long",
+    ]
+    VALID_REAL_TYPES = ["float", "double", "long double"]
+    VALID_INPUT_TYPES = VALID_INT_TYPES + VALID_REAL_TYPES
+
+    # TODO one of these (or somehow one of EITHER_PREDICATES??? is wrong sometimes - need to logic check).
+    TRUE_PREDICATES = [
+        # (x * x) >= 0
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "46340")),
+            BinaryOp(">=", BinaryOp("*", x, x), Constant("int", "0")),
+        ),
+        # (x * -x) <= 0
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "23170")),
+            BinaryOp(
+                "<=",
+                BinaryOp("*", x, UnaryOp("-", x)),
+                Constant("int", "0"),
+            ),
+        ),
+        # (7 * (y * y)) != ((x * x) + 1)
+        lambda x, y: BinaryOp(
+            "||",
+            BinaryOp(
+                "&&",
+                BinaryOp(">", y, Constant("int", "6620")),
+                BinaryOp(">", x, Constant("int", "46339")),
+            ),
+            BinaryOp(
+                "!=",
+                BinaryOp("*", Constant("int", "7"), BinaryOp("*", y, y)),
+                BinaryOp("+", BinaryOp("*", x, x), Constant("int", "1")),
+            ),
+        ),
+        # ((7 * (y * y)) - 1) != (x * x)
+        lambda x, y: BinaryOp(
+            "||",
+            BinaryOp(
+                "&&",
+                BinaryOp(">", y, Constant("int", "6620")),
+                BinaryOp(">", x, Constant("int", "46339")),
+            ),
+            BinaryOp(
+                "!=",
+                BinaryOp(
+                    "-",
+                    BinaryOp(
+                        "*",
+                        Constant("int", "7"),
+                        BinaryOp("*", y, y),
+                    ),
+                    Constant("int", "1"),
+                ),
+                BinaryOp("*", x, x),
+            ),
+        ),
+        # ((x * (x + 1)) % 2) == 0
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "46339")),
+            BinaryOp(
+                "==",
+                BinaryOp(
+                    "%",
+                    BinaryOp("*", x, BinaryOp("+", x, Constant("int", "1"))),
+                    Constant("int", "2"),
+                ),
+                Constant("int", "0"),
+            ),
+        ),
+        # ((x * (1 + x)) % 2) != 1
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "46339")),
+            BinaryOp(
+                "!=",
+                BinaryOp(
+                    "%",
+                    BinaryOp("*", x, BinaryOp("+", Constant("int", "1"), x)),
+                    Constant("int", "2"),
+                ),
+                Constant("int", "1"),
+            ),
+        ),
+        # ((x * ((x + 1) * (x + 2))) % 3) == 0
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "1280")),
+            BinaryOp(
+                "==",
+                BinaryOp(
+                    "%",
+                    BinaryOp(
+                        "*",
+                        x,
+                        BinaryOp(
+                            "*",
+                            BinaryOp("+", x, Constant("int", "1")),
+                            BinaryOp("+", x, Constant("int", "2")),
+                        ),
+                    ),
+                    Constant("int", "3"),
+                ),
+                Constant("int", "0"),
+            ),
+        ),
+        # (((x + 1) * (x * (x + 2))) % 3) != 1
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "1200")),
+            BinaryOp(
+                "!=",
+                BinaryOp(
+                    "%",
+                    BinaryOp(
+                        "*",
+                        BinaryOp("+", x, Constant("int", "1")),
+                        BinaryOp(
+                            "*",
+                            x,
+                            BinaryOp("+", x, Constant("int", "2")),
+                        ),
+                    ),
+                    Constant("int", "3"),
+                ),
+                Constant("int", "1"),
+            ),
+        ),
+        # (((x + 1) * ((x + 2) * x)) % 3) != 2
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "1200")),
+            BinaryOp(
+                "!=",
+                BinaryOp(
+                    "%",
+                    BinaryOp(
+                        "*",
+                        BinaryOp("+", x, Constant("int", "2")),
+                        BinaryOp("*", BinaryOp("+", x, Constant("int", "1")), x),
+                    ),
+                    Constant("int", "3"),
+                ),
+                Constant("int", "2"),
+            ),
+        ),
+        # (((7 * x) * x) + 1) % 7) != 0
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "6620")),
+            BinaryOp(
+                "!=",
+                BinaryOp(
+                    "%",
+                    BinaryOp(
+                        "+",
+                        BinaryOp("*", BinaryOp("*", Constant("int", "7"), x), x),
+                        Constant("int", "1"),
+                    ),
+                    Constant("int", "7"),
+                ),
+                Constant("int", "0"),
+            ),
+        ),
+        # ((((x * x) + x) + 7) % 81) != 0
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "46000")),
+            BinaryOp(
+                "!=",
+                BinaryOp(
+                    "%",
+                    BinaryOp(
+                        "+",
+                        BinaryOp("+", BinaryOp("*", x, x), x),
+                        Constant("int", "7"),
+                    ),
+                    Constant("int", "81"),
+                ),
+                Constant("int", "0"),
+            ),
+        ),
+        # ((((x + 1) * x) + 7) % 81) != 0
+        lambda x: BinaryOp(
+            "||",
+            BinaryOp(">", x, Constant("int", "46000")),
+            BinaryOp(
+                "!=",
+                BinaryOp(
+                    "%",
+                    BinaryOp(
+                        "+",
+                        BinaryOp("*", BinaryOp("+", x, Constant("int", "1")), x),
+                        Constant("int", "7"),
+                    ),
+                    Constant("int", "81"),
+                ),
+                Constant("int", "0"),
+            ),
+        ),
+    ]
+
+    COMPARISON_OPS = [">", ">=", "<", "<=", "==", "!="]
+    BIN_ARITHMETIC_OPS = ["+", "-", "*", "/", "%"]
+
+    EITHER_PREDICATES = [
+        # x
+        lambda x: x,
+        # !x
+        lambda x: UnaryOp("!", x),
+        # x <op> 0 for some operation <op>
+        lambda x: BinaryOp(
+            random.choice(OpaquePredicate.COMPARISON_OPS), x, Constant("int", "0")
+        ),
+        # x <op> c for some constant c and operation <op>
+        lambda x: BinaryOp(
+            random.choice(OpaquePredicate.COMPARISON_OPS),
+            x,
+            Constant("int", str(random.randint(-25, 25))),
+        ),
+        # x <op> y for some operation <op>
+        lambda x, y: BinaryOp(random.choice(OpaquePredicate.COMPARISON_OPS), x, y),
+        # x <op1> y && y <op2> z for some operations <op1> and <op2>
+        lambda x, y, z: BinaryOp(
+            random.choice(["&&", "||"]),
+            BinaryOp(random.choice(OpaquePredicate.COMPARISON_OPS), x, y),
+            BinaryOp(random.choice(OpaquePredicate.COMPARISON_OPS), y, z),
+        ),
+        # x <op1> y <op2> z for some arithmetic operation <op1> and some comparison operation <op2>
+        lambda x, y, z: BinaryOp(
+            random.choice(OpaquePredicate.COMPARISON_OPS),
+            BinaryOp(random.choice(OpaquePredicate.BIN_ARITHMETIC_OPS), x, y),
+            z,
+        ),
+    ]
+
+    def negate(expr: Node) -> Node:
+        if isinstance(expr, BinaryOp):
+            if expr.op == "==":
+                expr.op = "!="
+                return expr
+            elif expr.op == "!=":
+                expr.op = "=="
+                return expr
+            elif expr.op == "&&":  # TODO De Morgan's - check
+                expr.op = "||"
+                expr.left = OpaquePredicate.negate(expr.left)
+                expr.right = OpaquePredicate.negate(expr.right)
+                return expr
+            elif expr.op == "||":
+                expr.op = "&&"
+                expr.left = OpaquePredicate.negate(expr.left)
+                expr.right = OpaquePredicate.negate(expr.right)
+                return expr
+        return UnaryOp("!", expr)
+
+    def generate_entropic_var(source, analyzer, existing_vars):
+        # Create a new entropic variable to be used.
+        # First determine if stdlib.h and time.h are included
+        stdlib_init, time_init = is_initialised(source, ["stdlib.h", "time.h"])
+        # Next determine if srand has been initialised in main
+        root = source.t_unit
+        if root.ext is None:
+            return None
+        funcs = [f for f in root.ext if isinstance(f, FuncDef) and f.decl is not None]
+        main = [
+            f
+            for f in funcs
+            if isinstance(f.decl, Decl)
+            and f.decl.name is not None
+            and f.decl.name == "main"
+        ]
+        if len(main) == 0:
+            return None
+        main = main[0]
+        if main.body is None or main.body.block_items is None:
+            return None
+        srand_init = False
+        for i, stmt in enumerate(main.body.block_items):
+            if isinstance(stmt, FuncCall) and stmt.name is not None:
+                if isinstance(stmt.name, ID) and stmt.name.name == "srand":
+                    srand_init = True
+                    break
+        # Initialise stdlib.h/time.h/srand where necessary
+        if not stdlib_init:
+            source.contents = "#include <stdlib.h>\n" + source.contents
+        if not time_init:
+            # TODO could this break if the user already has functions used in these libraries? uh oh need to state this somewhere
+            source.contents = "#include <time.h>\n" + source.contents
+        if not srand_init:
+            srand_call = FuncCall(
+                ID("srand"),
+                ExprList([FuncCall(ID("time"), ExprList([Constant("int", "0")]))]),
+            )
+            main.body.block_items = [srand_call] + main.body.block_items
+        # Generate a new global entropic variable
+        ident = analyzer.get_new_identifier(exclude=[v[0] for v in existing_vars])
+        ident_decl = Decl(
+            ident,
+            None,
+            None,
+            None,
+            None,
+            TypeDecl(ident, None, None, IdentifierType(["int"])),
+            None,
+            None,
+        )
+        source.t_unit.ext = [ident_decl] + source.t_unit.ext
+        assignment = Assignment("=", ID(ident), FuncCall(ID("rand"), None))
+        for i, stmt in enumerate(main.body.block_items):
+            if isinstance(stmt, FuncCall) and stmt.name is not None:
+                if isinstance(stmt.name, ID) and stmt.name.name == "srand":
+                    main.body.block_items = (
+                        main.body.block_items[: (i + 1)]
+                        + [assignment]
+                        + main.body.block_items[(i + 1) :]
+                    )
+                    break
+        return (ident, "int")
 
 
 class IdentityUnit(ObfuscationUnit):
@@ -525,8 +874,10 @@ class StringEncodeTraverser(NodeVisitor):
     TO_REMOVE = True
 
     class Style(Enum):
-        SIMPLE = "Simple Octal Character Encoding"
-        OTHER = "OTHER Encoding (Not Yet Implemented)"
+        OCTAL = "Octal Character Encoding"
+        HEX = "Hexadecimal Character Encoding"
+        MIXED = "Mixed Octal/Hexadecimal Character Encoding"
+        ALL = "Mixed Octal/Hexadecimal/Regular Character Encoding"
 
     def __init__(self, style):
         self.style = style
@@ -547,10 +898,24 @@ class StringEncodeTraverser(NodeVisitor):
             if char == "\\" and i != max_index:
                 check_next = True
                 continue
-            octal = "'\\" + str(oct(ord(char)))[2:] + "'"
-            char_node = Constant("char", octal)
+            if self.style == self.Style.MIXED:
+                style = [self.Style.OCTAL, self.Style.HEX][random.randint(0, 1)]
+            elif self.style == self.Style.ALL:
+                style = [self.Style.OCTAL, self.Style.HEX, None][random.randint(0, 2)]
+            else:
+                style = self.style
+            if style == self.Style.OCTAL:
+                octal_char = "'\\" + str(oct(ord(char)))[2:] + "'"
+                char_node = Constant("char", octal_char)
+            elif style == self.Style.HEX:
+                hex_char = "'\\x" + str(hex(ord(char)))[2:] + "'"
+                char_node = Constant("char", hex_char)
+            else:
+                char_node = Constant("char", "'" + char + "'")
             chars.append(char_node)
-        chars.append(Constant("char", "'\\0'"))
+        chars.append(
+            Constant("char", "'\\0'")
+        )  # TODO can also just use a direct string instead of a (char[]) cast?
         return chars
 
     def make_compound_literal(self, init_node):
@@ -743,16 +1108,14 @@ class IntegerEncodeTraverser(NodeVisitor):
 
     class Style(Enum):
         SIMPLE = "Simple Encoding (Multiply-Add)"
+        MBA_SIMPLE = "Simple Mixed-Boolean Arithmetic Constant Hiding without Polynomial Transforms (Not Yet Implemented)"
+        MBA_POLYNOMIAL = "Mixed-Boolean Arithmetic Constant Hiding with Polynomial Transforms (Not Yet Implemented)"
+        # MBA_ALGORITHMIC = "Mixed-Boolean Arithmetic Hiding via. Algorithmic Encoding (Not Yet Implemented)"
         # SPLIT = "Split Integer Literals (Not Yet Implemented)"
-        MBA = "Mixed-Boolean Arithmetic (Not Yet Implemented)"  # TODO input dependent? Entropy-based
 
     def __init__(self, style):
         self.style = style
         self.ignore = set()
-        self.funcs = dict()
-        self.add_args = set()
-        self.current_func = []
-        self.traverse_num = 1
 
     def simple_encode(self, child):
         # Form f(i) = a * i + b to encode f(i) as i.
@@ -777,7 +1140,14 @@ class IntegerEncodeTraverser(NodeVisitor):
             add_node = BinaryOp("-", mul_node, add_const_node)
         return add_node
 
-    def mba_encode(self, child):
+    def mba_simple_encode(self, child):
+        # v = int(child.value)
+        # left_expr = BinaryOp("||", Constant("int", str(-v - 1)))
+        # TODO in future
+        pass
+
+    def mba_polynomial_encode(self, child):
+        # TODO in future
         pass
 
     def encode_int(self, child):
@@ -785,24 +1155,14 @@ class IntegerEncodeTraverser(NodeVisitor):
             encoded = self.simple_encode(child)
             self.ignore.add(encoded)
             return encoded
-        elif self.style == self.Style.MBA:
-            if self.traverse_num > 1:
-                encoded = self.mba_encode(child)  # TODO change
-                self.ignore.add(encoded)
-                return encoded
-            else:
-                if self.current_func not in self.add_args:
-                    self.add_args.add(self.current_func)
-                return None
-
-    def visit_FuncDef(self, node):
-        self.current_func = node
-        if self.traverse_num > 1:
-
-            self.generic_visit(node)
-            return
-        self.funcs[node] = node.decl.type.args
-        self.generic_visit(node)
+        elif self.style == self.Style.MBA_SIMPLE:
+            encoded = self.mba_simple_encode(child)
+            self.ignore.add(encoded)
+            return encoded
+        elif self.style == self.Style.MBA_POLYNOMIAL:
+            encoded = self.mba_polynomial_encode(child)
+            self.ignore.add(encoded)
+            return encoded
 
     def generic_visit(self, node):
         if node in self.ignore:
@@ -1611,247 +1971,6 @@ class ArithmeticEncodeUnit(ObfuscationUnit):
         return f"ArithmeticEncode({level_flag})"  # TODO finish/fix this method
 
 
-class OpaquePredicate:  # TODO use class as namespace or no?
-    VALID_INT_TYPES = [
-        "int8_t",
-        "uint8_t",
-        "int16_t",
-        "uint16_t",
-        "int32_t",
-        "uint32_t",
-        "int64_t",
-        "uint64_t",
-        "char",
-        "unsigned char",
-        "signed char",
-        "unsigned int",
-        "signed int",
-        "int",
-        "unsigned short",
-        "signed short",
-        "short",
-        "unsigned long",
-        "signed long",
-        "long",
-        "unsigned long long",
-        "signed long long",
-        "long long",
-    ]
-    VALID_REAL_TYPES = ["float", "double", "long double"]
-    VALID_INPUT_TYPES = VALID_INT_TYPES + VALID_REAL_TYPES
-
-    PREDICATES = [
-        # (x * x) >= 0
-        lambda x: BinaryOp(
-            "||",
-            BinaryOp(">", x, Constant("int", "46340")),
-            BinaryOp(">=", BinaryOp("*", x, x), Constant("int", "0")),
-        ),
-        # (x * -x) <= 0
-        lambda x: BinaryOp(
-            "||",
-            BinaryOp(">", x, Constant("int", "23170")),
-            BinaryOp(
-                "<=",
-                BinaryOp("*", x, UnaryOp("-", x)),
-                Constant("int", "0"),
-            ),
-        ),
-        # (7 * (y * y)) != ((x * x) + 1)
-        lambda x, y: BinaryOp(
-            "||",
-            BinaryOp("&&", BinaryOp(">", y, Constant("int", "6620")), BinaryOp(">", x, Constant("int", "46339"))),
-            BinaryOp(
-                "!=",
-                BinaryOp("*", Constant("int", "7"), BinaryOp("*", y, y)),
-                BinaryOp("+", BinaryOp("*", x, x), Constant("int", "1")),
-            ),
-        ),
-        # ((7 * (y * y)) - 1) != (x * x)
-        lambda x, y: BinaryOp(
-            "||",
-            BinaryOp("&&", BinaryOp(">", y, Constant("int", "6620")), BinaryOp(">", x, Constant("int", "46339"))),
-            BinaryOp(
-                "!=",
-                BinaryOp(
-                    "-",
-                    BinaryOp(
-                        "*",
-                        Constant("int", "7"),
-                        BinaryOp("*", y, y),
-                    ),
-                    Constant("int", "1"),
-                ),
-                BinaryOp("*", x, x),
-            ),
-        ),
-        # ((x * (x + 1)) % 2) == 0
-        lambda x: BinaryOp(
-            "||",
-            BinaryOp(">", x, Constant("int", "46339")),
-            BinaryOp(
-                "==",
-                BinaryOp(
-                    "%",
-                    BinaryOp("*", x, BinaryOp("+", x, Constant("int", "1"))),
-                    Constant("int", "2"),
-                ),
-                Constant("int", "0"),
-            ),
-        ),
-        # ((x * (1 + x)) % 2) != 1
-        lambda x: BinaryOp(
-            "||",
-            BinaryOp(">", x, Constant("int", "46339")),
-            BinaryOp(
-                "!=",
-                BinaryOp(
-                    "%",
-                    BinaryOp("*", x, BinaryOp("+", Constant("int", "1"), x)),
-                    Constant("int", "2"),
-                ),
-                Constant("int", "1"),
-            ),
-        ),
-        # ((x * ((x + 1) * (x + 2))) % 3) == 0
-        lambda x: BinaryOp(
-            "||",
-            BinaryOp(">", x, Constant("int", "1280")),
-            BinaryOp(
-                "==",
-                BinaryOp(
-                    "%",
-                    BinaryOp(
-                        "*",
-                        x,
-                        BinaryOp(
-                            "*",
-                            BinaryOp("+", x, Constant("int", "1")),
-                            BinaryOp("+", x, Constant("int", "2")),
-                        ),
-                    ),
-                    Constant("int", "3"),
-                ),
-                Constant("int", "0"),
-            ),
-        ),
-        # (((x + 1) * (x * (x + 2))) % 3) != 1
-        lambda x: BinaryOp(
-            "||",
-            BinaryOp(">", x, Constant("int", "1200")),
-            BinaryOp(
-                "!=",
-                BinaryOp(
-                    "%",
-                    BinaryOp(
-                        "*",
-                        BinaryOp("+", x, Constant("int", "1")),
-                        BinaryOp(
-                            "*",
-                            x,
-                            BinaryOp("+", x, Constant("int", "2")),
-                        ),
-                    ),
-                    Constant("int", "3"),
-                ),
-                Constant("int", "1"),
-            ),
-        ),
-        # (((x + 1) * ((x + 2) * x)) % 3) != 2
-        lambda x: BinaryOp(
-            "||",
-            BinaryOp(">", x, Constant("int", "1200")),
-            BinaryOp(
-                "!=",
-                BinaryOp(
-                    "%",
-                    BinaryOp(
-                        "*",
-                        BinaryOp("+", x, Constant("int", "2")),
-                        BinaryOp("*", BinaryOp("+", x, Constant("int", "1")), x),
-                    ),
-                    Constant("int", "3"),
-                ),
-                Constant("int", "2"),
-            ),
-        ),
-        # (((7 * x) * x) + 1) % 7) != 0
-        lambda x: BinaryOp(
-            "||",
-            BinaryOp(">", x, Constant("int", "6620")),
-            BinaryOp(
-                "!=",
-                BinaryOp(
-                    "%",
-                    BinaryOp(
-                        "+",
-                        BinaryOp("*", BinaryOp("*", Constant("int", "7"), x), x),
-                        Constant("int", "1"),
-                    ),
-                    Constant("int", "7"),
-                ),
-                Constant("int", "0"),
-            ),
-        ),
-        # ((((x * x) + x) + 7) % 81) != 0
-        lambda x: BinaryOp(
-            "||",
-            BinaryOp(">", x, Constant("int", "46000")),
-            BinaryOp(
-                "!=",
-                BinaryOp(
-                    "%",
-                    BinaryOp(
-                        "+",
-                        BinaryOp("+", BinaryOp("*", x, x), x),
-                        Constant("int", "7"),
-                    ),
-                    Constant("int", "81"),
-                ),
-                Constant("int", "0"),
-            ),
-        ),
-        # ((((x + 1) * x) + 7) % 81) != 0
-        lambda x: BinaryOp(
-            "||",
-            BinaryOp(">", x, Constant("int", "46000")),
-            BinaryOp(
-                "!=",
-                BinaryOp(
-                    "%",
-                    BinaryOp(
-                        "+",
-                        BinaryOp("*", BinaryOp("+", x, Constant("int", "1")), x),
-                        Constant("int", "7"),
-                    ),
-                    Constant("int", "81"),
-                ),
-                Constant("int", "0"),
-            ),
-        ),
-    ]
-
-    def negate(expr: Node) -> Node:
-        if isinstance(expr, BinaryOp):
-            if expr.op == "==":
-                expr.op = "!="
-                return expr
-            elif expr.op == "!=":
-                expr.op = "=="
-                return expr
-            elif expr.op == "&&":  # TODO De Morgan's - check
-                expr.op = "||"
-                expr.left = OpaquePredicate.negate(expr.left)
-                expr.right = OpaquePredicate.negate(expr.right)
-                return expr
-            elif expr.op == "||":
-                expr.op = "&&"
-                expr.left = OpaquePredicate.negate(expr.left)
-                expr.right = OpaquePredicate.negate(expr.right)
-                return expr
-        return UnaryOp("!", expr)
-
-
 class OpaqueAugmenter(NodeVisitor):
     class Style(Enum):
         INPUT = "Predicates constructed from dynamic user input (function parameters)."
@@ -1878,7 +1997,7 @@ class OpaqueAugmenter(NodeVisitor):
 
     def generate_opaque_predicate(self, cond_expr):
         # Retrieve a random opaque predicate and check its parameters
-        predicate = random.choice(OpaquePredicate.PREDICATES)
+        predicate = random.choice(OpaquePredicate.TRUE_PREDICATES)
         num_args = predicate.__code__.co_argcount
         idents = []
         # Iteratively choose variables to use in the predicate
@@ -1906,83 +2025,12 @@ class OpaqueAugmenter(NodeVisitor):
                 available_vars = list(set(self.entropic_vars).difference(set(idents)))
                 use_new_var = len(available_vars) == 0 or random.random() >= 0.75
                 if use_new_var:
-                    # Create a new entropic variable to be used.
-                    # First determine if stdlib.h and time.h are included
-                    stdlib_init, time_init = is_initialised(
-                        self.source, ["stdlib.h", "time.h"]
+                    param = OpaquePredicate.generate_entropic_var(
+                        self.source, self.analyzer, self.entropic_vars
                     )
-                    # Next determine if srand has been initialised in main
-                    root = self.source.t_unit
-                    if root.ext is None:
+                    if param is None:
                         return cond_expr
-                    funcs = [
-                        f
-                        for f in root.ext
-                        if isinstance(f, FuncDef) and f.decl is not None
-                    ]
-                    main = [
-                        f
-                        for f in funcs
-                        if isinstance(f.decl, Decl)
-                        and f.decl.name is not None
-                        and f.decl.name == "main"
-                    ]
-                    if len(main) == 0:
-                        return cond_expr
-                    main = main[0]
-                    if main.body is None or main.body.block_items is None:
-                        return cond_expr
-                    srand_init = False
-                    for i, stmt in enumerate(main.body.block_items):
-                        if isinstance(stmt, FuncCall) and stmt.name is not None:
-                            if isinstance(stmt.name, ID) and stmt.name.name == "srand":
-                                srand_init = True
-                                break
-                    # Initialise stdlib.h/time.h/srand where necessary
-                    if not stdlib_init:
-                        self.source.contents = (
-                            "#include <stdlib.h>\n" + self.source.contents
-                        )
-                    if not time_init:
-                        # TODO could this break if the user already has functions used in these libraries? uh oh need to state this somewhere
-                        self.source.contents = (
-                            "#include <time.h>\n" + self.source.contents
-                        )
-                    if not srand_init:
-                        srand_call = FuncCall(
-                            ID("srand"),
-                            ExprList(
-                                [FuncCall(ID("time"), ExprList([Constant("int", "0")]))]
-                            ),
-                        )
-                        main.body.block_items = [srand_call] + main.body.block_items
-                    # Generate a new global entropic variable
-                    ident = self.analyzer.get_new_identifier(
-                        exclude=[v[0] for v in self.entropic_vars]
-                    )
-                    ident_decl = Decl(
-                        ident,
-                        None,
-                        None,
-                        None,
-                        None,
-                        TypeDecl(ident, None, None, IdentifierType(["int"])),
-                        None,
-                        None,
-                    )
-                    self.source.t_unit.ext = [ident_decl] + self.source.t_unit.ext
-                    assignment = Assignment("=", ID(ident), FuncCall(ID("rand"), None))
-                    for i, stmt in enumerate(main.body.block_items):
-                        if isinstance(stmt, FuncCall) and stmt.name is not None:
-                            if isinstance(stmt.name, ID) and stmt.name.name == "srand":
-                                main.body.block_items = (
-                                    main.body.block_items[: (i + 1)]
-                                    + [assignment]
-                                    + main.body.block_items[(i + 1) :]
-                                )
-                                break
-                    self.entropic_vars.append((ident, "int"))
-                    param = (ident, "int")
+                    self.entropic_vars.append(param)
                     # TODO could add float support in the future for entropic vars?
                 else:
                     # Choose a random existing entropic variable to use
@@ -2095,7 +2143,9 @@ class AugmentOpaqueUnit(ObfuscationUnit):
         if prob == float("nan"):
             return None
         self.styles = styles
+        self.traverser.styles = styles
         self.probability = prob
+        self.traverser.probability = prob
         return True
 
     def get_cli() -> Optional[
@@ -2146,7 +2196,7 @@ class AugmentOpaqueUnit(ObfuscationUnit):
     def __eq__(self, other: ObfuscationUnit) -> bool:
         return (
             isinstance(other, AugmentOpaqueUnit)
-            and self.styles == other.styles
+            and set(self.styles) == set(other.styles)
             and self.probability == other.probability
         )
 
@@ -2156,23 +2206,59 @@ class AugmentOpaqueUnit(ObfuscationUnit):
         return f"AugmentOpaqueUnit({style_flag},{probability_flag})"
 
 
+class BugGenerator(NodeVisitor):
+    
+    def visit_Constant(self, node):
+        if node.value is not None:
+            if node.type is None:
+                pass
+            elif node.type in ["int", "short", "long", "long long"] and int(node.value) != 0: # TODO better
+                node.value = str(int(node.value) + random.choice([-3,-2,-1,1,2,3]))
+                if node.value == "0":
+                    node.value = str(random.randint(1,3))
+            elif node.type in ["float", "double", "long dobule"] and float(node.value) != 0.0:
+                node.value = str(float(node.value) + random.random())
+            elif node.type == "char":
+                node.value = "'" + chr((ord(node.value[0]) + 1) % 256) + "'"
+        self.generic_visit(node)
+    
+    def visit_BinaryOp(self, node):
+        op_map = {
+            ">": ("<", "<=", "!=", "=="),
+            ">=": ("<", "<=", "!=", "=="),
+            "<": (">", ">=", "!=", "=="),
+            "<=": (">", ">=", "!=", "=="),
+            "+": ("-", "*"),
+            "-": ("+", "*"),
+            "*": ("+", "-"),
+            "==": ("!=", "<", ">"),
+            "!=": ("==", "<", ">"),
+            "&&": ("||"),
+            "||": ("&&"),
+        }
+        if node.op in op_map and random.random() > 0.4:
+            node.op = random.choice(op_map[node.op])
+        self.generic_visit(node)
+
+
 class OpaqueInserter(NodeVisitor):
     class Style(Enum):
-        INPUT = "Predicates constructed from dynamic user input (function parameters)."
-        ENTROPY = "Predicates constructed from random entropic variables."
+        INPUT = "INPUT: Predicates constructed from dynamic user input (function parameters)."
+        ENTROPY = "ENTROPY: Predicates constructed from random entropic variables."
         # LINKED_LIST = "Predicates constructed from intractable pointer aliasing on a linked list."
         # TODO above is not implemented yet
 
     class Granularity(Enum):
-        PROCEDURAL = "Predicates are constructed on a whole function-level"
-        BLOCK = "Predicates are constructed for random blocks of code (sequential statements)"
-        STMT = "Predictes are constructed for random individual statements"
+        PROCEDURAL = "PROCEDURAL: Predicates are constructed on a whole function-level"
+        BLOCK = "BLOCK: Predicates are constructed for random blocks of code (sequential statements)"
+        STMT = "STMT: Predictes are constructed for random individual statements"
 
     class Kind(Enum):
-        CHECK = "If (true predicate) { YOUR CODE } "
-        FALSE = "If (false predicate) { function call } else { YOUR CODE } "
-        CALL = "If (false predicate) { function call } "
-        EITHER = "If (any predicate) { YOUR CODE } else { YOUR CODE } "
+        CHECK = "CHECK: if (true predicate) { YOUR CODE } "
+        FALSE = "FALSE: if (false predicate) { buggy code } "
+        ELSE = "ELSE: if (false predicate) { buggy code } else { YOUR CODE } "
+        EITHER = "EITHER: if (any predicate) { YOUR CODE } else { YOUR CODE } "
+        WHILE_FALSE = "WHILE_FALSE: while (false predicate) { buggy code } "
         # TODO could add bug - where bogus/buggy code is generated
 
     def __init__(
@@ -2182,10 +2268,289 @@ class OpaqueInserter(NodeVisitor):
         kinds: Iterable[Kind],
         number: int,  # How many to add per function
     ):
-        pass
+        self.styles = styles
+        self.granularities = granularities
+        self.kinds = kinds
+        self.number = number
+        self.functions = []
+        self.current_function = None
+        self.parameters = None
+        self.analyzer = None
+        self.source = None
+        self.entropic_vars = []
+        self.bug_generator = BugGenerator()
+
+    def process(self, source):
+        self.analyzer = NewVariableUseAnalyzer(source.t_unit)
+        self.analyzer.process()
+        self.source = source
+        self.visit(source.t_unit)
+
+    def generate_opaque_predicate_cond(self, predicate_sets=None):
+        # Retrieve a random opaque predicate and check its parameters
+        if predicate_sets is None:
+            predicate = random.choice(OpaquePredicate.TRUE_PREDICATES)
+        else:
+            predicates = set()
+            for pset in predicate_sets:
+                predicates = predicates.union(set(pset))
+            predicate = random.choice(list(predicates))
+        num_args = predicate.__code__.co_argcount
+        idents = []
+        # Iteratively choose variables to use in the predicate
+        while len(idents) < num_args:
+            styles = [s for s in self.styles]
+            # Select a random style for the list of chosen styles to use (if possible)
+            valid_style = False
+            while not valid_style and len(styles) != 0:
+                style = random.choice(styles)
+                styles.remove(style)
+                if style == self.Style.INPUT:
+                    valid_style = (
+                        self.parameters is not None
+                        and len(set(self.parameters).difference(set(idents))) != 0
+                    )  # TODO check logic here just in case
+                elif style == self.Style.ENTROPY:
+                    valid_style = (  # TODO is there a better way to handle this to avoid rand decls etc.?
+                        self.current_function is None
+                        or self.current_function.decl is None
+                        or self.current_function.decl.name is None
+                        or self.current_function.decl.name != "main"
+                    )
+            if valid_style == False:
+                return None  # No variables to use as parameters, so exit out
+            if style == self.Style.INPUT:
+                # Choose a random function parameter (not used so far) to use
+                param = random.choice(self.parameters)
+            elif style == self.Style.ENTROPY:
+                # Randomly either choose an existing entropic variable or create a new one
+                available_vars = list(set(self.entropic_vars).difference(set(idents)))
+                use_new_var = len(available_vars) == 0 or random.random() >= 0.75
+                if use_new_var:
+                    param = OpaquePredicate.generate_entropic_var(
+                        self.source, self.analyzer, self.entropic_vars
+                    )
+                    if param is None:
+                        return None
+                    self.entropic_vars.append(param)
+                    # TODO could add float support in the future for entropic vars?
+                else:
+                    # Choose a random existing entropic variable to use
+                    param = random.choice(available_vars)
+            idents.append(param)
+        args = []
+        for ident in idents:
+            if ident[1] not in OpaquePredicate.VALID_REAL_TYPES:
+                args.append(ID(ident[0]))
+            else:
+                args.append(
+                    Cast(
+                        Typename(
+                            None,
+                            [],
+                            None,
+                            TypeDecl(None, [], None, IdentifierType(["int"])),
+                        ),
+                        ID(ident[0]),
+                    )
+                )
+        return predicate(*args)
+
+    def generate_buggy(self, stmt):
+        # TODO better buggy code generation; this is more proof of concept
+        return Compound([EmptyStatement()])
+        # TODO currently broken - no idea why (comehere)
+        #copy = deepcopy(stmt)
+        #self.bug_generator.visit(copy)
+        #return copy       
+
+    def generate_opaque_predicate(self, stmt):
+        kind = random.choice(self.kinds)  # TODO do I make this proportional also?
+        match kind:
+            case self.Kind.CHECK:  # if (true) { your code }
+                cond = self.generate_opaque_predicate_cond()
+                if cond is None:
+                    return None
+                return Compound([If(cond, stmt, None)])
+            case self.Kind.FALSE:  # if (false) { buggy code }
+                cond = self.generate_opaque_predicate_cond()
+                if cond is None:
+                    return None
+                cond = OpaquePredicate.negate(cond)
+                buggy = self.generate_buggy(stmt)
+                block_items = stmt.block_items if isinstance(stmt, Compound) else [stmt]
+                return Compound([If(cond, buggy, None)] + block_items)
+            case self.Kind.ELSE:  # if (false) { buggy code } else { YOUR CODE }
+                cond = self.generate_opaque_predicate_cond()
+                if cond is None:
+                    return None
+                cond = OpaquePredicate.negate(cond)
+                buggy = self.generate_buggy(stmt)
+                return Compound([If(cond, buggy, stmt)])
+            case self.Kind.EITHER:  # if (either) { YOUR CODE } else { YOUR CODE }
+                # TODO maybe add some sort of limit to this one because it doubles your code each time?
+                cond = self.generate_opaque_predicate_cond(
+                    [OpaquePredicate.EITHER_PREDICATES]
+                )
+                if cond is None:
+                    return None
+                copied = deepcopy(stmt) # TODO is this truly a deep copy? Or no?
+                return Compound([If(cond, stmt, copied)])
+            case self.Kind.WHILE_FALSE:  # while (false) { buggy code }
+                cond = self.generate_opaque_predicate_cond()
+                if cond is None:
+                    return None
+                cond = OpaquePredicate.negate(cond)
+                buggy = self.generate_buggy(stmt)
+                block_items = stmt.block_items if isinstance(stmt, Compound) else [stmt]
+                return Compound([While(cond, buggy)] + block_items)
+            case _:
+                return None
+
+    def add_procedural_predicate(self, node):
+        new_body = self.generate_opaque_predicate(node.body)
+        if new_body is not None:
+            node.body = new_body
+        return True
+
+    def get_random_compound(self, compounds):
+        available = [c for c in compounds]
+        compound = None
+        while len(available) > 0 and compound is None:
+            chosen_compound = random.choice(available)
+            available.remove(chosen_compound)
+            if chosen_compound.block_items is None:
+                continue
+            has_none_decl = False
+            for item in chosen_compound.block_items:
+                if not isinstance(item, Decl):
+                    has_none_decl = True
+                    break
+            if has_none_decl:
+                compound = chosen_compound
+        return compound
+
+    def add_block_predicate(self, compounds):
+        # TODO could add a max_depth option to avoid lots of depth for small functions
+        # Choose a random compound that has at least one non-decl statement available.
+        compound = self.get_random_compound(compounds)
+        if compound is None:
+            return False  # No way to add a block predicate - Give up
+        # Calculate maximal contiguous sequences of non-declarations
+        blocks = [(0, len(compound.block_items) - 1)]
+        for i, item in enumerate(compound.block_items):
+            if isinstance(item, Decl):
+                to_remove = []
+                to_add = []
+                for b in blocks:
+                    if i == b[0] and b[0] == b[1]:
+                        to_remove.append(b)
+                    elif i == b[0]:
+                        to_add.append((i + 1, b[1]))
+                        to_remove.append(b)
+                    elif i == b[1]:
+                        to_add.append((b[0], i - 1))
+                        to_remove.append(b)
+                    elif b[0] < i and i < b[1]:
+                        to_add.append((b[0], i - 1))
+                        to_add.append((i + 1, b[1]))
+                        to_remove.append(b)
+                for b in to_remove:
+                    blocks.remove(b)
+                for b in to_add:
+                    blocks.append(b)
+        if len(blocks) == 0:
+            return False
+        # Choose a random 'block' (contiguous sequence) and transfom it
+        indexes = random.choice(blocks)
+        block = Compound(compound.block_items[indexes[0] : indexes[1] + 1])
+        new_block = self.generate_opaque_predicate(block)
+        if new_block is not None:
+            compound.block_items = (
+                compound.block_items[: indexes[0]]
+                + new_block.block_items
+                + compound.block_items[indexes[1] + 1 :]
+            )
+        return True
+
+    def add_stmt_predicate(self, compounds):
+        # Choose a random compound that has at least one non-decl statement available.
+        compound = self.get_random_compound(compounds)
+        if compound is None:
+            return False  # No way to add a block predicate - Give up
+        # Choose a random statement within that compound and transform it
+        stmts = [
+            (i, s)
+            for i, s in enumerate(compound.block_items)
+            if not isinstance(s, Decl)
+        ]
+        index, stmt = random.choice(stmts)
+        new_block = self.generate_opaque_predicate(stmt)
+        if new_block is not None:
+            compound.block_items = (
+                compound.block_items[:index]
+                + new_block.block_items
+                + compound.block_items[index + 1 :]
+            )
+        return True
+
+    def add_opaque_predicates(self, node):
+        # Determine compounds in the function subtree for block/stmt predicate insertion
+        compounds = self.analyzer.get_compounds_in_subtree(node.body)
+        # TODO is it fine that the above is not updated and maintained?
+        # TODO I could calculate it pretty easily every application if needed
+        # Determine the proportion of different granularity predicates to add.
+        proportions = {
+            self.Granularity.PROCEDURAL: 10,
+            self.Granularity.BLOCK: 70,
+            self.Granularity.STMT: 20,
+        }
+        amounts = {g: 0 for g in self.Granularity}
+        total_prop = sum([proportions[g] for g in self.granularities])
+        for g in self.granularities:
+            amounts[g] = floor(proportions[g] / total_prop * self.number)
+        total_prop = sum(amounts.values())
+        while total_prop < self.number:
+            granularity = random.choice(self.granularities)
+            amounts[granularity] += 1
+            total_prop += 1
+        for _ in range(amounts[self.Granularity.PROCEDURAL]):
+            self.add_procedural_predicate(node)
+        for _ in range(amounts[self.Granularity.BLOCK]):
+            if not self.add_block_predicate(compounds):
+                self.add_procedural_predicate(node)
+        for _ in range(amounts[self.Granularity.STMT]):
+            if not self.add_stmt_predicate(compounds):
+                self.add_procedural_predicate(node)
+
+    def visit_ParamList(self, node):
+        if node.params is None:
+            return
+        for node in node.params:
+            if isinstance(node, Decl) and node.name is not None:
+                if (
+                    node.type is not None
+                    and isinstance(node.type, TypeDecl)
+                    and node.type.type is not None
+                    and node.type.type.names is not None
+                ):
+                    type_ = " ".join(node.type.type.names)
+                    if type_ in OpaquePredicate.VALID_INPUT_TYPES:
+                        self.parameters.append((node.name, type_))
+
+    def visit_FuncDef(self, node):
+        prev = self.current_function
+        self.current_function = node
+        self.functions.append(node)
+        self.parameters = []
+        self.generic_visit(node)
+        if node.body is not None:
+            self.add_opaque_predicates(node)
+        self.current_function = prev
+        self.parameters = None
 
 
-class InsertOpaqueUnit:
+class InsertOpaqueUnit(ObfuscationUnit):
     """Inserts new conditional statements in the program with opaque predicates,
     obfuscating the true control flow of the code by introducing conditional jumps on
     invariants on inputs or entropy that evalute to known constants at runtime."""
@@ -2194,10 +2559,174 @@ class InsertOpaqueUnit:
     description = "Inserts new conditionals with invariant opaque predicates"
     type = TransformType.STRUCTURAL
 
-    pass
+    def __init__(
+        self,
+        styles: Iterable[OpaqueInserter.Style],
+        granularities: Iterable[OpaqueInserter.Granularity],
+        kinds: Iterable[OpaqueInserter.Kind],
+        number: int,
+    ) -> None:
+        self.styles = styles
+        self.granularities = granularities
+        self.kinds = kinds
+        self.number = number
+        self.traverser = OpaqueInserter(styles, granularities, kinds, number)
 
+    def transform(self, source: CSource) -> CSource:
+        self.traverser.process(source)
+        new_contents = generate_new_contents(source)
+        return CSource(source.fpath, new_contents, source.t_unit)
 
-# TODO control flow flattening
+    def edit_cli(self) -> bool:
+        styles = InsertOpaqueUnit.generic_styles(self.styles)
+        if styles is None:
+            return None
+        granularities = InsertOpaqueUnit.generic_granularities(self.granularities)
+        if granularities is None:
+            return None
+        kinds = InsertOpaqueUnit.generic_kinds(self.kinds)
+        if kinds is None:
+            return None
+        print(
+            f"The current number of opaque predicate insertions per function is {self.number}."
+        )
+        print("What is the new number (n >= 0) of the opaque predicate insertions? (recommended: 1 <= n <= 10)")
+        number = get_int(0, None)
+        if number is None:
+            return None
+        self.styles = styles
+        self.traverser.styles = styles
+        self.granularities = granularities
+        self.traverser.granularities = granularities
+        self.kinds = kinds
+        self.traverser.kinds = kinds
+        self.number = number
+        self.traverser.number = number
+        return True
+
+    def get_cli() -> Optional["InsertOpaqueUnit"]:
+        styles = InsertOpaqueUnit.generic_styles([s for s in OpaqueInserter.Style])
+        if styles is None:
+            return None
+        granularities = InsertOpaqueUnit.generic_granularities(
+            [g for g in OpaqueInserter.Granularity]
+        )
+        if granularities is None:
+            return None
+        kinds = InsertOpaqueUnit.generic_kinds([k for k in OpaqueInserter.Kind])
+        if kinds is None:
+            return None
+        print(
+            "What number (n >= 0) of new opaque predicates should be added per function? (recommended: 1 <= n <= 10)"
+        )
+        number = get_int(0, None)
+        if number is None:
+            return None
+        return InsertOpaqueUnit(styles, granularities, kinds, number)
+
+    def generic_styles(
+        styles: Iterable[OpaqueInserter.Style],
+    ) -> Optional[Iterable[OpaqueInserter.Style]]:
+        available = [s for s in OpaqueInserter.Style]
+        choice = 0
+        while choice < len(OpaqueInserter.Style) or len(styles) == 0:
+            options = [
+                ("[X] " if s in styles else "[ ] ") + s.value
+                for s in OpaqueInserter.Style
+            ]
+            options.append("Finish selecting styles.")
+            prompt = "\nChoose which syles to enable for opaque predicate insertion, or choose to finish.\n"
+            choice = menu_driven_option(options, prompt)
+            if choice == -1:
+                return None
+            elif choice < len(OpaqueInserter.Style):
+                style = OpaqueInserter.Style(available[choice])
+                if style in styles:
+                    styles.remove(style)
+                else:
+                    styles.append(style)
+            elif len(styles) == 0:
+                print(
+                    "No valid options are currently selected. Please select at least one option.\n"
+                )
+        return styles
+
+    def generic_granularities(
+        granularities: Iterable[OpaqueInserter.Granularity],
+    ) -> Optional[Iterable[OpaqueInserter.Granularity]]:
+        available = [g for g in OpaqueInserter.Granularity]
+        choice = 0
+        while choice < len(OpaqueInserter.Granularity) or len(granularities) == 0:
+            options = [
+                ("[X] " if g in granularities else "[ ] ") + g.value
+                for g in OpaqueInserter.Granularity
+            ]
+            options.append("Finish selecting granularities.")
+            prompt = "\nChoose which granularities to enable for opaque predicate insertion, or choose to finish.\n"
+            choice = menu_driven_option(options, prompt)
+            if choice == -1:
+                return None
+            elif choice < len(OpaqueInserter.Granularity):
+                granularity = OpaqueInserter.Granularity(available[choice])
+                if granularity in granularities:
+                    granularities.remove(granularity)
+                else:
+                    granularities.append(granularity)
+            elif len(granularities) == 0:
+                print(
+                    "No valid options are currently selected. Please select at least one option.\n"
+                )
+        return granularities
+
+    def generic_kinds(
+        kinds: Iterable[OpaqueInserter.Kind],
+    ) -> Optional[Iterable[OpaqueInserter.Kind]]:
+        available = [k for k in OpaqueInserter.Kind]
+        choice = 0
+        while choice < len(OpaqueInserter.Kind) or len(kinds) == 0:
+            options = [
+                ("[X] " if k in kinds else "[ ] ") + k.value
+                for k in OpaqueInserter.Kind
+            ]
+            options.append("Finish selecting kinds.")
+            prompt = "\nChoose which kinds to enable for opaque predicate insertion, or choose to finish.\n"
+            choice = menu_driven_option(options, prompt)
+            if choice == -1:
+                return None
+            elif choice < len(OpaqueInserter.Kind):
+                kind = OpaqueInserter.Kind(available[choice])
+                if kind in kinds:
+                    kinds.remove(kind)
+                else:
+                    kinds.append(kind)
+            elif len(kinds) == 0:
+                print(
+                    "No valid options are currently selected. Please select at least one option.\n"
+                )
+        return kinds
+
+    def to_json():
+        pass  # TODO
+
+    def from_json(json):
+        pass  # TODO
+
+    def __eq__(self, other: ObfuscationUnit) -> bool:
+        return (
+            isinstance(other, InsertOpaqueUnit)
+            and set(self.styles) == set(other.styles)
+            and set(self.granularities) == set(other.granularities)
+            and set(self.kinds) == set(other.kinds)
+        )
+
+    def __str__(self) -> str:
+        style_flag = "styles=[" + ", ".join([x.name for x in self.styles]) + "]"
+        granularity_flag = (
+            "granularities=[" + ", ".join([x.name for x in self.granularities]) + "]"
+        )
+        kind_flag = "kinds=[" + ", ".join([x.name for x in self.kinds]) + "]"
+        number_flag = f"n={self.number}"
+        return f"InsertOpaqueUnit({style_flag},{granularity_flag},{kind_flag},{number_flag})"
 
 
 class ControlFlowFlattener(NodeVisitor):
