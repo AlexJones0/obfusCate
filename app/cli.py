@@ -1,9 +1,8 @@
 """ File: cli.py
 Implements functions to implement the command-line interface of the program,
 such that it can be used through text interaction in a terminal window."""
-from select import select
 import sys
-from typing import Optional, Union
+from typing import Optional
 from .debug import print_error, create_log_file, delete_log_file, log
 from .interaction import CSource, menu_driven_option, save_composition as save_comp
 from .obfuscation import *

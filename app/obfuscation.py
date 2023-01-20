@@ -9,7 +9,6 @@ from .utils import (
 )  # TODO remove if not used
 from .debug import *
 from typing import Iterable, Optional
-from ctypes import Union
 from abc import ABC, abstractmethod
 from pycparser.c_ast import *
 from pycparser import c_generator, c_lexer
@@ -21,7 +20,6 @@ import random
 import json
 
 # TODO some combinations aren't working? Why :(
-
 # TODO need to consider transformation ordering?
 # TODO add print statements to report pipeline progress, as it could take a while for large programs?
 # TODO also, add log statements throughout!
@@ -48,10 +46,13 @@ def generate_new_contents(source: CSource) -> str:
 
 
 class TransformType(Enum):
+    """ An Enum expression the different types/categories of obfuscation transformations that
+    are implemented by the program. This is used to generate the GUI display appropriately.""" 
     LEXICAL = 1
     ENCODING = 2
     PROCEDURAL = 3
-    STRUCTURAL = 4  # TODO better names / category split
+    STRUCTURAL = 4  
+    # TODO better names / category split
 
 
 class ObfuscationUnit(ABC):
@@ -60,9 +61,7 @@ class ObfuscationUnit(ABC):
     for transformations, constructing the class (in a CLI), and string representation."""
 
     name = "ObfuscationUnit"
-    description = (
-        "An abstract base class representing some obfuscation transformation unit"
-    )
+    description = "An abstract class representing some obfuscation transformation unit"
     type = TransformType.LEXICAL
 
     @abstractmethod
@@ -99,7 +98,7 @@ class Pipeline:
     to produce an obfuscated program. Provides functionalities for altering this pipeline
     and processing source code."""
 
-    def __init__(self, seed: int = None, *args):
+    def __init__(self, seed: int = None, *args) -> None:
         """Constructs a Pipeline object with the supplied random seed and transformations.
 
         Args:
