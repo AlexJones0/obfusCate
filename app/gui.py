@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt
 from typing import Type
 import sys
 
+DEFAULT_FONT = ["JetBrains Mono", "Fira Code", "Consolas", "Courier New", "monospace"]
 
 class CHighlighter(QSyntaxHighlighter):
     def highlightBlock(self, text: str) -> None:
@@ -19,12 +20,7 @@ class SourceEditor(QPlainTextEdit):
     def __init__(self):
         super().__init__()
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-        self.setFont(
-            QFont(
-                ["JetBrains Mono", "Fira Code", "Consolas", "Courier New", "monospace"],
-                10,
-            )
-        )
+        self.setFont(QFont(DEFAULT_FONT, 10))
         self.setStyleSheet(
             "border-style: outset; border-width: 3px; border-radius: 10px; border-color: #848484; background-color: #1D1E1A"
         )
@@ -58,32 +54,27 @@ class TransformWidget(QWidget):
             + TransformWidget.get_colour(class_.type)
             + "; }"
         )
-        self.layout.addWidget(self.label, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.layout.addWidget(self.label, 7, alignment=Qt.AlignmentFlag.AlignLeft)
         self.buttons_widget = QWidget(self)
         self.buttons_widget.layout = QHBoxLayout(self.buttons_widget)
         self.info_symbol = QLabel("🛈", self)
-        self.info_symbol.setToolTip("testing123")
-        self.info_symbol.setToolTipDuration(120)
-        self.info_symbol.setFont(
-            QFont(
-                ["JetBrains Mono", "Fira Code", "Consolas", "Courier New", "monospace"],
-                28,
-                250,
-            )
+        self.info_symbol.setFont(QFont(DEFAULT_FONT, 25, 250))
+        QToolTip.setFont(QFont(DEFAULT_FONT, 13))
+        self.info_symbol.setStyleSheet(
+            """ QLabel {color: white}
+                QToolTip { 
+                    background-color: #AAAAAA; 
+                    color: black; 
+                    border: black solid 2px
+                } """
         )
-        self.info_symbol.setStyleSheet("color: white;")
-        self.buttons_widget.layout.addWidget(self.info_symbol)
+        self.info_symbol.setToolTip(class_.extended_description)
+        self.buttons_widget.layout.addWidget(self.info_symbol, 1)
         self.buttons_widget.layout.addSpacing(20)
         self.add_symbol = QLabel("+", self)
-        self.add_symbol.setFont(
-            QFont(
-                ["JetBrains Mono", "Fira Code", "Consolas", "Courier New", "monospace"],
-                28,
-                800,
-            )
-        )
-        self.add_symbol.setStyleSheet("color: white;")
-        self.buttons_widget.layout.addWidget(self.add_symbol)
+        self.add_symbol.setFont(QFont(DEFAULT_FONT, 28, 800))
+        self.add_symbol.setStyleSheet("QLabel{color: white;}")
+        self.buttons_widget.layout.addWidget(self.add_symbol, 1)
         self.layout.addWidget(
             self.buttons_widget, alignment=Qt.AlignmentFlag.AlignRight
         )
@@ -96,9 +87,9 @@ class TransformWidget(QWidget):
             case TransformType.PROCEDURAL:
                 return "#5CD9EF"
             case TransformType.STRUCTURAL:
-                return "#A6E22E"
-            case TransformType.ENCODING:
                 return "#F92672"
+            case TransformType.ENCODING:
+                return "#A6E22E"
             case _:
                 return "#0D09F7"
 
@@ -116,20 +107,16 @@ class AvailableForm(QWidget):
                               padding: 6px; }"""
         )
         self.layout = QVBoxLayout(self)
+        self.layout.setSpacing(0)
         self.title_label = QLabel("Available Obfuscations", self)
-        self.title_label.setFont(
-            QFont(
-                ["JetBrains Mono", "Fira Code", "Consolas", "Courier New", "monospace"],
-                14,
-            )
-        )
-        self.title_label.setStyleSheet("color: white;")
+        self.title_label.setFont(QFont(DEFAULT_FONT, 14))
+        self.title_label.setStyleSheet("QLabel{color: white;}")
         self.layout.addWidget(self.title_label, alignment=Qt.AlignmentFlag.AlignHCenter) # Or AlignTop?
         self.transforms = []
         ts = sorted(ObfuscationUnit.__subclasses__(), key=lambda c: c.type.value)
         for class_ in ts:
             transform_widget = TransformWidget(class_, self)
-            self.layout.addWidget(transform_widget)
+            self.layout.addWidget(transform_widget, 1)
             self.transforms.append(transform_widget)
         self.setLayout(self.layout)
 
@@ -180,9 +167,9 @@ class ObfuscateWidget(QWidget):
         self.splitter.setStretchFactor(1, 1)
         self.selection_form = SelectionForm()
         self.misc_form = MiscForm()
-        self.layout.addWidget(self.splitter)
-        self.layout.addWidget(self.selection_form)
-        self.layout.addWidget(self.misc_form)
+        self.layout.addWidget(self.splitter, 6)
+        self.layout.addWidget(self.selection_form, 2)
+        self.layout.addWidget(self.misc_form, 2)
         self.setLayout(self.layout)
 
 

@@ -46,12 +46,13 @@ def generate_new_contents(source: CSource) -> str:
 
 
 class TransformType(Enum):
-    """ An Enum expression the different types/categories of obfuscation transformations that
-    are implemented by the program. This is used to generate the GUI display appropriately.""" 
+    """An Enum expression the different types/categories of obfuscation transformations that
+    are implemented by the program. This is used to generate the GUI display appropriately."""
+
     LEXICAL = 1
     ENCODING = 2
     PROCEDURAL = 3
-    STRUCTURAL = 4  
+    STRUCTURAL = 4
     # TODO better names / category split
 
 
@@ -61,7 +62,11 @@ class ObfuscationUnit(ABC):
     for transformations, constructing the class (in a CLI), and string representation."""
 
     name = "ObfuscationUnit"
-    description = "An abstract class representing some obfuscation transformation unit"
+    description = "An abstract class representing some obfuscation transformation unit. Not yet implemented."
+    extended_description = (
+        """A longer description about the class, providing extended information about its use.\n"""
+        """If you are seeing this generic template then this has not yet been filled in."""
+    )
     type = TransformType.LEXICAL
 
     @abstractmethod
@@ -569,6 +574,11 @@ class IdentityUnit(ObfuscationUnit):
 
     name = "Identity"
     description = "Does nothing - returns the same code entered."
+    extended_description = (
+        """The identity transformation is the simplest type of transform, returning \n"""
+        """The exact same code that was entered. This is a simple example of a transform\n"""
+        """that can be used without worrying about what might change. """
+    )
     type = TransformType.LEXICAL
 
     def transform(self, source: CSource) -> CSource:
@@ -794,6 +804,15 @@ class FuncArgumentRandomiseUnit(ObfuscationUnit):
 
     name = "Function Interface Randomisation"
     description = "Randomise Function Arguments to make them less compehensible"
+    extended_description = (
+        """<html>This transformation randomises function signatures to obscure the true meanings of\n"""
+        """function definitions. This is done by adding an extra number of spurious argmuments\n"""
+        """that are not used to functions, and then randomising the order of these arguments.<br><br>\n\n"""
+        """The only input is the number of spurious arguments to add - if no arguments are added,\n"""
+        """then all that will happen is that the argument order will be randomised.<br><br>\n\n"""
+        """<b>Warning:</b> does not work with pointer aliased function calls. Although variadic functions\n"""
+        """are supported, they will not be transformed as correctness cannot be guaranteed.</html>"""
+    )
     type = TransformType.PROCEDURAL
 
     def __init__(self, extra_args: int):
@@ -1043,6 +1062,13 @@ class StringEncodeUnit(ObfuscationUnit):
 
     name = "String Literal Encoding"
     description = "Encodes string literals to make them incomprehensible"
+    extended_description = (
+        """This transformation encodes literal strings as a sequence of obfuscated characters,\n"""
+        """in order to make strings incomprehensible and hide their true meaning. Depending on\n"""
+        """the mode selected, characters can be encoded as hexadecimal character codes, octal\n"""
+        """character codes, or a mix of these and regula characters.\n\n"""
+        """The only input is the encoding style to use."""
+    )
     type = TransformType.ENCODING
 
     def __init__(self, style):
@@ -1188,6 +1214,14 @@ class IntegerEncodeUnit(ObfuscationUnit):
 
     name = "Integer Literal Encoding"
     description = "Encode integer literals to make them hard to determine"
+    extended_description = (
+        """This transformation encodes literal integer constants in the code as the result of\n"""
+        """some computation, making it harder to determine the meaning of the code from the values\n"""
+        """of integers used. Note that the current implementation only allows simple encoding, which\n"""
+        """can be easily automatically optimised out, and so currently only served to obfuscate source\n"""
+        """code and to augment other obfuscations such as arithmetic encoding.\n\n"""
+        """The only input is the integer encoding style to use, though only simple encoding is available now."""
+    )
     type = TransformType.ENCODING
 
     def __init__(self, style):
@@ -1635,6 +1669,16 @@ class IdentitifierRenameUnit(ObfuscationUnit):
 
     name = "Identifier Renaming"
     description = "Renames variable/function names to make them incomprehensible."
+    extended_description = (
+        """This transformation randomises identifiers in the program (e.g. variable names, type names,\n"""
+        """function names, etc.) to remove all symbolic meaning stored via these names in the source code.\n"""
+        """Note that this will not affect the compiled code in any way.\n\n"""
+        """One optional input is the style of randomisation to be used - you can choose between completely\n"""
+        """random variable names, names that use only underscore characters, and minimal length names.\n"""
+        """The other optional input allows you to enable identifier minimisation, where names are greedily\n"""
+        """reused whenever possible to achieve the maximal overlap between names, such that obfuscation is\n"""
+        """achieved by giving many different constructs the same symbolic name."""
+    )
     type = TransformType.LEXICAL
 
     def __init__(self, style, minimiseIdents):
@@ -1912,6 +1956,19 @@ class ArithmeticEncodeUnit(ObfuscationUnit):
 
     name = "Integer Arithmetic Encoding"
     description = "Encode integer variable arithmetic to make code less comprehensible"
+    extended_description = (
+        """<html>This transformation encodes arithmetic operations within the code, replacing simple\n"""
+        """additions and multipliations with compound combinations of bitwise operations and\n"""
+        """alternative arithmetic. When performed on arithmetic dependent upon inputs, this cannot be\n"""
+        """optimised out by a compiler and will greatly increase obfuscation.<br><br>\n\n"""
+        """The only available option is the encoding depth - arithmetic operations within encoded\n"""
+        """arithmetic operations can be recursively encoded to increase code complexity, and so depth\n"""
+        """refers to the maximum recursive encoding depth that is allowed. A value > 5 is not recommended\n"""
+        """due to the potential slowdown.<br><br>\n\n"""
+        """<b>Warning:</b> This does not currently work with programs with float operations. All\n"""
+        """arithmetic is encoded, and there is currently no type analysis done to only encode integer\n"""
+        """operations. Do not use in programs with floats for now.<\html>"""
+    )
     type = TransformType.ENCODING
 
     def __init__(self, level):
@@ -2118,6 +2175,18 @@ class AugmentOpaqueUnit(ObfuscationUnit):
 
     name = "Opaque Predicate Augmentation"
     description = "Augments existing conditionals with invariant opaque predicates."
+    extended_description = (
+        """This transformation augments existing conditional statements (if, if-else, while, do while, for\n"""
+        """and ternary operations) by adding an additional opaque predicate check, which is an expression\n"""
+        """whose value is always known to be true/false or either, where this cannot be quickly determined\n"""
+        """by an attacker attempting to reverse engineer the code. Opaque predicates cannot generally be\n"""
+        """optimised out by the compiler and will remain in compiled code.\n\n"""
+        """The first available input is the set of input styles that can be used - INPUT refers to the use\n"""
+        """of function parameters (i.e. user input) to construct opaque predicates, whereas ENTROPY refers\n"""
+        """to the use of global random values to generate these expressions. The second input is the\n"""
+        """probability of augmentation. A value of 0.0 means nothing will be augmented, 0.5 means approximately\n"""
+        """half will be augmented, and 1.0 means that all will be augmented."""
+    )
     type = TransformType.STRUCTURAL
 
     def __init__(
@@ -2206,21 +2275,26 @@ class AugmentOpaqueUnit(ObfuscationUnit):
 
 
 class BugGenerator(NodeVisitor):
-    
     def visit_Constant(self, node):
         if node.value is not None:
             if node.type is None:
                 pass
-            elif node.type in ["int", "short", "long", "long long"] and int(node.value) != 0: # TODO better
-                node.value = str(int(node.value) + random.choice([-3,-2,-1,1,2,3]))
+            elif (
+                node.type in ["int", "short", "long", "long long"]
+                and int(node.value) != 0
+            ):  # TODO better
+                node.value = str(int(node.value) + random.choice([-3, -2, -1, 1, 2, 3]))
                 if node.value == "0":
-                    node.value = str(random.randint(1,3))
-            elif node.type in ["float", "double", "long dobule"] and float(node.value) != 0.0:
+                    node.value = str(random.randint(1, 3))
+            elif (
+                node.type in ["float", "double", "long dobule"]
+                and float(node.value) != 0.0
+            ):
                 node.value = str(float(node.value) + random.random())
             elif node.type == "char":
                 node.value = "'" + chr((ord(node.value[0]) + 1) % 256) + "'"
         self.generic_visit(node)
-    
+
     def visit_BinaryOp(self, node):
         op_map = {
             ">": ("<", "<=", "!=", "=="),
@@ -2359,9 +2433,9 @@ class OpaqueInserter(NodeVisitor):
         # TODO better buggy code generation; this is more proof of concept
         return Compound([EmptyStatement()])
         # TODO currently broken - no idea why (comehere)
-        #copy = deepcopy(stmt)
-        #self.bug_generator.visit(copy)
-        #return copy       
+        # copy = deepcopy(stmt)
+        # self.bug_generator.visit(copy)
+        # return copy
 
     def generate_opaque_predicate(self, stmt):
         kind = random.choice(self.kinds)  # TODO do I make this proportional also?
@@ -2393,7 +2467,7 @@ class OpaqueInserter(NodeVisitor):
                 )
                 if cond is None:
                     return None
-                copied = deepcopy(stmt) # TODO is this truly a deep copy? Or no?
+                copied = deepcopy(stmt)  # TODO is this truly a deep copy? Or no?
                 return Compound([If(cond, stmt, copied)])
             case self.Kind.WHILE_FALSE:  # while (false) { buggy code }
                 cond = self.generate_opaque_predicate_cond()
@@ -2556,6 +2630,26 @@ class InsertOpaqueUnit(ObfuscationUnit):
 
     name = "Opaque Predicate Insertion"
     description = "Inserts new conditionals with invariant opaque predicates"
+    extended_description = (
+        """<html>This transformation inserts new conditional statements that check opaque predicates to the code.\n"""
+        """Opaque predicates are an expression whose value is always known to be true/false or either, where\n"""
+        """this cannot be quickly determined by an attacker attempting to reverse engineer the code. Opaque\n"""
+        """predicates cannot generally be optimised out by the compiler and will remain in compiled code.<br><br>\n\n"""
+        """The first available input is the set of styles that can be used - INPUT refers to the use of\n"""
+        """function parameters (i.e. user input) to construct opaque predicates, whereas ENTROPY refers\n"""
+        """to the use of global random values to generate these expressions. The second input is the\n"""
+        """granularity of the optimisations (i.e. code construct size) - PROCEDURAl refers to the whole\n"""
+        """function, BLOCK refers to a sequence of statements, and STMT refers to single statements. The\n"""
+        """third input is the kinds (type of conditional construct) to use, as follows: <br><br>\n"""
+        """ > CHECK:       if (true predicate) { YOUR CODE } <br>\n"""
+        """ > FALSE:       if (false predicate) { buggy code } <br>\n"""
+        """ > ELSE:        if (false predicate) { buggy code } else { YOUR CODE } <br>\n"""
+        """ > EITHER:      if (any predicate) { YOUR CODE } else { YOUR CODE } <br>\n"""
+        """ > WHILE_FALSE: while (false predicate) { buggy code } <br><br>\n"""
+        """The final input is the number of opaque predicates to insert in your function.<br><br>\n\n"""
+        """<b>Warning</b>: "buggy code" generation currently just replicates the real code;\n"""
+        """complexity is still increased but note this behaviour when choosing options.<\html>"""
+    )
     type = TransformType.STRUCTURAL
 
     def __init__(
@@ -2589,7 +2683,9 @@ class InsertOpaqueUnit(ObfuscationUnit):
         print(
             f"The current number of opaque predicate insertions per function is {self.number}."
         )
-        print("What is the new number (n >= 0) of the opaque predicate insertions? (recommended: 1 <= n <= 10)")
+        print(
+            "What is the new number (n >= 0) of the opaque predicate insertions? (recommended: 1 <= n <= 10)"
+        )
         number = get_int(0, None)
         if number is None:
             return None
@@ -3183,6 +3279,13 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
 
     name = "Flatten Control Flow"
     description = "Flatten all Control Flow in functions into a single level to help prevent code analysis"
+    extended_description = (
+        """This transformation "flattens" the control flow of a program - normal programs are a sequential\n"""
+        """sequents of code blocks with jumps between them. Control flow flattening separates these blocks,\n"""
+        """numbering them all and putting every block inside a switch statement in a while loop. Jumps between\n"""
+        """blocks are encoded as a variable change within the loop structure. This completely transforms the\n"""
+        """control flow graph representing the program, preventing analysis of the control flow."""
+    )
     type = TransformType.STRUCTURAL
 
     def __init__(self):
@@ -3221,6 +3324,13 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
     # TODO WARNING ORDERING - SHOULD COME LAST (BUT BEFORE DiTriGraphEncodeUnit)
     name = "Clutter Whitespace"
     description = "Clutters program whitespace, making it difficult to read"
+    extended_description = (
+        """This transformation clutters the whitespace of a program, removing all indentation and spacing\n"""
+        """where possible between program lexemes. Currently, text is wrapped to fit roughly 100 characters\n"""
+        """per line, completely destroying symbolic code readability via whitespace. Note that this only\n"""
+        """affects the source code - no change will be made to the compiled code. Note that any non-textual\n"""
+        """transformations applied after this point will undo its changes."""
+    )
     type = TransformType.LEXICAL
 
     def __init__(self):
@@ -3241,7 +3351,7 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
         lexer.input(contents)
         # Lex tokens and format according to whitespace rules
         cur_line_length = 0
-        max_line_length = 100
+        max_line_length = 100  # TODO max line length option? All on one line? Random?
         token = lexer.token()
         prev = None
         spaced_tokens = c_lexer.CLexer.keywords + c_lexer.CLexer.keywords_new + ("ID",)
@@ -3332,6 +3442,18 @@ class DiTriGraphEncodeUnit(ObfuscationUnit):
     name = "Digraph/Trigraph Encoding"
     description = (
         "Encodes certain symbols with Digraphs/Trigraphs to make them incomprehensible"
+    )
+    extended_description = (
+        """This transformation encodes certain symbols within the program (e.g. '{', '#', ']') as digraphs\n"""
+        """or trigraphs, which are respectively two- or three- character combinations that are replaced by\n"""
+        """C's preprocessor to allow keyboard with less symbols to type C programs. Note that this only affects\n"""
+        """the source code - no change will be made to the compiled code. Note that any non-textual\n"""
+        """transformations applied after this point will undo its changes.\n\n"""
+        """The first available option is the mapping type - you can choose to encode using only digraphs, only\n"""
+        """trigraphs, or a mixture of both digraphs and trigraphs. For the second option, you can choose the\n"""
+        """prorbability that an encoding takes place. 0.0 means no encoding, 0.5 means approximately half will\n"""
+        """be encoded, and 1.0 means all symbols are encoded. This can be used to achieve a mixture of digraphs,\n"""
+        """trigraphs and regular symbols as is desired."""
     )
     type = TransformType.LEXICAL
 
