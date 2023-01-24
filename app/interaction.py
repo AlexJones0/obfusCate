@@ -1,12 +1,13 @@
 """ File: io.py
 Implements classes and functions for handling input and output. """
 from typing import Iterable, Optional, Tuple, Union
-from .debug import print_error, log
+from .debug import print_error, log, delete_log_file
 from pycparser import parse_file
 from pycparser.c_ast import FileAST
 from app import settings as cfg
 import os
 from time import localtime
+
 
 
 class CSource:
@@ -262,3 +263,115 @@ def save_composition(json: str, filepath: str = None) -> bool:
             "Failed to save composition file due to errors in accessing and writing to the file."
         )
     return False
+
+def disable_logging() -> None:
+    """Sets the config to disable logging during program execution."""
+    cfg.LOGS_ENABLED = False
+    delete_log_file()
+
+
+def set_seed(supplied_args: Iterable[str]) -> bool:
+    """Sets the random seed to be used during program execution.
+
+    Args:
+        supplied_args (Iterable[str]): The list of arguments following this argument.
+
+    Returns:
+        (bool) Whether the supplied arguments were valid or not."""
+    if len(supplied_args) <= 0:
+        print_error(
+            "Some integer seed must be supplied with the -s and --seed options. Use the -h or --help options to see usage information."
+        )
+        log("Failed to supply seed alongside seed option.")
+        return False
+    try:
+        cfg.SEED = int(supplied_args[0])
+        log(f"Set option to use random seed {cfg.SEED}")
+    except:
+        print_error(
+            "Some integer seed must be supplied with the -s and --seed options. Use the -h or --help options to see usage information."
+        )
+        log("Failed to supply a valid integer seed alongside seed option.")
+        return False
+
+
+def suppress_errors() -> None:
+    """Sets the config to suppress displaying of errors that may occur."""
+    cfg.SUPPRESS_ERRORS = True
+    log("Set option to suppress errors during execution.")
+
+
+def display_progress() -> None:
+    """Sets the config to display progress during obfuscation transformations."""
+    cfg.DISPLAY_PROGRESS = True
+    log("Set option to display obfuscation progress during transformation.")
+
+
+def save_composition() -> None:
+    """Sets the config to save the selected transformation composition to a JSON file when done."""
+    cfg.SAVE_COMPOSITION = True
+    log("Set option to save the final obfuscation transformation sequence.")
+
+
+def load_composition(supplied_args: Iterable[str]) -> bool:
+    """Sets the file to load initial obfuscation transformation information from.
+
+    Args:
+        supplied_args (Iterable[str]): The list of arguments following this argument.
+
+    Returns:
+        (bool) Whether the supplied arguments were valid or not."""
+    if len(supplied_args) <= 0:
+        print_error(
+            "Some composition file must be supplied with the -l and --load options. Use the -h or --help options to see usage information."
+        )
+        log("Fail to supply composition file alongside composition load option.")
+        return False
+    cfg.COMPOSITION = supplied_args[0]
+    log(
+        f"Set option to load initial obfuscation transformation sequence from file {cfg.COMPOSITION}."
+    )
+    return True
+
+def handle_arguments(supplied_args: Iterable[str], options) -> Iterable[str] | bool: 
+    # TODO options input + documentation
+    """This function iteratively handles a list of supplied arguments, filtering
+    out actual arguments and handling the execution of different options supplied
+    to the program, most of which are just changing some config setting to alter
+    later program behaviour.
+
+    Args:
+        supplied_args (Iterable[str]): The list of args/options supplied to the program.
+
+    Returns:
+        Union[Iterable[str], bool]: The list of (just) arguments supplied to the program.
+        If execution is to be stopped, instead just returns True or False to indicate
+        a valid or failed execution respectively.
+    """
+    args = []
+    skip_next = False
+    for i, arg in enumerate(supplied_args):
+        # Handle skipping for giving values with options
+        if skip_next:
+            skip_next = False
+            continue
+        matched = False
+        for opt in options:
+            if arg in opt[1]:
+                res = opt[0]() if len(opt[3]) == 0 else opt[0](supplied_args[(i + 1) :])
+                if res is not None and not res:
+                    return False
+                skip_next = len(opt[2]) != 0
+                matched = True
+                break
+        if matched:
+            continue
+        if arg.startswith("-"):  # Handle unknown options
+            print_error(
+                f"Unknown option '{arg}' supplied. Use the -h or --help options to see usage information."
+            )
+            log(f"Unknown option {arg} supplied.")
+            return False
+        else:  # Store valid arguments
+            args.append(arg)
+    return args
