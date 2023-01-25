@@ -19,6 +19,13 @@ from copy import deepcopy
 import random
 import json
 
+# TODO some problems when using obfuscations multiple times - only designed to be used once. Need cleanup
+#   ^^^ Appears to be bugged when you do DiTriGraphEncode() -> ClutterWhitespace()
+#   ^^^ I've also had a case where StringLiteralEncode() overwrites IdentifierRenaming()?
+# TODO one of my opaque predicates seems to be wrong sometimes? Causes crashes/segfaults? Look into?
+# TODO also sometimes combinations of all transforms causes a "change_ident" error:
+#       AttributeError: 'PtrDecl' object has no attribute 'declname'
+#   ^^^ think I'm not considering pointer/array types properly in ident naming unfortunately
 # TODO some combinations aren't working? Why :(
 # TODO need to consider transformation ordering?
 # TODO add print statements to report pipeline progress, as it could take a while for large programs?
@@ -38,7 +45,7 @@ def generate_new_contents(source: CSource) -> str:
         (str) The generated file contents from the source's AST"""
     new_contents = ""
     for line in source.contents.splitlines():
-        if line.strip().startswith("#"):
+        if line.strip().startswith("#") or line.strip().startswith("%:") or line.strip().startswith("??="):
             new_contents += line + "\n"
     generator = c_generator.CGenerator()
     new_contents += generator.visit(source.t_unit)
@@ -88,10 +95,6 @@ class ObfuscationUnit(ABC):
     @abstractmethod
     def from_json() -> Optional["ObfuscationUnit"]:
         return NotImplemented
-
-    @abstractmethod
-    def __eq__(self, other: "ObfuscationUnit") -> bool:
-        return True
 
     @abstractmethod
     def __str__(self):
@@ -635,9 +638,6 @@ class IdentityUnit(ObfuscationUnit):
         # TODO loading the string
         return IdentityUnit()
 
-    def __eq__(self, other: ObfuscationUnit) -> bool:
-        return isinstance(other, IdentityUnit)
-
     def __str__(self):
         return "Identity()"
 
@@ -679,6 +679,9 @@ class FuncArgRandomiserTraverser(NodeVisitor):
 
     def __init__(self, extra: int):
         self.extra = extra
+        self.reset()
+    
+    def reset(self):
         self.func_args = dict()
         self.walk_num = 1
         self.analyzer = VariableUseAnalyzer()
@@ -802,6 +805,7 @@ class FuncArgRandomiserTraverser(NodeVisitor):
         NodeVisitor.generic_visit(self, node)
         self.walk_num += 1
         NodeVisitor.generic_visit(self, node)
+        self.reset()
 
 
 class FuncArgumentRandomiseUnit(ObfuscationUnit):
@@ -871,11 +875,6 @@ class FuncArgumentRandomiseUnit(ObfuscationUnit):
             The corresponding argument randomisation unit object if the given json is valid, or None otherwise."""
         # TODO loading the string & rest of the function
         pass
-
-    def __eq__(self, other: ObfuscationUnit) -> bool:
-        if not isinstance(other, FuncArgumentRandomiseUnit):
-            return False
-        return self.extra_args == other.extra_args
 
     def __str__(self) -> str:
         extra_args_flag = f"extra={self.extra_args}"
@@ -1136,11 +1135,6 @@ class StringEncodeUnit(ObfuscationUnit):
         # TODO loading the string & rest of the function
         pass
 
-    def __eq__(self, other: ObfuscationUnit) -> bool:
-        if not isinstance(other, StringEncodeUnit):
-            return False
-        return self.style == other.style
-
     def __str__(self):
         style_flag = f"style={self.style.name}"
         return f"StringEncode({style_flag})"
@@ -1222,6 +1216,10 @@ class IntegerEncodeTraverser(NodeVisitor):
                     else:
                         getattr(node, parts[0])[int(parts[1])] = new_child
         NodeVisitor.generic_visit(self, node)
+    
+    def visit_FileAST(self, node):
+        NodeVisitor.generic_visit(self, node)
+        self.ignore = set()
 
 
 class IntegerEncodeUnit(ObfuscationUnit):
@@ -1295,11 +1293,6 @@ class IntegerEncodeUnit(ObfuscationUnit):
         # TODO loading the string & rest of the function
         pass
 
-    def __eq__(self, other: ObfuscationUnit) -> bool:
-        if not isinstance(other, IntegerEncodeUnit):
-            return False
-        return self.style == other.style
-
     def __str__(self) -> str:
         style_flag = f"style={self.style.name}"
         return f"IntegerEncode({style_flag})"
@@ -1324,6 +1317,11 @@ class IdentifierRenamer:
     transforming them to some random scrambled identifier."""
 
     def __init__(self, style: "IdentifierTraverser.Style", minimiseIdents: bool):
+        self.style = style
+        self.minimiseIdents = minimiseIdents
+        self.reset()
+        
+    def reset(self):
         self.mappings = [
             {
                 TypeKinds.NONSTRUCTURE: {
@@ -1349,8 +1347,6 @@ class IdentifierRenamer:
         )  # Maintain a list for ordering (try and re-use when possible)
         self.current_struct = None
         self.struct_ident_index = 0
-        self.style = style
-        self.minimiseIdents = minimiseIdents
         self.analyzer = VariableUseAnalyzer()
 
     def generate_new_ident(self):
@@ -1536,6 +1532,7 @@ class IdentifierRenamer:
         self.analyzer.input(source)
         self.analyzer.process()
         self.transform_idents(None)  # Perform DFS, transforming idents
+        self.reset()
 
 
 class IdentifierTraverser(NodeVisitor):
@@ -1548,11 +1545,14 @@ class IdentifierTraverser(NodeVisitor):
         MINIMAL_LENGTH = "Minimal length"
 
     def __init__(self, style: Style, minimiseIdents: bool):
+        self.style = style
+        self.minimiseIdents = minimiseIdents
+        self.reset()
+        
+    def reset(self):
         self.idents = {"main": "main"}
         self._new_idents = set()
         self._scopes = list()
-        self.style = style
-        self.minimiseIdents = minimiseIdents
 
     def get_new_ident(
         self, ident
@@ -1605,6 +1605,7 @@ class IdentifierTraverser(NodeVisitor):
         self._scopes.append(set())
         NodeVisitor.generic_visit(self, node)
         self._scopes = self._scopes[:-1]
+        self.reset()
 
     def visit_FuncDef(self, node):
         self._scopes.append(set())
@@ -1799,11 +1800,6 @@ class IdentifierRenameUnit(ObfuscationUnit):
         # TODO loading the string & rest of the function
         pass
 
-    def __eq__(self, other: ObfuscationUnit) -> bool:
-        if not isinstance(other, IdentifierRenameUnit):
-            return False
-        return self.style == other.style
-
     def __str__(self):
         style_flag = f"style={self.style.name}"
         minimise_ident_flag = (
@@ -1817,6 +1813,9 @@ class ArithmeticEncodeTraverser(NodeVisitor):
 
     def __init__(self, transform_depth: int):
         self.transform_depth = transform_depth
+        self.reset()
+    
+    def reset(self):
         self.var_types = []
         self.func_types = dict()
         self.type_cache = dict()
@@ -1979,6 +1978,10 @@ class ArithmeticEncodeTraverser(NodeVisitor):
                     self.ignore_list.add(current)
                     applied_count += 1
         NodeVisitor.generic_visit(self, node)
+        
+    def visit_FileAST(self, node):
+        NodeVisitor.generic_visit(self, node)
+        self.reset()
 
 
 class ArithmeticEncodeUnit(ObfuscationUnit):
@@ -2053,17 +2056,13 @@ class ArithmeticEncodeUnit(ObfuscationUnit):
         # TODO loading the string & rest of the function
         pass
 
-    def __eq__(self, other: ObfuscationUnit) -> bool:
-        if not isinstance(other, ArithmeticEncodeUnit):
-            return False
-        return self.level == other.level
-
     def __str__(self) -> str:
         level_flag = f"depth={self.level}"
         return f"ArithmeticEncode({level_flag})"  # TODO finish/fix this method
 
 
 class OpaqueAugmenter(NodeVisitor):
+    
     class Style(Enum):
         INPUT = "Predicates constructed from dynamic user input (function parameters)."
         ENTROPY = "Predicates constructed from random entropic variables."
@@ -2073,6 +2072,9 @@ class OpaqueAugmenter(NodeVisitor):
     def __init__(self, styles: Iterable[Style], probability: float = 1.0) -> None:
         self.styles = styles
         self.probability = probability
+        self.reset()
+
+    def reset(self):
         self.current_function = None
         self.parameters = None
         self.analyzer = None
@@ -2203,6 +2205,9 @@ class OpaqueAugmenter(NodeVisitor):
         self.current_function = prev
         self.parameters = None
 
+    def visit_FileAST(self, node):
+        NodeVisitor.generic_visit(self, node)
+        self.reset()
 
 class AugmentOpaqueUnit(ObfuscationUnit):
     """Augments exiting conditional statements in the program with opaque predicates,
@@ -2303,13 +2308,6 @@ class AugmentOpaqueUnit(ObfuscationUnit):
     def from_json(json):
         pass  # TODO
 
-    def __eq__(self, other: ObfuscationUnit) -> bool:
-        return (
-            isinstance(other, AugmentOpaqueUnit)
-            and set(self.styles) == set(other.styles)
-            and self.probability == other.probability
-        )
-
     def __str__(self) -> str:
         style_flag = "styles=[" + ", ".join([x.name for x in self.styles]) + "]"
         probability_flag = f"p={self.probability}"
@@ -2317,6 +2315,7 @@ class AugmentOpaqueUnit(ObfuscationUnit):
 
 
 class BugGenerator(NodeVisitor):
+    
     def visit_Constant(self, node):
         if node.value is not None:
             if node.type is None:
@@ -2357,6 +2356,7 @@ class BugGenerator(NodeVisitor):
 
 
 class OpaqueInserter(NodeVisitor):
+    
     class Style(Enum):
         INPUT = "INPUT: Predicates constructed from dynamic user input (function parameters)."
         ENTROPY = "ENTROPY: Predicates constructed from random entropic variables."
@@ -2387,13 +2387,16 @@ class OpaqueInserter(NodeVisitor):
         self.granularities = granularities
         self.kinds = kinds
         self.number = number
+        self.bug_generator = BugGenerator()
+        self.reset()
+    
+    def reset(self):
         self.functions = []
         self.current_function = None
         self.parameters = None
         self.analyzer = None
         self.source = None
         self.entropic_vars = []
-        self.bug_generator = BugGenerator()
 
     def process(self, source):
         self.analyzer = NewVariableUseAnalyzer(source.t_unit)
@@ -2663,6 +2666,10 @@ class OpaqueInserter(NodeVisitor):
             self.add_opaque_predicates(node)
         self.current_function = prev
         self.parameters = None
+    
+    def visit_FileAST(self, node):
+        NodeVisitor.generic_visit(self, node)
+        self.reset()
 
 
 class InsertOpaqueUnit(ObfuscationUnit):
@@ -2859,14 +2866,6 @@ class InsertOpaqueUnit(ObfuscationUnit):
     def from_json(json):
         pass  # TODO
 
-    def __eq__(self, other: ObfuscationUnit) -> bool:
-        return (
-            isinstance(other, InsertOpaqueUnit)
-            and set(self.styles) == set(other.styles)
-            and set(self.granularities) == set(other.granularities)
-            and set(self.kinds) == set(other.kinds)
-        )
-
     def __str__(self) -> str:
         style_flag = "styles=[" + ", ".join([x.name for x in self.styles]) + "]"
         granularity_flag = (
@@ -2879,6 +2878,9 @@ class InsertOpaqueUnit(ObfuscationUnit):
 
 class ControlFlowFlattener(NodeVisitor):
     def __init__(self):
+        self.reset()
+        
+    def reset(self):
         self.levels = []
         self.breaks = []
         self.continues = []
@@ -2903,30 +2905,13 @@ class ControlFlowFlattener(NodeVisitor):
         self.analyzer = NewVariableUseAnalyzer(node)
         self.analyzer.process()
         self.generic_visit(node)
-
-    # We first must break the function into the basic blocks that define it
-    # TODO remove below - just logic
-    # We get a potential branch on:
-    #  > A ternary operator - branch to iftrue, iffalse
-    #       > Evaluate condition - jump to iftrue block or iffalse block based on result
-    #       >
-    #  > Any lazy operator - so also && and ||
-    #  > Switch-case + default
-    #  > While
-    #  > Do-While
-    #  > if-else
-    #  > Continue stmt
-    #  > Break stmt
-    #  > goto
-    #  > label
-    #  > For loop
-    #  > Return statement
+        self.reset()
 
     def flatten_function(self, node):
         if node.body is None or len(node.body.block_items) == 0:
             return
-        while_label = "L"  # self.analyzer.get_unique_identifier(node, TypeKinds.LABEL)
-        switch_variable = "switchVar"  # self.analyzer.get_unique_identifier(node, TypeKinds.NONSTRUCTURE)
+        while_label = self.analyzer.get_unique_identifier(node, TypeKinds.LABEL, node.body, node)
+        switch_variable = self.analyzer.get_unique_identifier(node, TypeKinds.NONSTRUCTURE, node.body, node)
         exit = self.get_unique_number()
         entry = self.get_unique_number()
         self.cases = []
@@ -3369,9 +3354,6 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
     def from_json(json):
         pass  # TODO
 
-    def __eq__(self, other: ObfuscationUnit) -> bool:
-        return isinstance(other, ControlFlowFlattenUnit)  # TODO
-
     def __str__(self) -> str:
         return "FlattenControlFlow()"
 
@@ -3399,7 +3381,7 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
         # Preprocess contents
         new_contents = ""
         for line in source.contents.splitlines():
-            if line.strip().startswith("#"):
+            if line.strip().startswith("#") or line.strip().startswith("%:") or line.strip().startswith("??="):
                 new_contents += line + "\n"
         generator = c_generator.CGenerator()
         contents = generator.visit(source.t_unit)
@@ -3489,9 +3471,6 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
             The corresponding whitespace cluttering unit object if the given json is valid, or None otherwise."""
         # TODO loading the string & rest of the function
         pass
-
-    def __eq__(self, other: ObfuscationUnit) -> bool:
-        return isinstance(other, ClutterWhitespaceUnit)
 
     def __str__(self):
         return "ClutterWhitespace()"
@@ -3643,11 +3622,6 @@ class DiTriGraphEncodeUnit(ObfuscationUnit):
             The corresponding digraph/trigraph encoding unit object if the given json is valid, or None otherwise."""
         # TODO loading the string & rest of the function
         pass
-
-    def __eq__(self, other: ObfuscationUnit) -> bool:
-        if not isinstance(other, DiTriGraphEncodeUnit):
-            return False
-        return self.style == other.style and self.chance == other.chance
 
     def __str__(self):
         style_flag = f"style={self.style.name}"
