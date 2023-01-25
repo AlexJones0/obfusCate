@@ -2,8 +2,9 @@
 Implements classes and functions for handling input and output. """
 from typing import Iterable, Optional, Tuple, Union
 from .debug import print_error, log, delete_log_file
-from pycparser import parse_file
+from pycparser import parse_file, preprocess_file
 from pycparser.c_ast import FileAST
+from pycparser.c_parser import CParser
 from app import settings as cfg
 import os
 from time import localtime
@@ -61,6 +62,27 @@ class CSource:
         except OSError as e:
             log(f"Error in opening source file: {str(e)}.")
         return None
+
+    def update_t_unit(self):
+        with open(cfg.TEMP_FILE_PATH, "w+") as f:
+            f.write(self.contents)
+        try:
+            t_unit = parse_file(
+                cfg.TEMP_FILE_PATH,
+                use_cpp=True,
+                cpp_path="clang",
+                cpp_args=["-E", r"-Iutils/fake_libc_include"],
+            )
+            fname = cfg.TEMP_FILE_PATH.split("\\")[-1]
+            t_unit.ext = [x for x in t_unit.ext if fname in x.coord.file]
+            self.t_unit = t_unit
+            os.remove(cfg.TEMP_FILE_PATH)
+        except Exception as e:
+            log(f"Unexpected error whilst parsing the program: {str(e)}.")
+            print_error(
+                f"An unknown error occurred whilst trying to parse {self.fpath}."
+            )
+            return None
 
     def parse(self) -> Optional[FileAST]:
         """Parses the file using the clang parser to produce a translation unit, raising

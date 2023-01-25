@@ -2506,6 +2506,7 @@ class OpaqueInserter(NodeVisitor):
                 return Compound([If(cond, buggy, stmt)])
             case self.Kind.EITHER:  # if (either) { YOUR CODE } else { YOUR CODE }
                 # TODO maybe add some sort of limit to this one because it doubles your code each time?
+                # TODO bug: if code contains labels, labels must be renamed or removed accordingly comeherenow
                 cond = self.generate_opaque_predicate_cond(
                     [OpaquePredicate.EITHER_PREDICATES]
                 )

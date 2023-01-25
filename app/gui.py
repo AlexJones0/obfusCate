@@ -119,6 +119,8 @@ class CHighlighter(QSyntaxHighlighter):
 class SourceEditor(QPlainTextEdit):
     def __init__(self, parent: QWidget = None) -> None:
         super(SourceEditor, self).__init__(parent)
+        self.modified_from_read = True
+        self.textChanged.connect(self.set_modified)
         self.source = CSource("", "", FileAST([]))
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.setFont(QFont(CODE_FONT, 10))
@@ -145,6 +147,10 @@ class SourceEditor(QPlainTextEdit):
     def add_source(self, source: CSource) -> None:
         self.source = source
         self.setPlainText(source.contents)
+        self.modified_from_read = False
+    
+    def set_modified(self):
+        self.modified_from_read = True
 
 
 class TransformWidget(QWidget):
@@ -706,6 +712,8 @@ class GeneralOptionsForm(QFrame):
             save_composition(pipeline.to_json())
         source = deepcopy(self.__source_form_reference.source)
         source.contents = self.__source_form_reference.toPlainText()
+        if self.__source_form_reference.modified_from_read:
+            source.update_t_unit()
         obfuscated = pipeline.process(source)
         self.__obfuscated_form_reference.add_source(obfuscated)
 
@@ -786,6 +794,7 @@ class ObfuscateWidget(QWidget):
         self.setLayout(self.layout)
 
     def add_source(self, source: CSource) -> None:
+        self.textChanged = False
         self.source_editor.add_source(source)
 
 
