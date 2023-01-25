@@ -388,14 +388,20 @@ class TransformOptionsForm(QFrame):
 
 
 class CurrentForm(QFrame):
+    
+    # TODO could getter/setter self.current_transform with self.current_widget and the option form changes
+    # and that would make code much more readable and simpler (but also make following changes much harder
+    # to see)
+    
     class RemoveBehaviour(Enum):
         SELECT_NEXT = 1
         DESELECT = 2
 
     def __init__(self, parent: QWidget = None) -> None:
         super(CurrentForm, self).__init__(parent)
-        # TODO why is this not working?
         self.remove_behaviour = self.RemoveBehaviour.SELECT_NEXT
+        self.deselect_shortcut = QShortcut(QKeySequence('Esc'), self)
+        self.deselect_shortcut.activated.connect(self.deselect_transform)
         self.setStyleSheet(
             """
             CurrentForm{
@@ -551,6 +557,14 @@ class CurrentForm(QFrame):
             self.current_widget.deselect()
         self.current_transform = self.selected[self.selected_widgets.index(widget)]
         self.current_widget = widget
+        if self.__options_form_reference is not None:
+            self.__options_form_reference.load_transform(self.current_transform)
+        
+    def deselect_transform(self) -> None:
+        if self.current_widget is not None:
+            self.current_widget.deselect()
+        self.current_transform = None
+        self.current_widget = None
         if self.__options_form_reference is not None:
             self.__options_form_reference.load_transform(self.current_transform)
 
