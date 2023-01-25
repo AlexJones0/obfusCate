@@ -2506,7 +2506,7 @@ class OpaqueInserter(NodeVisitor):
                 return Compound([If(cond, buggy, stmt)])
             case self.Kind.EITHER:  # if (either) { YOUR CODE } else { YOUR CODE }
                 # TODO maybe add some sort of limit to this one because it doubles your code each time?
-                # TODO bug: if code contains labels, labels must be renamed or removed accordingly comeherenow
+                # TODO bug: if code contains labels, labels must be renamed or removed accordingly <comeherenow>
                 cond = self.generate_opaque_predicate_cond(
                     [OpaquePredicate.EITHER_PREDICATES]
                 )
@@ -2557,7 +2557,7 @@ class OpaqueInserter(NodeVisitor):
         # Calculate maximal contiguous sequences of non-declarations
         blocks = [(0, len(compound.block_items) - 1)]
         for i, item in enumerate(compound.block_items):
-            if isinstance(item, Decl):
+            if isinstance(item, (Decl, Case, Default, Label)):
                 to_remove = []
                 to_add = []
                 for b in blocks:
@@ -2600,8 +2600,10 @@ class OpaqueInserter(NodeVisitor):
         stmts = [
             (i, s)
             for i, s in enumerate(compound.block_items)
-            if not isinstance(s, Decl)
+            if not isinstance(s, (Decl, Case, Default, Label))
         ]
+        if len(stmts) == 0:
+            return False
         index, stmt = random.choice(stmts)
         new_block = self.generate_opaque_predicate(stmt)
         if new_block is not None:
