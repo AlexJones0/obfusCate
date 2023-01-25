@@ -3,16 +3,25 @@ Implements functions to implement the graphical user interface of the program,
 such that it can be more accessibly used without text interaction in a terminal
 window. """
 from .obfuscation import *
-from .interaction import handle_arguments, disable_logging, set_seed, suppress_errors, display_progress, \
-    save_composition, load_composition
+from .interaction import (
+    handle_arguments,
+    disable_logging,
+    set_seed,
+    suppress_errors,
+    display_progress,
+    save_composition,
+    load_composition,
+)
 from app import settings as config
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 from PyQt6.QtCore import Qt, QSize, QMimeData
 from typing import Type
+from copy import deepcopy
 import sys
 
-DEFAULT_FONT = ["JetBrains Mono", "Fira Code", "Consolas", "Courier New", "monospace"]
+DEFAULT_FONT = ["Consolas", "Fira Code", "Jetbrains Mono", "Courier New", "monospace"]
+CODE_FONT = ["Jetbrains Mono", "Fira Code", "Consolas", "Courier New", "monospace"]
 MINIMAL_SCROLL_BAR_CSS = """
     QScrollBar:vertical{
         border: none;
@@ -47,13 +56,13 @@ options = [
         [],  # Names of proceeding values used by the function
     ),
     (
-        disable_logging, # TODO
+        disable_logging,  # TODO
         ["-l", "--noLogs"],
         "Stops a log file being created for this execution.",
         [],
     ),
     (
-        set_seed, # TODO
+        set_seed,  # TODO
         ["-s", "--seed"],
         "Initialises the program with the random seed x (some integer).",
         ["x"],
@@ -84,6 +93,7 @@ options = [
     ),
 ]
 
+
 def get_transform_colour(transform_type: TransformType) -> str:
     match transform_type:
         case TransformType.LEXICAL:
@@ -99,18 +109,18 @@ def get_transform_colour(transform_type: TransformType) -> str:
 
 
 class CHighlighter(QSyntaxHighlighter):
-    
     def highlightBlock(self, text: str) -> None:
         return super().highlightBlock(text)
 
 
 class SourceEditor(QPlainTextEdit):
-    
     def __init__(self, parent: QWidget = None) -> None:
         super(SourceEditor, self).__init__(parent)
+        self.source = CSource("", "", FileAST([]))
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-        self.setFont(QFont(DEFAULT_FONT, 10))
-        self.setStyleSheet("""SourceEditor{
+        self.setFont(QFont(CODE_FONT, 10))
+        self.setStyleSheet(
+            """SourceEditor{
                 border-style: solid;
                 border-width: 3px;
                 border-radius: 10px;
@@ -128,14 +138,19 @@ class SourceEditor(QPlainTextEdit):
         # TODO line numbers
         # TODO icons above files
         # TODO file names above files
-    
+
     def add_source(self, source: CSource) -> None:
+        self.source = source
         self.setPlainText(source.contents)
 
 
 class TransformWidget(QWidget):
-    
-    def __init__(self, class_: Type[ObfuscationUnit], select_func: Callable, parent: QWidget = None) -> None:
+    def __init__(
+        self,
+        class_: Type[ObfuscationUnit],
+        select_func: Callable,
+        parent: QWidget = None,
+    ) -> None:
         super(TransformWidget, self).__init__(parent)
         self.layout = QHBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -159,7 +174,8 @@ class TransformWidget(QWidget):
         self.info_symbol = QLabel(self)
         self.info_symbol.setPixmap(QPixmap(".\\app\\graphics\\info.png").scaled(28, 28))
         QToolTip.setFont(QFont(DEFAULT_FONT, 13))
-        self.info_symbol.setStyleSheet(""" 
+        self.info_symbol.setStyleSheet(
+            """ 
             QToolTip { 
                 background-color: #AAAAAA; 
                 color: black; 
@@ -170,8 +186,9 @@ class TransformWidget(QWidget):
         self.buttons_widget.layout.addSpacing(10)
         self.buttons_widget.layout.addWidget(self.info_symbol, 1)
         self.buttons_widget.layout.addSpacing(20)
-        self.add_symbol = QPushButton('', self)
-        self.add_symbol.setStyleSheet("""
+        self.add_symbol = QPushButton("", self)
+        self.add_symbol.setStyleSheet(
+            """
             QPushButton {
                 border: none;
                 background: none;
@@ -191,11 +208,11 @@ class TransformWidget(QWidget):
 
 
 class AvailableForm(QFrame):
-    
     def __init__(self, select_func, parent: QWidget = None) -> None:
         super(AvailableForm, self).__init__(parent)
         # TODO why is this not working?
-        self.setStyleSheet("""
+        self.setStyleSheet(
+            """
             AvailableForm{
                 background-color: #272822; 
                 border-style: solid;
@@ -223,8 +240,13 @@ class AvailableForm(QFrame):
 
 
 class SelectedTransformWidget(QWidget):
-    
-    def __init__(self, class_: Type[ObfuscationUnit], number: int, select_func: Callable, parent: QWidget = None) -> None:
+    def __init__(
+        self,
+        class_: Type[ObfuscationUnit],
+        number: int,
+        select_func: Callable,
+        parent: QWidget = None,
+    ) -> None:
         super(SelectedTransformWidget, self).__init__(parent)
         self.select_func = select_func
         self.class_ = class_
@@ -239,11 +261,12 @@ class SelectedTransformWidget(QWidget):
         self.layout.addWidget(self.number_label, 1)
         self.box_widget = QWidget(self)
         self.box_widget.layout = QHBoxLayout(self.box_widget)
-        #self.box_widget.setContentsMargins(0, 0, 0, 0)
-        #self.box_widget.layout.setContentsMargins(0, 0, 0, 0)
-        #self.box_widget.layout.setSpacing(0)
+        # self.box_widget.setContentsMargins(0, 0, 0, 0)
+        # self.box_widget.layout.setContentsMargins(0, 0, 0, 0)
+        # self.box_widget.layout.setSpacing(0)
         self.box_widget.setObjectName("TransformBackground")
-        self.box_widget.setStyleSheet("""
+        self.box_widget.setStyleSheet(
+            """
             QWidget#TransformBackground{
                 background-color: #34352D;
             }"""
@@ -251,9 +274,7 @@ class SelectedTransformWidget(QWidget):
         self.name_label = QLabel(class_.name, self)
         self.name_label.setFont(QFont(DEFAULT_FONT, 11))
         self.name_label.setStyleSheet(
-            "QLabel{ color: "
-            + get_transform_colour(class_.type)
-            + "; }"
+            "QLabel{ color: " + get_transform_colour(class_.type) + "; }"
         )
         self.box_widget.layout.addWidget(self.name_label)
         self.layout.addWidget(self.box_widget, 9)
@@ -265,7 +286,7 @@ class SelectedTransformWidget(QWidget):
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.buttons() == Qt.MouseButton.LeftButton:
             self.drag_start_pos = event.pos()
-    
+
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         if event.buttons() == Qt.MouseButton.LeftButton:
             if self.drag_start_pos is None:
@@ -276,19 +297,26 @@ class SelectedTransformWidget(QWidget):
             drag = QDrag(self)
             drag.setMimeData(QMimeData())
             drag.exec(Qt.DropAction.MoveAction)
-            drag.setPixmap(self.box_widget.grab()) # TODO why is this not working? Try and get working
+            drag.setPixmap(
+                self.box_widget.grab()
+            )  # TODO why is this not working? Try and get working
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         self.drag_start_pos = None
         self.select_func(self)
-        self.box_widget.setStyleSheet("""
+        self.select()
+        
+    def select(self):
+        self.box_widget.setStyleSheet(
+            """
             QWidget#TransformBackground{
                 background-color: #48493E;
             }"""
         )
-    
+
     def deselect(self):
-        self.box_widget.setStyleSheet("""
+        self.box_widget.setStyleSheet(
+            """
             QWidget#TransformBackground{
                 background-color: #34352D;
             }"""
@@ -304,12 +332,72 @@ class SelectedTransformWidget(QWidget):
         self.number_label.setText("{}.".format(new_number))
 
 
+class TransformOptionsForm(QFrame):
+    def __init__(self, remove_func: Callable, parent: QWidget = None) -> None:
+        super(TransformOptionsForm, self).__init__(parent)
+        self.setStyleSheet(
+            """
+            TransformOptionsForm{
+                background-color: #272822; 
+                border-style: solid;
+                border-width: 2px;
+                border-radius: 10px;
+                border-color: #848484;
+                padding: 6px; 
+            }"""
+        )
+        self.setMinimumHeight(250)
+        self.layout = QVBoxLayout(self)
+        self.layout.setSpacing(0)
+        self.layout.setContentsMargins(5, 0, 5, 5)
+        self.title_label = QLabel("Transform Options", self)
+        self.title_label.setFont(QFont(DEFAULT_FONT, 14))
+        self.title_label.setStyleSheet("QLabel{color: white;}")
+        self.layout.addWidget(
+            self.title_label, 1, alignment=Qt.AlignmentFlag.AlignHCenter
+        )
+        self.options = QFrame(self)  # TODO this is where we use the class
+        self.layout.addWidget(self.options, 9)
+        self.remove_button = QPushButton("Remove Transform", self)
+        self.remove_button.setFont(QFont(DEFAULT_FONT, 12))
+        self.remove_button.setStyleSheet(
+            """
+            QPushButton{
+                background-color: #DE4C44;
+                border: solid;
+                border-color: #580904;
+                color: #DDDDDD;
+            }"""
+        )
+        self.remove_button.clicked.connect(remove_func)
+        self.remove_button.hide()
+        self.layout.addWidget(
+            self.remove_button, 1, alignment=Qt.AlignmentFlag.AlignBottom
+        )
+        self.setLayout(self.layout)
+
+    def load_transform(self, transform: ObfuscationUnit) -> None:
+        if transform is None:
+            self.remove_button.hide()
+            self.options = QFrame(self)
+            # TODO figure out how to handle resetting default behaviour
+            return
+        self.remove_button.show()
+        return  # TODO comment out when done implmenting menus
+        self.options = transform.edit_gui()
+
+
 class CurrentForm(QFrame):
-    
+    class RemoveBehaviour(Enum):
+        SELECT_NEXT = 1
+        DESELECT = 2
+
     def __init__(self, parent: QWidget = None) -> None:
         super(CurrentForm, self).__init__(parent)
         # TODO why is this not working?
-        self.setStyleSheet("""
+        self.remove_behaviour = self.RemoveBehaviour.SELECT_NEXT
+        self.setStyleSheet(
+            """
             CurrentForm{
                 background-color: #272822; 
                 border-style: solid;
@@ -321,7 +409,7 @@ class CurrentForm(QFrame):
         )
         self.layout = QVBoxLayout(self)
         self.layout.setSpacing(8)
-        self.setMinimumHeight(200)
+        self.setMinimumHeight(250)
         self.title_label = QLabel("Current Obfuscations", self)
         self.title_label.setFont(QFont(DEFAULT_FONT, 14))
         self.title_label.setStyleSheet("QLabel{color: white;}")
@@ -330,22 +418,31 @@ class CurrentForm(QFrame):
         self.title_widget.setContentsMargins(0, 0, 0, 0)
         self.title_widget.layout.setContentsMargins(0, 0, 0, 0)
         self.title_widget.layout.setSpacing(0)
-        self.title_widget.layout.addWidget(self.title_label, alignment=Qt.AlignmentFlag.AlignHCenter)
+        self.title_widget.layout.addWidget(
+            self.title_label, alignment=Qt.AlignmentFlag.AlignHCenter
+        )
         self.layout.addWidget(self.title_widget, alignment=Qt.AlignmentFlag.AlignTop)
         self.scroll_widget = QScrollArea(self)
         self.scroll_widget.setContentsMargins(0, 0, 0, 0)
-        self.scroll_widget.setStyleSheet("""
+        self.scroll_widget.setStyleSheet(
+            """
             QScrollArea{
                 background-color: transparent;
                 border: none;
-            }""" + MINIMAL_SCROLL_BAR_CSS
+            }"""
+            + MINIMAL_SCROLL_BAR_CSS
         )
-        self.scroll_widget.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.scroll_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_widget.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self.scroll_widget.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
         self.scroll_widget.setWidgetResizable(True)
         self.scroll_content = QWidget(self.scroll_widget)
         self.scroll_content.setObjectName("ScrollWidget")
-        self.scroll_content.setStyleSheet("""
+        self.scroll_content.setStyleSheet(
+            """
             QWidget#ScrollWidget{
                 background-color: transparent;
                 border: none;
@@ -355,7 +452,9 @@ class CurrentForm(QFrame):
         self.scroll_content.setContentsMargins(0, 0, 0, 0)
         self.scroll_content.layout.setContentsMargins(0, 0, 0, 0)
         self.scroll_content.layout.setSpacing(10)
-        self.scroll_content.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+        self.scroll_content.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum
+        )
         self.scroll_widget.setWidget(self.scroll_content)
         self.layout.addWidget(self.scroll_widget, 9)
         self.setLayout(self.layout)
@@ -363,13 +462,14 @@ class CurrentForm(QFrame):
         self.selected_widgets = []
         self.current_transform = None
         self.current_widget = None
+        self.__options_form_reference = None
         self.setAcceptDrops(True)
-    
+
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         # TODO
         if event.source() in self.selected_widgets:
             event.accept()
-        
+
     def dropEvent(self, event: QDropEvent) -> None:
         position = event.position()
         source = event.source()
@@ -377,70 +477,117 @@ class CurrentForm(QFrame):
         mouse_pos = position.y() + self.scroll_widget.verticalScrollBar().value()
         for i in range(num_items):
             widget = self.scroll_content.layout.itemAt(i).widget()
-            widget_pos = widget.y() + widget.height() + self.scroll_content.layout.spacing()
+            widget_pos = (
+                widget.y() + widget.height() + self.scroll_content.layout.spacing()
+            )
             if mouse_pos < widget_pos:
-                index = max(i-1, 0)
+                index = max(i - 1, 0)
                 self.scroll_content.layout.insertWidget(index, source)
-                self.update_transform_list(index, source)
+                self.move_transform(index, source)
                 event.accept()
                 return
         index = num_items - 1
         self.scroll_content.layout.insertWidget(index, source)
-        self.update_transform_list(index, source)
+        self.move_transform(index, source)
         event.accept()
-        
-    def update_transform_list(self, new_index: int, source: QWidget) -> None:
+
+    def move_transform(self, new_index: int, source: QWidget) -> None:
         prev_index = self.selected_widgets.index(source)
         prev_transform = self.selected[prev_index]
         if prev_index < new_index:
-            self.selected = self.selected[:prev_index] + self.selected[(prev_index+1):]
-            self.selected_widgets = self.selected_widgets[:prev_index] + self.selected_widgets[(prev_index+1):]
-        self.selected = self.selected[:new_index] + [prev_transform] + self.selected[new_index:]
-        self.selected_widgets = self.selected_widgets[:new_index] + [source] + self.selected_widgets[new_index:]
+            self.selected = (
+                self.selected[:prev_index] + self.selected[(prev_index + 1) :]
+            )
+            self.selected_widgets = (
+                self.selected_widgets[:prev_index]
+                + self.selected_widgets[(prev_index + 1) :]
+            )
+        self.selected = (
+            self.selected[:new_index] + [prev_transform] + self.selected[new_index:]
+        )
+        self.selected_widgets = (
+            self.selected_widgets[:new_index]
+            + [source]
+            + self.selected_widgets[new_index:]
+        )
         if prev_index >= new_index:
-            self.selected = self.selected[:(prev_index+1)] + self.selected[(prev_index+2):]
-            self.selected_widgets = self.selected_widgets[:(prev_index+1)] + self.selected_widgets[(prev_index+2):]
-        for i in range(self.scroll_content.layout.count()):
+            self.selected = (
+                self.selected[: (prev_index + 1)] + self.selected[(prev_index + 2) :]
+            )
+            self.selected_widgets = (
+                self.selected_widgets[: (prev_index + 1)]
+                + self.selected_widgets[(prev_index + 2) :]
+            )
+        for i in range(self.scroll_content.layout.count()): 
+            # TODO use self.selected_widgets instead?
             widget = self.scroll_content.layout.itemAt(i).widget()
             widget.number = i + 1
 
-    def add_transform(self, class_):
+    def add_transform(self, class_: Type[ObfuscationUnit]) -> None:
         number = len(self.selected) + 1
-        transform_widget = SelectedTransformWidget(class_, number, self.select_transform, self)
+        transform_widget = SelectedTransformWidget(
+            class_, number, self.select_transform, self
+        )
         transform_widget.setMaximumHeight(transform_widget.height())
-        self.scroll_content.layout.addWidget(transform_widget, alignment=Qt.AlignmentFlag.AlignTop)
+        self.scroll_content.layout.addWidget(
+            transform_widget, alignment=Qt.AlignmentFlag.AlignTop
+        )
         self.selected.append(class_.get_gui())
         self.selected_widgets.append(transform_widget)
-        
-    def select_transform(self, widget: SelectedTransformWidget):
+
+    def remove_transform(self, transform: ObfuscationUnit) -> None:
+        index = self.selected.index(transform)
+        widget = self.selected_widgets[index]
+        self.selected = self.selected[:index] + self.selected[(index + 1) :]
+        self.selected_widgets = (
+            self.selected_widgets[:index] + self.selected_widgets[(index + 1) :]
+        )
+        self.scroll_content.layout.removeWidget(widget)
+        for i in range(index, len(self.selected)):
+            self.selected_widgets[i].number = i + 1
+
+    def select_transform(self, widget: SelectedTransformWidget) -> None:
         if self.current_widget is not None:
             self.current_widget.deselect()
         self.current_transform = self.selected[self.selected_widgets.index(widget)]
         self.current_widget = widget
+        if self.__options_form_reference is not None:
+            self.__options_form_reference.load_transform(self.current_transform)
 
+    def remove_selected(self) -> None:
+        if self.remove_behaviour == self.RemoveBehaviour.DESELECT:
+            if self.current_transform is not None and self.current_widget is not None:
+                self.remove_transform(self.current_transform)
+            self.current_transform = None
+            self.current_widget = None
+            if self.__options_form_reference is not None:
+                self.__options_form_reference.load_transform(None)
+        elif self.remove_behaviour == self.RemoveBehaviour.SELECT_NEXT:
+            if self.current_transform is not None and self.current_widget is not None:
+                index = self.selected.index(self.current_transform)
+                self.remove_transform(self.current_transform)
+                if len(self.selected) <= index:
+                    self.current_transform = None
+                    self.current_widget = None
+                else:
+                    self.current_transform = self.selected[index]
+                    self.current_widget = self.selected_widgets[index]
+                    self.current_widget.select()
+            else:
+                self.current_transform = None
+                self.current_widget = None
+            if self.__options_form_reference is not None:
+                self.__options_form_reference.load_transform(self.current_transform)
 
-class TransformOptionsForm(QFrame):
-    
-    def __init__(self, parent: QWidget = None) -> None:
-        super(TransformOptionsForm, self).__init__(parent)
-        self.setStyleSheet("""
-            TransformOptionsForm{
-                background-color: #272822; 
-                border-style: solid;
-                border-width: 2px;
-                border-radius: 10px;
-                border-color: #848484;
-                padding: 6px; 
-            }"""
-        )
-        self.setFixedHeight(200)
+    def add_options_form(self, options_form: TransformOptionsForm) -> None:
+        self.__options_form_reference = options_form
 
 
 class MetricsForm(QFrame):
-
     def __init__(self, parent: QWidget = None) -> None:
         super(MetricsForm, self).__init__(parent)
-        self.setStyleSheet("""
+        self.setStyleSheet(
+            """
             MetricsForm{
                 background-color: #272822; 
                 border-style: solid;
@@ -450,14 +597,40 @@ class MetricsForm(QFrame):
                 padding: 6px; 
             }"""
         )
-        self.setFixedHeight(200)
+        self.setMinimumHeight(200)
+        self.layout = QVBoxLayout(self)
+        self.layout.setSpacing(0)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.title_label = QLabel("Obfuscation Metrics", self)
+        self.title_label.setFont(QFont(DEFAULT_FONT, 14))
+        self.title_label.setStyleSheet("QLabel{color: white;}")
+        self.layout.addWidget(
+            self.title_label, 1, alignment=Qt.AlignmentFlag.AlignHCenter
+        )
+        self.metrics = QFrame(self)
+        self.metrics.layout = QVBoxLayout(self.metrics)
+        self.metrics.layout.setSpacing(5)
+        self.metrics.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.addWidget(self.metrics, 9)
+        self.setLayout(self.layout)
 
 
 class GeneralOptionsForm(QFrame):
-    
-    def __init__(self, parent: QWidget = None) -> None:
+
+    # TODO add a settings form maybe?
+    def __init__(
+        self,
+        transforms: Iterable[ObfuscationUnit],
+        source_form: SourceEditor,
+        obfuscated_form: SourceEditor,
+        parent: QWidget = None,
+    ) -> None:
         super(GeneralOptionsForm, self).__init__(parent)
-        self.setStyleSheet("""
+        self.__transforms_reference = transforms
+        self.__source_form_reference = source_form
+        self.__obfuscated_form_reference = obfuscated_form
+        self.setStyleSheet(
+            """
             GeneralOptionsForm{
                 background-color: #272822; 
                 border-style: solid;
@@ -477,13 +650,19 @@ class GeneralOptionsForm(QFrame):
                 font-weight: bold;
             }"""
         )
-        self.setMinimumHeight(200) # TODO remove if not correct?
-        self.setMaximumHeight(200) # TODO temporary fix for spacing - TODO remove
+        self.setMinimumHeight(200)  # TODO remove if not correct?
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(0)
+        self.layout.setSpacing(5)
+        self.title_label = QLabel(config.NAME + " " + config.VERSION, self)
+        self.title_label.setFont(QFont(DEFAULT_FONT, 14, 1000))
+        self.title_label.setStyleSheet("QLabel{color: white;}")
+        self.layout.addWidget(
+            self.title_label, 1, alignment=Qt.AlignmentFlag.AlignHCenter
+        )
         self.obfuscate_button = self.get_button("Obfuscate")
         self.obfuscate_button.setObjectName("ObfuscateButton")
+        self.obfuscate_button.clicked.connect(self.obfuscate)
         self.load_source_button = self.get_button("Load source file")
         self.save_obfuscated_button = self.get_button("Save obfuscated file")
         self.load_transformations_button = self.get_button("Load transformations")
@@ -491,19 +670,22 @@ class GeneralOptionsForm(QFrame):
         self.quit_button = self.get_button("Quit")
         self.quit_button.clicked.connect(self.quit)
         self.setLayout(self.layout)
-    
+
     def get_button(self, msg):
         button = QPushButton(msg, self)
         button.setFont(QFont(DEFAULT_FONT, 12))
         self.layout.addWidget(button, 1)
         return button
-    
-    """def obfuscate(self):
-        pipeline = Pipeline(config.SEED, *selected)
+
+    def obfuscate(self):
+        pipeline = Pipeline(config.SEED, *self.__transforms_reference)
         if config.SAVE_COMPOSITION:
             save_composition(pipeline.to_json())
-        obfuscated = pipeline.process(source)"""
-    
+        source = deepcopy(self.__source_form_reference.source)
+        source.contents = self.__source_form_reference.toPlainText()
+        obfuscated = pipeline.process(source)
+        self.__obfuscated_form_reference.add_source(obfuscated)
+
     def quit(self):
         sys.exit(0)
 
@@ -524,22 +706,33 @@ class SelectionForm(QWidget):  # TODO move selection and misc just into obfuscat
 
 
 class MiscForm(QWidget):
-    
-    def __init__(self, parent: QWidget = None) -> None:
+    def __init__(
+        self,
+        transforms: Iterable[ObfuscationUnit],
+        source_form: SourceEditor,
+        obfuscated_form: SourceEditor,
+        remove_func: Callable,
+        parent: QWidget = None,
+    ) -> None:
         super(MiscForm, self).__init__(parent)
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
-        self.transform_options = TransformOptionsForm(self)
-        self.layout.addWidget(self.transform_options, 1, alignment=Qt.AlignmentFlag.AlignTop) # TODO temp alignment
+        self.transform_options = TransformOptionsForm(remove_func, self)
+        self.layout.addWidget(
+            self.transform_options, 1, alignment=Qt.AlignmentFlag.AlignTop
+        )  # TODO temp alignment
         self.metrics_form = MetricsForm(self)
         self.layout.addWidget(self.metrics_form, 1)
-        self.general_options = GeneralOptionsForm(self)
-        self.layout.addWidget(self.general_options, 1, alignment=Qt.AlignmentFlag.AlignBottom) # TODO temp alignment
+        self.general_options = GeneralOptionsForm(
+            transforms, source_form, obfuscated_form, self
+        )
+        self.layout.addWidget(
+            self.general_options, 1, alignment=Qt.AlignmentFlag.AlignBottom
+        )  # TODO temp alignment
         self.setLayout(self.layout)
 
 
 class ObfuscateWidget(QWidget):
-    
     def __init__(self, parent: QWidget = None) -> None:
         super(ObfuscateWidget, self).__init__(parent)
         self.layout = QHBoxLayout(self)
@@ -553,7 +746,16 @@ class ObfuscateWidget(QWidget):
         self.splitter.setStretchFactor(1, 1)
         # Define column widgets for transform selection and miscallaneous options
         self.selection_form = SelectionForm(self)
-        self.misc_form = MiscForm(self)
+        self.misc_form = MiscForm(
+            self.selection_form.current_form.selected,
+            self.source_editor,
+            self.obfuscated_editor,
+            self.selection_form.current_form.remove_selected,
+            self,
+        )
+        self.selection_form.current_form.add_options_form(
+            self.misc_form.transform_options
+        )
         # Provide 60% of the screen to the source editors, 20% to selection, and 20% to misc options
         self.layout.addWidget(self.splitter, 6)
         self.layout.addWidget(self.selection_form, 2)
@@ -565,11 +767,10 @@ class ObfuscateWidget(QWidget):
 
 
 class MainWindow(QMainWindow):
-    
     def __init__(self, parent: QWidget = None) -> None:
         super(MainWindow, self).__init__(parent)
         # Set window title and icon information
-        self.setWindowTitle("obfusCate")
+        self.setWindowTitle(config.NAME + " " + config.VERSION)
         self.setWindowIcon(QIcon(".\\app\\graphics\\logo.ico"))
         self.setAutoFillBackground(True)
         # Set default palette colour information
@@ -579,15 +780,15 @@ class MainWindow(QMainWindow):
         # Initialise window widgets
         self.obfuscate_widget = ObfuscateWidget(self)
         self.setCentralWidget(self.obfuscate_widget)
-        
+
     def add_source(self, source: CSource) -> None:
         self.obfuscate_widget.add_source(source)
 
 
-def handle_gui():
+def handle_gui() -> None:
     app = QApplication(sys.argv)
     window = MainWindow()
-    
+
     supplied_args = sys.argv
     if len(supplied_args) != 0 and supplied_args[0].endswith(".py"):
         supplied_args = supplied_args[1:]
@@ -608,6 +809,6 @@ def handle_gui():
         if source.contents is None or not source.valid_parse:
             return False
         window.add_source(source)
-    
+
     window.show()
     app.exec()

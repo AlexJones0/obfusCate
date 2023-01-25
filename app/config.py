@@ -9,8 +9,8 @@ class Config(object):
     COMP_PATH = "./saved/"
     LOG_FILE = ""
     LOGS_ENABLED = True
-    NAME = "obfusCated"
-    VERSION = "v0.0.1"
+    NAME = "obfusCate"
+    VERSION = "v0.14.5"
     DISPLAY_ERRORS = False
     SUPPRESS_ERRORS = False
     DISPLAY_PROGRESS = False

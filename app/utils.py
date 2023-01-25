@@ -20,7 +20,7 @@ def is_initialised(source: CSource, libraries: Iterable[str]) -> Iterable[bool]:
     inits = [False for lib in libraries]
     for line in source.contents.split("\n"):
         line = [t for t in line.strip().split(" ") if len(t) > 0]
-        if len(line) >= 2 and line[0] == "#include":
+        if len(line) >= 2 and line[0] in ["#include", "%:include", "??=include"]:
             for i, lib in enumerate(libs):
                 if line[1] == lib:
                     inits[i] = True
@@ -47,6 +47,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
         self.idents = set()
         self.functions = set()
         self.typedefs = set()
+        self.labels = {}
         self.definition_uses = {}
         self.compound_children = {}
         self.compound_parent = {}
@@ -222,12 +223,15 @@ class NewVariableUseAnalyzer(NodeVisitor):
             compound = self.get_stmt_compound(stmt)
         return self.get_nested_scope_usage(compound, stmt, None)
 
-    def get_unique_identifier(self, node, type):
+    def get_unique_identifier(self, node, type, compound=None, function=None):
         stmt = self.get_stmt_from_node(node)
-        compound = self.get_stmt_compound(stmt)
+        if compound is None:
+            compound = self.get_stmt_compound(stmt)
         defined = self.get_usage_from_stmt(stmt).union(
             self.get_scope_definitions(compound)
         )
+        if function is not None:
+            defined = defined.union(set((x, TypeKinds.LABEL) for x in self.labels[function]))
         defined = set(x[0] for x in defined if x[1] == type)
         return self.__find_new_ident(defined)
 
@@ -380,6 +384,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
         old_func = self.current_function
         if node.body is not None:
             self.current_function = node
+            self.labels[node] = set()
         # Augment the following compound with parameter definitions to ensure correct scoping
         for child in node.children():
             if child[0] != "body":
@@ -511,16 +516,17 @@ class NewVariableUseAnalyzer(NodeVisitor):
 
     @stmt_wrapper
     def visit_Label(self, node):
+        if node.stmt is not None:
+            self.record_stmt(node.stmt)
         if node.name is not None:
             self.record_ident_def(
                 node,
                 node.name,
                 [(node, "name")],
                 TypeKinds.LABEL,
-                alt_scope=self.current_definitions[1],
-            )
-            # TODO check the above - should restore the label definition as a per-function
-            # item, not a per-scope item. But need to check this
+                alt_scope=self.current_definitions[1], # TODO look into fixing this it is breaking stuff
+            ) # The above defines it in the function, but when looking at usage it may not be found
+            self.labels[self.current_function].add(node.name)
         NodeVisitor.generic_visit(self, node)
 
     @stmt_wrapper
