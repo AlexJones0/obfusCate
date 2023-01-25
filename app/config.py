@@ -10,7 +10,7 @@ class Config(object):
     LOG_FILE = ""
     LOGS_ENABLED = True
     NAME = "obfusCate"
-    VERSION = "v0.14.5"
+    VERSION = "v0.14.6"
     DISPLAY_ERRORS = False
     SUPPRESS_ERRORS = False
     DISPLAY_PROGRESS = False

@@ -20,8 +20,7 @@ import random
 import json
 
 # TODO some problems when using obfuscations multiple times - only designed to be used once. Need cleanup
-#   ^^^ Appears to be bugged when you do DiTriGraphEncode() -> ClutterWhitespace()
-#   ^^^ I've also had a case where StringLiteralEncode() overwrites IdentifierRenaming()?
+#   ^^^ I've also had a case where StringLiteralEncode() overwrites IdentifierRenaming()? May be fixed now? Need to check
 # TODO one of my opaque predicates seems to be wrong sometimes? Causes crashes/segfaults? Look into?
 # TODO also sometimes combinations of all transforms causes a "change_ident" error:
 #       AttributeError: 'PtrDecl' object has no attribute 'declname'
@@ -3565,7 +3564,7 @@ class DiTriGraphEncodeUnit(ObfuscationUnit):
             else:
                 new_contents += char
             prev = char
-        return CSource(source.fpath, new_contents)
+        return CSource(source.fpath, new_contents, source.t_unit)
 
     def edit_cli(self) -> bool:
         options = [s.value for s in self.Style]

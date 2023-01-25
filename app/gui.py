@@ -19,9 +19,12 @@ from PyQt6.QtCore import Qt, QSize, QMimeData
 from typing import Type
 from copy import deepcopy
 import sys
+import ctypes
 
 DEFAULT_FONT = ["Consolas", "Fira Code", "Jetbrains Mono", "Courier New", "monospace"]
 CODE_FONT = ["Jetbrains Mono", "Fira Code", "Consolas", "Courier New", "monospace"]
+SHORTCUT_DESELECT = "Esc"
+SHORTCUT_OBFUSCATE = "Ctrl+R"
 MINIMAL_SCROLL_BAR_CSS = """
     QScrollBar:vertical{
         border: none;
@@ -303,11 +306,10 @@ class SelectedTransformWidget(QWidget):
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         self.drag_start_pos = None
-        print(str(event.pos()))
-        if self.box_widget.x() <= event.pos().x() <= self.box_widget.x() + self.box_widget.width():
+        if 0 <= event.pos().x() - self.box_widget.x() <= self.box_widget.width():
             self.select_func(self)
             self.select()
-        
+
     def select(self):
         self.box_widget.setStyleSheet(
             """
@@ -390,11 +392,11 @@ class TransformOptionsForm(QFrame):
 
 
 class CurrentForm(QFrame):
-    
+
     # TODO could getter/setter self.current_transform with self.current_widget and the option form changes
     # and that would make code much more readable and simpler (but also make following changes much harder
     # to see)
-    
+
     class RemoveBehaviour(Enum):
         SELECT_NEXT = 1
         DESELECT = 2
@@ -402,7 +404,7 @@ class CurrentForm(QFrame):
     def __init__(self, parent: QWidget = None) -> None:
         super(CurrentForm, self).__init__(parent)
         self.remove_behaviour = self.RemoveBehaviour.SELECT_NEXT
-        self.deselect_shortcut = QShortcut(QKeySequence('Esc'), self)
+        self.deselect_shortcut = QShortcut(QKeySequence(SHORTCUT_DESELECT), self)
         self.deselect_shortcut.activated.connect(self.deselect_transform)
         self.setStyleSheet(
             """
@@ -526,7 +528,7 @@ class CurrentForm(QFrame):
                 self.selected_widgets[: (prev_index + 1)]
                 + self.selected_widgets[(prev_index + 2) :]
             )
-        for i in range(self.scroll_content.layout.count()): 
+        for i in range(self.scroll_content.layout.count()):
             # TODO use self.selected_widgets instead?
             widget = self.scroll_content.layout.itemAt(i).widget()
             widget.number = i + 1
@@ -561,7 +563,7 @@ class CurrentForm(QFrame):
         self.current_widget = widget
         if self.__options_form_reference is not None:
             self.__options_form_reference.load_transform(self.current_transform)
-        
+
     def deselect_transform(self) -> None:
         if self.current_widget is not None:
             self.current_widget.deselect()
@@ -642,6 +644,8 @@ class GeneralOptionsForm(QFrame):
         parent: QWidget = None,
     ) -> None:
         super(GeneralOptionsForm, self).__init__(parent)
+        self.obfuscate_shortcut = QShortcut(QKeySequence(SHORTCUT_OBFUSCATE), self)
+        self.obfuscate_shortcut.activated.connect(self.obfuscate)
         self.__transforms_reference = transforms
         self.__source_form_reference = source_form
         self.__obfuscated_form_reference = obfuscated_form
@@ -787,7 +791,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(parent)
         # Set window title and icon information
         self.setWindowTitle(config.NAME + " " + config.VERSION)
-        self.setWindowIcon(QIcon(".\\app\\graphics\\logo.ico"))
+        self.setWindowIcon(QIcon(".\\app\\graphics\\logo5.png"))
         self.setAutoFillBackground(True)
         # Set default palette colour information
         palette = self.palette()
@@ -802,6 +806,12 @@ class MainWindow(QMainWindow):
 
 
 def handle_gui() -> None:
+    # Patch: If on windows, change the python window application user model
+    # ID so that the icon is displayed correctly in the taskbar.
+    if ctypes.windll is not None and ctypes.windll.shell32 is not None:
+        app_id = config.NAME + "." + config.VERSION[1:]
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
+
     app = QApplication(sys.argv)
     window = MainWindow()
 
