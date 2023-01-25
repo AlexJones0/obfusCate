@@ -596,6 +596,9 @@ class CurrentForm(QFrame):
                 self.current_widget = None
             if self.__options_form_reference is not None:
                 self.__options_form_reference.load_transform(self.current_transform)
+    
+    def get_transforms(self):
+        return self.selected
 
     def add_options_form(self, options_form: TransformOptionsForm) -> None:
         self.__options_form_reference = options_form
@@ -638,7 +641,7 @@ class GeneralOptionsForm(QFrame):
     # TODO add a settings form maybe?
     def __init__(
         self,
-        transforms: Iterable[ObfuscationUnit],
+        transforms_func: Callable,
         source_form: SourceEditor,
         obfuscated_form: SourceEditor,
         parent: QWidget = None,
@@ -646,7 +649,7 @@ class GeneralOptionsForm(QFrame):
         super(GeneralOptionsForm, self).__init__(parent)
         self.obfuscate_shortcut = QShortcut(QKeySequence(SHORTCUT_OBFUSCATE), self)
         self.obfuscate_shortcut.activated.connect(self.obfuscate)
-        self.__transforms_reference = transforms
+        self.__transforms_reference = transforms_func
         self.__source_form_reference = source_form
         self.__obfuscated_form_reference = obfuscated_form
         self.setStyleSheet(
@@ -698,7 +701,7 @@ class GeneralOptionsForm(QFrame):
         return button
 
     def obfuscate(self):
-        pipeline = Pipeline(config.SEED, *self.__transforms_reference)
+        pipeline = Pipeline(config.SEED, *self.__transforms_reference())
         if config.SAVE_COMPOSITION:
             save_composition(pipeline.to_json())
         source = deepcopy(self.__source_form_reference.source)
@@ -728,7 +731,7 @@ class SelectionForm(QWidget):  # TODO move selection and misc just into obfuscat
 class MiscForm(QWidget):
     def __init__(
         self,
-        transforms: Iterable[ObfuscationUnit],
+        transforms_func: Callable,
         source_form: SourceEditor,
         obfuscated_form: SourceEditor,
         remove_func: Callable,
@@ -744,7 +747,7 @@ class MiscForm(QWidget):
         self.metrics_form = MetricsForm(self)
         self.layout.addWidget(self.metrics_form, 1)
         self.general_options = GeneralOptionsForm(
-            transforms, source_form, obfuscated_form, self
+            transforms_func, source_form, obfuscated_form, self
         )
         self.layout.addWidget(
             self.general_options, 1, alignment=Qt.AlignmentFlag.AlignBottom
@@ -767,7 +770,7 @@ class ObfuscateWidget(QWidget):
         # Define column widgets for transform selection and miscallaneous options
         self.selection_form = SelectionForm(self)
         self.misc_form = MiscForm(
-            self.selection_form.current_form.selected,
+            self.selection_form.current_form.get_transforms,
             self.source_editor,
             self.obfuscated_editor,
             self.selection_form.current_form.remove_selected,
