@@ -303,8 +303,10 @@ class SelectedTransformWidget(QWidget):
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         self.drag_start_pos = None
-        self.select_func(self)
-        self.select()
+        print(str(event.pos()))
+        if self.box_widget.x() <= event.pos().x() <= self.box_widget.x() + self.box_widget.width():
+            self.select_func(self)
+            self.select()
         
     def select(self):
         self.box_widget.setStyleSheet(
