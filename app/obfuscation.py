@@ -8,6 +8,9 @@ from .utils import (
     is_initialised,
 )  # TODO remove if not used
 from .debug import *
+from PyQt6.QtWidgets import *
+from PyQt6.QtGui import *
+from PyQt6.QtCore import Qt, QSize, QMimeData
 from typing import Iterable, Optional
 from abc import ABC, abstractmethod
 from pycparser.c_ast import *
@@ -613,12 +616,6 @@ class IdentityUnit(ObfuscationUnit):
         new_transform = IdentityUnit()
         return new_transform
 
-    def edit_gui(self) -> bool:
-        pass  # TODO
-
-    def get_gui() -> Optional["IdentityUnit"]:
-        return IdentityUnit()
-
     def to_json(self) -> str:
         """Converts the identity unit to a JSON string.
 
@@ -850,12 +847,6 @@ class FuncArgumentRandomiseUnit(ObfuscationUnit):
         if extra is None:
             return False
         return FuncArgumentRandomiseUnit(extra)
-
-    def edit_gui(self) -> bool:
-        pass  # TODO
-
-    def get_gui() -> Optional["FuncArgumentRandomiseUnit"]:
-        return FuncArgumentRandomiseUnit(3)
 
     def to_json(self) -> str:
         """Converts the function argument randomisation unit to a JSON string.
@@ -1110,12 +1101,6 @@ class StringEncodeUnit(ObfuscationUnit):
         style = StringEncodeTraverser.Style(options[choice])
         return StringEncodeUnit(style)
 
-    def edit_gui(self) -> bool:
-        pass  # TODO
-
-    def get_gui() -> "StringEncodeUnit":
-        return StringEncodeUnit(StringEncodeTraverser.Style.MIXED)
-
     def to_json(self) -> str:
         """Converts the string encoding unit to a JSON string.
 
@@ -1267,12 +1252,6 @@ class IntegerEncodeUnit(ObfuscationUnit):
             return None
         style = IntegerEncodeTraverser.Style(options[choice])
         return IntegerEncodeUnit(style)
-
-    def edit_gui(self) -> bool:
-        pass  # TODO
-
-    def get_gui() -> "IntegerEncodeUnit":
-        return IntegerEncodeUnit(IntegerEncodeTraverser.Style.SIMPLE)
 
     def to_json(self) -> str:
         """Converts the integer encoding unit to a JSON string.
@@ -1769,12 +1748,6 @@ class IdentifierRenameUnit(ObfuscationUnit):
                 return IdentifierRenameUnit(style, minimiseIdents)
         return None
 
-    def edit_gui(self) -> bool:
-        pass  # TODO
-
-    def get_gui() -> "IdentifierRenameUnit":
-        return IdentifierRenameUnit(IdentifierTraverser.Style.COMPLETE_RANDOM, False)
-
     def to_json(self) -> str:
         """Converts the identifier renaming unit to a JSON string.
 
@@ -2030,12 +2003,6 @@ class ArithmeticEncodeUnit(ObfuscationUnit):
         if depth is None:
             return False
         return ArithmeticEncodeUnit(depth)
-
-    def edit_gui(self) -> bool:
-        pass  # TODO
-
-    def get_gui() -> "ArithmeticEncodeUnit":
-        return ArithmeticEncodeUnit(1)
 
     def to_json(self) -> str:
         """Converts the arithmetic encoding unit to a JSON string.
@@ -2295,12 +2262,6 @@ class AugmentOpaqueUnit(ObfuscationUnit):
                 )
         return styles
 
-    def edit_gui(self) -> bool:
-        pass  # TODO
-
-    def get_gui() -> "AugmentOpaqueUnit":
-        return AugmentOpaqueUnit([s for s in OpaqueAugmenter.Style], 1.0)
-
     def to_json():
         pass  # TODO
 
@@ -2506,7 +2467,6 @@ class OpaqueInserter(NodeVisitor):
                 return Compound([If(cond, buggy, stmt)])
             case self.Kind.EITHER:  # if (either) { YOUR CODE } else { YOUR CODE }
                 # TODO maybe add some sort of limit to this one because it doubles your code each time?
-                # TODO bug: if code contains labels, labels must be renamed or removed accordingly <comeherenow>
                 cond = self.generate_opaque_predicate_cond(
                     [OpaquePredicate.EITHER_PREDICATES]
                 )
@@ -2851,17 +2811,6 @@ class InsertOpaqueUnit(ObfuscationUnit):
                 )
         return kinds
 
-    def edit_gui(self) -> bool:
-        pass  # TODO
-
-    def get_gui() -> "InsertOpaqueUnit":
-        return InsertOpaqueUnit(
-            [s for s in OpaqueInserter.Style],
-            [g for g in OpaqueInserter.Granularity],
-            [k for k in OpaqueInserter.Kind],
-            5,
-        )
-
     def to_json():
         pass  # TODO
 
@@ -2878,6 +2827,7 @@ class InsertOpaqueUnit(ObfuscationUnit):
         return f"InsertOpaqueUnit({style_flag},{granularity_flag},{kind_flag},{number_flag})"
 
 
+# TODO make this work with labels - shouldn't be too bad
 class ControlFlowFlattener(NodeVisitor):
     def __init__(self):
         self.reset()
@@ -3344,12 +3294,6 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
     ]:  # TODO case number randomisation options
         return ControlFlowFlattenUnit()  # TODO
 
-    def edit_gui(self) -> bool:
-        pass # TODO
-    
-    def get_gui() -> "ControlFlowFlattenUnit":
-        return ControlFlowFlattenUnit()
-
     def to_json():
         pass  # TODO
 
@@ -3448,12 +3392,6 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
         return True
 
     def get_cli() -> Optional["ClutterWhitespaceUnit"]:
-        return ClutterWhitespaceUnit()
-
-    def edit_gui(self) -> bool:
-        pass # TOOD
-    
-    def get_gui() -> "ClutterWhitespaceUnit":
         return ClutterWhitespaceUnit()
 
     def to_json(self) -> str:
@@ -3598,12 +3536,6 @@ class DiTriGraphEncodeUnit(ObfuscationUnit):
         if prob == float("nan"):
             return None
         return DiTriGraphEncodeUnit(style, prob)
-    
-    def edit_gui(self) -> bool:
-        pass # TODO
-    
-    def get_gui() -> "DiTriGraphEncodeUnit":
-        return DiTriGraphEncodeUnit(DiTriGraphEncodeUnit.Style.MIXED, 0.75)
 
     def to_json(self) -> str:
         """Converts the digraph/trigraph encoding unit to a JSON string.

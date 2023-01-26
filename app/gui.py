@@ -21,6 +21,7 @@ from copy import deepcopy
 import sys
 import ctypes
 
+
 DEFAULT_FONT = ["Consolas", "Fira Code", "Jetbrains Mono", "Courier New", "monospace"]
 CODE_FONT = ["Jetbrains Mono", "Fira Code", "Consolas", "Courier New", "monospace"]
 SHORTCUT_DESELECT = "Esc"
@@ -95,6 +96,119 @@ options = [
         ["file"],
     ),
 ]
+
+
+def set_no_options_widget(parent: QWidget) -> None:
+    layout = QVBoxLayout(parent)
+    no_options_label = QLabel("No options available.", parent)
+    no_options_label.setFont(QFont(DEFAULT_FONT, 12))
+    no_options_label.setStyleSheet("QLabel{color: #727463;}")
+    layout.addWidget(no_options_label, alignment=Qt.AlignmentFlag.AlignCenter)
+    parent.setLayout(layout)
+
+
+class GuiIdentityUnit(IdentityUnit):
+
+    def edit_gui(self, parent: QWidget) -> None:
+        set_no_options_widget(parent)
+
+    def get_gui() -> "GuiIdentityUnit":
+        return GuiIdentityUnit()
+
+
+class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
+    
+    def edit_gui(self, parent: QWidget) -> None:
+        pass  # TODO
+
+    def get_gui() -> "GuiFuncArgumentRandomiseUnit":
+        return GuiFuncArgumentRandomiseUnit(3)
+
+
+class GuiStringEncodeUnit(StringEncodeUnit):
+
+    def edit_gui(self, parent: QWidget) -> None:
+        pass  # TODO
+
+    def get_gui() -> "GuiStringEncodeUnit":
+        return GuiStringEncodeUnit(StringEncodeTraverser.Style.MIXED)
+
+
+class GuiIntegerEncodeUnit(IntegerEncodeUnit):
+    
+    def edit_gui(self, parent: QWidget) -> None:
+        pass  # TODO
+
+    def get_gui() -> "GuiIntegerEncodeUnit":
+        return GuiIntegerEncodeUnit(IntegerEncodeTraverser.Style.SIMPLE)
+    
+
+class GuiIdentifierRenameUnit(IdentifierRenameUnit):
+    
+    def edit_gui(self, parent: QWidget) -> None:
+        pass  # TODO
+
+    def get_gui() -> "GuiIdentifierRenameUnit":
+        return GuiIdentifierRenameUnit(IdentifierTraverser.Style.COMPLETE_RANDOM, False)
+
+
+class GuiArithmeticEncodeUnit(ArithmeticEncodeUnit):
+    
+    def edit_gui(self, parent: QWidget) -> None:
+        pass  # TODO
+
+    def get_gui() -> "GuiArithmeticEncodeUnit":
+        return GuiArithmeticEncodeUnit(1)
+
+
+class GuiAugmentOpaqueUnit(AugmentOpaqueUnit):
+    
+    def edit_gui(self, parent: QWidget) -> None:
+        pass  # TODO
+
+    def get_gui() -> "GuiAugmentOpaqueUnit":
+        return GuiAugmentOpaqueUnit([s for s in OpaqueAugmenter.Style], 1.0)
+
+
+class GuiInsertOpaqueUnit(InsertOpaqueUnit):
+    
+    def edit_gui(self, parent: QWidget) -> None:
+        pass  # TODO
+
+    def get_gui() -> "GuiInsertOpaqueUnit":
+        return GuiInsertOpaqueUnit(
+            [s for s in OpaqueInserter.Style],
+            [g for g in OpaqueInserter.Granularity],
+            [k for k in OpaqueInserter.Kind],
+            5,
+        )
+
+
+class GuiControlFlowFlattenUnit(ControlFlowFlattenUnit):
+    
+    def edit_gui(self, parent: QWidget) -> None:
+        set_no_options_widget(parent)
+    
+    def get_gui() -> "GuiControlFlowFlattenUnit":
+        return GuiControlFlowFlattenUnit()
+
+
+class GuiClutterWhitespaceUnit(ClutterWhitespaceUnit):
+    
+    def edit_gui(self, parent: QWidget) -> None:
+        set_no_options_widget(parent)
+    
+    def get_gui() -> "GuiClutterWhitespaceUnit":
+        return GuiClutterWhitespaceUnit()
+
+
+class GuiDiTriGraphEncodeUnit(DiTriGraphEncodeUnit):
+    
+    def edit_gui(self, parent: QWidget) -> None:
+        pass # TODO
+    
+    def get_gui() -> "GuiDiTriGraphEncodeUnit":
+        return GuiDiTriGraphEncodeUnit(DiTriGraphEncodeUnit.Style.MIXED, 0.75)
 
 
 def get_transform_colour(transform_type: TransformType) -> str:
@@ -240,7 +354,9 @@ class AvailableForm(QFrame):
             self.title_label, 1, alignment=Qt.AlignmentFlag.AlignHCenter
         )  # TODO Or AlignTop?
         self.transforms = []
-        ts = sorted(ObfuscationUnit.__subclasses__(), key=lambda c: c.type.value)
+        subsubclasses = [c.__subclasses__() for c in ObfuscationUnit.__subclasses__()]
+        subsubclasses = [c[0] for c in subsubclasses if len(c) > 0]
+        ts = sorted(subsubclasses, key=lambda c: c.type.value)
         for class_ in ts:
             transform_widget = TransformWidget(class_, select_func, self)
             self.layout.addWidget(transform_widget, 1)
@@ -366,7 +482,8 @@ class TransformOptionsForm(QFrame):
         self.layout.addWidget(
             self.title_label, 1, alignment=Qt.AlignmentFlag.AlignHCenter
         )
-        self.options = QFrame(self)  # TODO this is where we use the class
+        self.options = QFrame(self)
+        self.options.setMinimumHeight(200)
         self.layout.addWidget(self.options, 9)
         self.remove_button = QPushButton("Remove Transform", self)
         self.remove_button.setFont(QFont(DEFAULT_FONT, 12))
@@ -389,12 +506,24 @@ class TransformOptionsForm(QFrame):
     def load_transform(self, transform: ObfuscationUnit) -> None:
         if transform is None:
             self.remove_button.hide()
-            self.options = QFrame(self)
+            self.layout.removeWidget(self.options)
+            self.options = QFrame()
+            self.options.setMinimumHeight(200)
+            self.layout.insertWidget(1, self.options)
             # TODO figure out how to handle resetting default behaviour
             return
         self.remove_button.show()
-        return  # TODO comment out when done implmenting menus
-        self.options = transform.edit_gui()
+        if isinstance(transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit)): # TODO remove when done developing:
+            self.layout.removeWidget(self.options)
+            self.options = QFrame()
+            self.options.setMinimumHeight(200)
+            transform.edit_gui(self.options)
+            self.layout.insertWidget(1, self.options)
+        else:
+            self.layout.removeWidget(self.options)
+            self.options = QFrame()
+            self.options.setMinimumHeight(200)
+            self.layout.insertWidget(1, self.options)
 
 
 class CurrentForm(QFrame):
