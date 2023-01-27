@@ -262,6 +262,10 @@ class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
 
 class GuiStringEncodeUnit(StringEncodeUnit):
 
+    def __init__(self, *args, **kwargs):
+        super(GuiStringEncodeUnit, self).__init__(*args, **kwargs)
+        self.style_buttons = None
+
     def edit_gui(self, parent: QWidget) -> None:
         layout = QVBoxLayout(parent)
         style, self.style_buttons = generate_radio_button_widget(
@@ -319,6 +323,11 @@ class GuiIntegerEncodeUnit(IntegerEncodeUnit):
 
 class GuiIdentifierRenameUnit(IdentifierRenameUnit):
     
+    def __init__(self, *args, **kwargs):
+        super(GuiIdentifierRenameUnit, self).__init__(*args, **kwargs)
+        self.style_buttons = None
+        self.minimise_idents_checkbox = None
+    
     def edit_gui(self, parent: QWidget) -> None:
         layout = QVBoxLayout(parent)
         style, self.style_buttons = generate_radio_button_widget(
@@ -371,8 +380,35 @@ class GuiIdentifierRenameUnit(IdentifierRenameUnit):
 
 class GuiArithmeticEncodeUnit(ArithmeticEncodeUnit):
     
+    def __init__(self, *args, **kwargs):
+        super(GuiArithmeticEncodeUnit, self).__init__(*args, **kwargs)
+        self.depth_entry = None
+    
     def edit_gui(self, parent: QWidget) -> None:
-        pass  # TODO
+        layout = QVBoxLayout(parent)
+        depth, self.depth_entry = generate_integer_widget(
+            "Recursive Depth:",
+            "The maximum recursive depth of performed arithmetic encoding. Arithmetic\n"
+            "operations within encoded arithmetic operations can be recursively encoded\n"
+            "to increase code complexity. This must be at least 0 (which does nothing),\n"
+            "but a value > 5 is not recommended due to the large potential slowdown, as\n"
+            "code exponentially increases in size.",
+            self.level,
+            0,
+            2147483647,
+            parent
+        )        
+        layout.addWidget(depth, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        parent.setLayout(layout)
+
+    def load_gui_values(self) -> None:
+        if self.depth_entry is not None:
+            try:
+                self.level = int(self.depth_entry.text())
+                self.traverser.transform_depth = self.level
+            except:
+                self.level = 1
+                self.traverser.transform_depth = 1
 
     def get_gui() -> "GuiArithmeticEncodeUnit":
         return GuiArithmeticEncodeUnit(1)
@@ -729,7 +765,7 @@ class TransformOptionsForm(QFrame):
             # TODO figure out how to handle resetting default behaviour
             return
         self.remove_button.show()
-        if isinstance(transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit)): # TODO remove when done developing:
+        if isinstance(transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit)): # TODO remove when done developing:
             self.layout.removeWidget(self.options)
             self.options = QFrame()
             self.options.setMinimumHeight(200)
@@ -909,7 +945,7 @@ class CurrentForm(QFrame):
 
     def select_transform(self, widget: SelectedTransformWidget) -> None:
         if self.current_widget is not None:
-            if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit)): # TODO remove when done developing:
+            if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit)): # TODO remove when done developing:
                 self.current_transform.load_gui_values()
             self.current_widget.deselect()
         self.current_transform = self.selected[self.selected_widgets.index(widget)]
@@ -954,7 +990,7 @@ class CurrentForm(QFrame):
         return self.selected
 
     def load_selected_values(self):
-        if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit)): # TODO remove when done developing:
+        if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit)): # TODO remove when done developing:
             self.current_transform.load_gui_values()
 
     def add_options_form(self, options_form: TransformOptionsForm) -> None:
