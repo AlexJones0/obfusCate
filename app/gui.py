@@ -16,7 +16,7 @@ from app import settings as config
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 from PyQt6.QtCore import Qt, QSize, QMimeData
-from typing import Type
+from typing import Type, Tuple, Mapping, Any
 from copy import deepcopy
 import sys
 import ctypes
@@ -26,6 +26,13 @@ DEFAULT_FONT = ["Consolas", "Fira Code", "Jetbrains Mono", "Courier New", "monos
 CODE_FONT = ["Jetbrains Mono", "Fira Code", "Consolas", "Courier New", "monospace"]
 SHORTCUT_DESELECT = "Esc"
 SHORTCUT_OBFUSCATE = "Ctrl+R"
+GENERAL_TOOLTIP_CSS = """ 
+    QToolTip { 
+        background-color: #AAAAAA; 
+        color: black; 
+        border: black solid 2px
+    }
+"""
 MINIMAL_SCROLL_BAR_CSS = """
     QScrollBar:vertical{
         border: none;
@@ -105,12 +112,90 @@ def set_no_options_widget(parent: QWidget) -> None:
     no_options_label.setStyleSheet("QLabel{color: #727463;}")
     layout.addWidget(no_options_label, alignment=Qt.AlignmentFlag.AlignCenter)
     parent.setLayout(layout)
+    
+    
+def generate_integer_widget(label_msg: str, tooltip_msg: str, init_val: int, min_val: int, max_val: int, parent: QWidget) -> Tuple[QWidget, QLineEdit]:
+    integer_widget = QWidget(parent)
+    layout = QHBoxLayout(integer_widget)
+    label = QLabel(label_msg, integer_widget)
+    label.setFont(QFont(DEFAULT_FONT, 12))
+    label.setToolTip(tooltip_msg)
+    QToolTip.setFont(QFont(DEFAULT_FONT, 13))
+    label.setStyleSheet("QLabel{color: #727463;}\n" + GENERAL_TOOLTIP_CSS)
+    layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignLeft) 
+    layout.addSpacing(5)
+    entry = QLineEdit(str(init_val), integer_widget)
+    entry.setFont(QFont(DEFAULT_FONT, 12))
+    entry.setValidator(QIntValidator(min_val, max_val, entry))
+    entry.setStyleSheet("""
+        QLineEdit{
+            background-color: #161613;
+            border: solid;
+            border-width: 3px;
+            border-color: #161613;
+            color: #727463;
+        }"""
+    )
+    layout.addWidget(entry, alignment=Qt.AlignmentFlag.AlignRight)
+    integer_widget.setLayout(layout)
+    return (integer_widget, entry)
 
+
+def generate_radio_button_widget(label_msg: str, tooltip_msg: str, options: Mapping[str, Any], init_val: str, parent: QWidget, option_tooltips: Optional[Mapping[str,str]] = None) -> Tuple[QWidget, Iterable[QRadioButton]]:
+    radio_widget = QWidget(parent)
+    layout = QVBoxLayout(radio_widget)
+    layout.setSpacing(0)
+    layout.setContentsMargins(0, 0, 0, 0)
+    label = QLabel(label_msg, radio_widget)
+    label.setFont(QFont(DEFAULT_FONT, 12))
+    label.setToolTip(tooltip_msg)
+    QToolTip.setFont(QFont(DEFAULT_FONT, 13))
+    label.setStyleSheet("QLabel{color: #727463;}\n" + GENERAL_TOOLTIP_CSS)
+    layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignLeft) # TODO probably need to align left AND top?
+    button_widget = QWidget(radio_widget)
+    button_layout = QVBoxLayout(button_widget)
+    button_layout.setContentsMargins(15, 5, 5, 5)
+    radio_buttons = {}
+    for option in options.keys():
+        radio_button = QRadioButton(option, radio_widget)
+        if option == init_val:
+            radio_button.setChecked(True)
+        if option in option_tooltips:
+            radio_button.setToolTip(option_tooltips[option])
+        radio_button.setFont(QFont(DEFAULT_FONT, 10))
+        radio_button.setStyleSheet(GENERAL_TOOLTIP_CSS + """
+            QRadioButton{
+                color: #727463;
+            }
+            QRadioButton::indicator{
+                width: 10px;
+                height: 10px;
+                border-radius: 7px;
+            }
+            QRadioButton::indicator::checked{
+                background-color: white;
+                border: 2px solid white;
+            }
+            QRadioButton::indicator::unchecked{
+                background-color: none;
+                border: 2px solid white;
+            }"""
+        )
+        button_layout.addWidget(radio_button, 1)
+        radio_buttons[radio_button] = options[option]
+    button_widget.setLayout(button_layout)
+    layout.addWidget(button_widget)
+    radio_widget.setLayout(layout)
+    return (radio_widget, radio_buttons)
+        
 
 class GuiIdentityUnit(IdentityUnit):
 
     def edit_gui(self, parent: QWidget) -> None:
         set_no_options_widget(parent)
+
+    def load_gui_values(self) -> None:
+        return
 
     def get_gui() -> "GuiIdentityUnit":
         return GuiIdentityUnit()
@@ -118,8 +203,33 @@ class GuiIdentityUnit(IdentityUnit):
 
 class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
     
+    def __init__(self, *args, **kwargs):
+        super(GuiFuncArgumentRandomiseUnit, self).__init__(*args, **kwargs)
+        self.extra_args_entry = None
+    
     def edit_gui(self, parent: QWidget) -> None:
-        pass  # TODO
+        layout = QVBoxLayout(parent)
+        extra_args, self.extra_args_entry = generate_integer_widget(
+            "Extra Args:",
+            "The number of additional spurious arguments to add to each function.\n"
+            "This must be an integer >= 0. If 0 is selected, then the argument\n"
+            "list will just be randomised but not otherwise modified.",
+            self.extra_args,
+            0,
+            2147483647,
+            parent
+        )
+        layout.addWidget(extra_args, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        parent.setLayout(layout)
+
+    def load_gui_values(self) -> None:
+        if self.extra_args_entry is not None:
+            try:
+                self.extra_args = int(self.extra_args_entry.text())
+                self.traverser.extra = self.extra_args
+            except:
+                self.extra_args = 3
+                self.traverser.extra = 3
 
     def get_gui() -> "GuiFuncArgumentRandomiseUnit":
         return GuiFuncArgumentRandomiseUnit(3)
@@ -128,7 +238,26 @@ class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
 class GuiStringEncodeUnit(StringEncodeUnit):
 
     def edit_gui(self, parent: QWidget) -> None:
-        pass  # TODO
+        layout = QVBoxLayout(parent)
+        style, self.style_buttons = generate_radio_button_widget(
+            "Encoding Style:",
+            "The encoding style to use when encoding strings in the program, which\n"
+            "dictates how it is chosen what encodings characters are replaced with.",
+            {style.value: style for style in StringEncodeTraverser.Style},
+            self.style.value,
+            parent,
+            {}
+        )
+        layout.addWidget(style, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        parent.setLayout(layout)
+
+    def load_gui_values(self) -> None:
+        if self.style_buttons is not None and len(self.style_buttons) > 0:
+            for button, style in self.style_buttons.items():
+                if button.isChecked():
+                    self.style = style
+                    self.traverser.style = style
+                    break
 
     def get_gui() -> "GuiStringEncodeUnit":
         return GuiStringEncodeUnit(StringEncodeTraverser.Style.MIXED)
@@ -189,6 +318,9 @@ class GuiControlFlowFlattenUnit(ControlFlowFlattenUnit):
     def edit_gui(self, parent: QWidget) -> None:
         set_no_options_widget(parent)
     
+    def load_gui_values(self) -> None:
+        return
+    
     def get_gui() -> "GuiControlFlowFlattenUnit":
         return GuiControlFlowFlattenUnit()
 
@@ -197,6 +329,9 @@ class GuiClutterWhitespaceUnit(ClutterWhitespaceUnit):
     
     def edit_gui(self, parent: QWidget) -> None:
         set_no_options_widget(parent)
+    
+    def load_gui_values(self) -> None:
+        return
     
     def get_gui() -> "GuiClutterWhitespaceUnit":
         return GuiClutterWhitespaceUnit()
@@ -296,16 +431,9 @@ class TransformWidget(QWidget):
         self.buttons_widget.layout.setSpacing(0)
         self.info_symbol = QLabel(self)
         self.info_symbol.setPixmap(QPixmap(".\\app\\graphics\\info.png").scaled(28, 28))
-        QToolTip.setFont(QFont(DEFAULT_FONT, 13))
-        self.info_symbol.setStyleSheet(
-            """ 
-            QToolTip { 
-                background-color: #AAAAAA; 
-                color: black; 
-                border: black solid 2px
-            }"""
-        )
         self.info_symbol.setToolTip(class_.extended_description)
+        QToolTip.setFont(QFont(DEFAULT_FONT, 13))
+        self.info_symbol.setStyleSheet(GENERAL_TOOLTIP_CSS)
         self.buttons_widget.layout.addSpacing(10)
         self.buttons_widget.layout.addWidget(self.info_symbol, 1)
         self.buttons_widget.layout.addSpacing(20)
@@ -513,7 +641,7 @@ class TransformOptionsForm(QFrame):
             # TODO figure out how to handle resetting default behaviour
             return
         self.remove_button.show()
-        if isinstance(transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit)): # TODO remove when done developing:
+        if isinstance(transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit)): # TODO remove when done developing:
             self.layout.removeWidget(self.options)
             self.options = QFrame()
             self.options.setMinimumHeight(200)
@@ -693,6 +821,8 @@ class CurrentForm(QFrame):
 
     def select_transform(self, widget: SelectedTransformWidget) -> None:
         if self.current_widget is not None:
+            if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit)): # TODO remove when done developing:
+                self.current_transform.load_gui_values()
             self.current_widget.deselect()
         self.current_transform = self.selected[self.selected_widgets.index(widget)]
         self.current_widget = widget
@@ -734,6 +864,10 @@ class CurrentForm(QFrame):
     
     def get_transforms(self):
         return self.selected
+
+    def load_selected_values(self):
+        if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit)): # TODO remove when done developing:
+            self.current_transform.load_gui_values()
 
     def add_options_form(self, options_form: TransformOptionsForm) -> None:
         self.__options_form_reference = options_form
@@ -777,6 +911,7 @@ class GeneralOptionsForm(QFrame):
     def __init__(
         self,
         transforms_func: Callable,
+        load_gui_vals_func: Callable,
         source_form: SourceEditor,
         obfuscated_form: SourceEditor,
         parent: QWidget = None,
@@ -785,6 +920,7 @@ class GeneralOptionsForm(QFrame):
         self.obfuscate_shortcut = QShortcut(QKeySequence(SHORTCUT_OBFUSCATE), self)
         self.obfuscate_shortcut.activated.connect(self.obfuscate)
         self.__transforms_reference = transforms_func
+        self.__load_selected_gui_reference = load_gui_vals_func
         self.__source_form_reference = source_form
         self.__obfuscated_form_reference = obfuscated_form
         self.setStyleSheet(
@@ -836,6 +972,7 @@ class GeneralOptionsForm(QFrame):
         return button
 
     def obfuscate(self):
+        self.__load_selected_gui_reference()
         pipeline = Pipeline(config.SEED, *self.__transforms_reference())
         if config.SAVE_COMPOSITION:
             save_composition(pipeline.to_json())
@@ -869,6 +1006,7 @@ class MiscForm(QWidget):
     def __init__(
         self,
         transforms_func: Callable,
+        load_gui_vals_func: Callable,
         source_form: SourceEditor,
         obfuscated_form: SourceEditor,
         remove_func: Callable,
@@ -884,7 +1022,7 @@ class MiscForm(QWidget):
         self.metrics_form = MetricsForm(self)
         self.layout.addWidget(self.metrics_form, 1)
         self.general_options = GeneralOptionsForm(
-            transforms_func, source_form, obfuscated_form, self
+            transforms_func, load_gui_vals_func, source_form, obfuscated_form, self
         )
         self.layout.addWidget(
             self.general_options, 1, alignment=Qt.AlignmentFlag.AlignBottom
@@ -908,6 +1046,7 @@ class ObfuscateWidget(QWidget):
         self.selection_form = SelectionForm(self)
         self.misc_form = MiscForm(
             self.selection_form.current_form.get_transforms,
+            self.selection_form.current_form.load_selected_values,
             self.source_editor,
             self.obfuscated_editor,
             self.selection_form.current_form.remove_selected,

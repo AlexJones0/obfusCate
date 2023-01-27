@@ -893,10 +893,10 @@ class StringEncodeTraverser(NodeVisitor):
     TO_REMOVE = True
 
     class Style(Enum):
-        OCTAL = "Octal Character Encoding"
-        HEX = "Hexadecimal Character Encoding"
-        MIXED = "Mixed Octal/Hexadecimal Character Encoding"
-        ALL = "Mixed Octal/Hexadecimal/Regular Character Encoding"
+        OCTAL = "Octal"
+        HEX = "Hexadecimal"
+        MIXED = "Octal/Hexadecimal"
+        ALL = "Octal/Hexadecimal/Regular"
 
     def __init__(self, style):
         self.style = style
@@ -2517,6 +2517,7 @@ class OpaqueInserter(NodeVisitor):
         # Calculate maximal contiguous sequences of non-declarations
         blocks = [(0, len(compound.block_items) - 1)]
         for i, item in enumerate(compound.block_items):
+            # TODO still having issues with label for some reason I think? 
             if isinstance(item, (Decl, Case, Default, Label)):
                 to_remove = []
                 to_add = []
