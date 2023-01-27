@@ -1691,6 +1691,7 @@ class IdentifierRenameUnit(ObfuscationUnit):
 
     def transform(self, source: CSource) -> CSource:
         if self.minimiseIdents:
+            # TODO identifier minimisation breaking on AOCday6 example - WHY!?
             transformer = IdentifierRenamer(self.style, True)
             transformer.transform(source.t_unit)
         else:

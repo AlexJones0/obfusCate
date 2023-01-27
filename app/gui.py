@@ -151,7 +151,7 @@ def generate_radio_button_widget(label_msg: str, tooltip_msg: str, options: Mapp
     label.setToolTip(tooltip_msg)
     QToolTip.setFont(QFont(DEFAULT_FONT, 13))
     label.setStyleSheet("QLabel{color: #727463;}\n" + GENERAL_TOOLTIP_CSS)
-    layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignLeft) # TODO probably need to align left AND top?
+    layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignLeft)
     button_widget = QWidget(radio_widget)
     button_layout = QVBoxLayout(button_widget)
     button_layout.setContentsMargins(15, 5, 5, 5)
@@ -173,11 +173,11 @@ def generate_radio_button_widget(label_msg: str, tooltip_msg: str, options: Mapp
                 border-radius: 7px;
             }
             QRadioButton::indicator::checked{
-                background-color: white;
+                background-color: none;
                 border: 2px solid white;
             }
             QRadioButton::indicator::unchecked{
-                background-color: none;
+                background-color: white;
                 border: 2px solid white;
             }"""
         )
@@ -187,6 +187,31 @@ def generate_radio_button_widget(label_msg: str, tooltip_msg: str, options: Mapp
     layout.addWidget(button_widget)
     radio_widget.setLayout(layout)
     return (radio_widget, radio_buttons)
+
+
+def generate_checkbox_widget(label_msg: str, tooltip_msg: str, init: bool, parent: QWidget) -> Tuple[QWidget, QCheckBox]:
+    checkbox_widget = QWidget(parent)
+    layout = QHBoxLayout(checkbox_widget)
+    layout.setSpacing(20)
+    layout.setContentsMargins(0, 0, 0, 0)
+    label = QLabel(label_msg, checkbox_widget)
+    label.setFont(QFont(DEFAULT_FONT, 12))
+    label.setToolTip(tooltip_msg)
+    QToolTip.setFont(QFont(DEFAULT_FONT, 13))
+    label.setStyleSheet("QLabel{color: #727463;}\n" + GENERAL_TOOLTIP_CSS)
+    layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignLeft)
+    checkbox = QCheckBox(checkbox_widget)
+    checkbox.setFont(QFont(DEFAULT_FONT, 12))
+    checkbox.setStyleSheet("""
+        QCheckBox{
+            color: #727463
+        }"""
+    )
+    checkbox.setChecked(init)
+    layout.addWidget(checkbox, alignment=Qt.AlignmentFlag.AlignLeft)
+    layout.addStretch()
+    checkbox_widget.setLayout(layout)
+    return (checkbox_widget, checkbox)
         
 
 class GuiIdentityUnit(IdentityUnit):
@@ -246,7 +271,22 @@ class GuiStringEncodeUnit(StringEncodeUnit):
             {style.value: style for style in StringEncodeTraverser.Style},
             self.style.value,
             parent,
-            {}
+            {
+                StringEncodeTraverser.Style.OCTAL.value: \
+                    "Encode each character as its octal (base-8) representation where possible.\n"
+                    "  e.g. \"hello\" -> \"\\150\\145\\154\\154\\157\".",
+                StringEncodeTraverser.Style.HEX.value: \
+                    "Encode each character as its hexadecimal (base-16) representation where possbible.\n"
+                    "  e.g. \"hello\" -> \"\\x68\\x65\\x6c\\x6c\\x6f\".",
+                StringEncodeTraverser.Style.MIXED.value: \
+                    "Encode each character as either its octal (base-8) or hexadecimal (base-16)\n"
+                    "representation where possible, choosing randomly between the two.\n"
+                    "  e.g. \"hello\" -> \"\\x68\\145\\154\\x6c\\157\".",
+                StringEncodeTraverser.Style.ALL.value: \
+                    "Encode each character as either itself (no change), its octal (base-8) representation\n"
+                    "or its hexadecimal (base-16) representation, choosing randomly between all 3 options.\n"
+                    "  e.g. \"hello\" -> \"\\150e\\x6cl\\x6f\".",
+            }
         )
         layout.addWidget(style, 1, alignment=Qt.AlignmentFlag.AlignTop)
         parent.setLayout(layout)
@@ -266,7 +306,12 @@ class GuiStringEncodeUnit(StringEncodeUnit):
 class GuiIntegerEncodeUnit(IntegerEncodeUnit):
     
     def edit_gui(self, parent: QWidget) -> None:
-        pass  # TODO
+        # TODO this should have options in the future! But doesn't right now
+        set_no_options_widget(parent)
+
+    def load_gui_values(self) -> None:
+        # TODO see above edit_gui method comment
+        return
 
     def get_gui() -> "GuiIntegerEncodeUnit":
         return GuiIntegerEncodeUnit(IntegerEncodeTraverser.Style.SIMPLE)
@@ -275,7 +320,50 @@ class GuiIntegerEncodeUnit(IntegerEncodeUnit):
 class GuiIdentifierRenameUnit(IdentifierRenameUnit):
     
     def edit_gui(self, parent: QWidget) -> None:
-        pass  # TODO
+        layout = QVBoxLayout(parent)
+        style, self.style_buttons = generate_radio_button_widget(
+            "Renaming Style:",
+            "The renaming style to use when renaming identifiers throughout the\n"
+            "program, which dictates how new identifiers are chosen to replace\n"
+            "existing names.",
+            {style.value: style for style in IdentifierTraverser.Style},
+            self.style.value,
+            parent,
+            {
+                IdentifierTraverser.Style.COMPLETE_RANDOM: \
+                    "Generate new identifiers that are completely random strings of 4-19 characters.\n"
+                    "  e.g. tcEM7, aA_LsaUdhnh, YPWnW0XE.",
+                IdentifierTraverser.Style.ONLY_UNDERSCORES: \
+                    "Generate new identifiers that consist of solely the underscore character '_'.\n"
+                    "  e.g. _, _____, ________.",
+                IdentifierTraverser.Style.MINIMAL_LENGTH: \
+                    "Generate new identifiers that occupy the minimum space possible as a whole, by\n"
+                    "iterating through available symbols sequentially.\n"
+                    "  e.g. a, b, c, d, e, ..."
+            }
+        )
+        layout.addWidget(style, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        minimise_idents, self.minimise_idents_checkbox = generate_checkbox_widget(
+            "Minimise Identifiers?",
+            "Attempts to greedily re-use identifier names whenever possible, such that the minimum\n"
+            "number of unique names are used throughout the program, and the maximum number of\n"
+            "different programming constructs are named the same thing. This option exploits variable\n"
+            "shadowing within scopes, the different naming systems of labels/structures and other\n"
+            "constructs, and analysis of identifier usage and liveness. [WARNING: VERY EXPERIMENTAL].",
+            self.minimiseIdents,
+            parent
+        )
+        layout.addWidget(minimise_idents, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        parent.setLayout(layout)
+
+    def load_gui_values(self) -> None:
+        if self.style_buttons is not None and len(self.style_buttons) > 0:
+            for button, style in self.style_buttons.items():
+                if button.isChecked():
+                    self.style = style
+                    break
+        if self.minimise_idents_checkbox is not None:
+            self.minimiseIdents = self.minimise_idents_checkbox.isChecked()
 
     def get_gui() -> "GuiIdentifierRenameUnit":
         return GuiIdentifierRenameUnit(IdentifierTraverser.Style.COMPLETE_RANDOM, False)
@@ -641,7 +729,7 @@ class TransformOptionsForm(QFrame):
             # TODO figure out how to handle resetting default behaviour
             return
         self.remove_button.show()
-        if isinstance(transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit)): # TODO remove when done developing:
+        if isinstance(transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit)): # TODO remove when done developing:
             self.layout.removeWidget(self.options)
             self.options = QFrame()
             self.options.setMinimumHeight(200)
@@ -821,7 +909,7 @@ class CurrentForm(QFrame):
 
     def select_transform(self, widget: SelectedTransformWidget) -> None:
         if self.current_widget is not None:
-            if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit)): # TODO remove when done developing:
+            if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit)): # TODO remove when done developing:
                 self.current_transform.load_gui_values()
             self.current_widget.deselect()
         self.current_transform = self.selected[self.selected_widgets.index(widget)]
@@ -866,7 +954,7 @@ class CurrentForm(QFrame):
         return self.selected
 
     def load_selected_values(self):
-        if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit)): # TODO remove when done developing:
+        if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit)): # TODO remove when done developing:
             self.current_transform.load_gui_values()
 
     def add_options_form(self, options_form: TransformOptionsForm) -> None:
