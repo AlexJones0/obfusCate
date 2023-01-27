@@ -141,6 +141,33 @@ def generate_integer_widget(label_msg: str, tooltip_msg: str, init_val: int, min
     return (integer_widget, entry)
 
 
+def generate_float_widget(label_msg: str, tooltip_msg: str, init_val: float, min_val: float, max_val: float, parent: QWidget) -> Tuple[QWidget, QLineEdit]:
+    float_widget = QWidget(parent)
+    layout = QHBoxLayout(float_widget)
+    label = QLabel(label_msg, float_widget)
+    label.setFont(QFont(DEFAULT_FONT, 12))
+    label.setToolTip(tooltip_msg)
+    QToolTip.setFont(QFont(DEFAULT_FONT, 13))
+    label.setStyleSheet("QLabel{color: #727463;}\n" + GENERAL_TOOLTIP_CSS)
+    layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignLeft) 
+    layout.addSpacing(5)
+    entry = QLineEdit(str(init_val), float_widget)
+    entry.setFont(QFont(DEFAULT_FONT, 12))
+    entry.setValidator(QDoubleValidator(min_val, max_val, 1000, entry))
+    entry.setStyleSheet("""
+        QLineEdit{
+            background-color: #161613;
+            border: solid;
+            border-width: 3px;
+            border-color: #161613;
+            color: #727463;
+        }"""
+    )
+    layout.addWidget(entry, alignment=Qt.AlignmentFlag.AlignRight)
+    float_widget.setLayout(layout)
+    return (float_widget, entry)
+
+
 def generate_radio_button_widget(label_msg: str, tooltip_msg: str, options: Mapping[str, Any], init_val: str, parent: QWidget, option_tooltips: Optional[Mapping[str,str]] = None) -> Tuple[QWidget, Iterable[QRadioButton]]:
     radio_widget = QWidget(parent)
     layout = QVBoxLayout(radio_widget)
@@ -251,6 +278,8 @@ class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
         if self.extra_args_entry is not None:
             try:
                 self.extra_args = int(self.extra_args_entry.text())
+                if self.extra_args < 0:
+                    self.extra_args = 0
                 self.traverser.extra = self.extra_args
             except:
                 self.extra_args = 3
@@ -339,13 +368,13 @@ class GuiIdentifierRenameUnit(IdentifierRenameUnit):
             self.style.value,
             parent,
             {
-                IdentifierTraverser.Style.COMPLETE_RANDOM: \
+                IdentifierTraverser.Style.COMPLETE_RANDOM.value: \
                     "Generate new identifiers that are completely random strings of 4-19 characters.\n"
                     "  e.g. tcEM7, aA_LsaUdhnh, YPWnW0XE.",
-                IdentifierTraverser.Style.ONLY_UNDERSCORES: \
+                IdentifierTraverser.Style.ONLY_UNDERSCORES.value: \
                     "Generate new identifiers that consist of solely the underscore character '_'.\n"
                     "  e.g. _, _____, ________.",
-                IdentifierTraverser.Style.MINIMAL_LENGTH: \
+                IdentifierTraverser.Style.MINIMAL_LENGTH.value: \
                     "Generate new identifiers that occupy the minimum space possible as a whole, by\n"
                     "iterating through available symbols sequentially.\n"
                     "  e.g. a, b, c, d, e, ..."
@@ -405,6 +434,8 @@ class GuiArithmeticEncodeUnit(ArithmeticEncodeUnit):
         if self.depth_entry is not None:
             try:
                 self.level = int(self.depth_entry.text())
+                if self.level < 0:
+                    self.level = 0
                 self.traverser.transform_depth = self.level
             except:
                 self.level = 1
@@ -463,8 +494,63 @@ class GuiClutterWhitespaceUnit(ClutterWhitespaceUnit):
 
 class GuiDiTriGraphEncodeUnit(DiTriGraphEncodeUnit):
     
+    def __init__(self, *args, **kwargs):
+        super(GuiDiTriGraphEncodeUnit, self).__init__(*args, **kwargs)
+        self.style_buttons = None
+        self.probability_entry = None
+    
     def edit_gui(self, parent: QWidget) -> None:
-        pass # TODO
+        layout = QVBoxLayout(parent)
+        style, self.style_buttons = generate_radio_button_widget(
+            "Encoding Style:",
+            "The encoding stylt to use when replacing symbols throughout the program\n"
+            "body, which dictates how new macros are chosen to replace existing symbols.",
+            {style.value: style for style in DiTriGraphEncodeUnit.Style},
+            self.style.value,
+            parent,
+            {
+                DiTriGraphEncodeUnit.Style.DIGRAPH.value: \
+                    "Replace symbols []\{\}# with corresponding two-letter digraphs.\n"
+                    "  e.g. \"[\" ---> \"<:\".",
+                DiTriGraphEncodeUnit.Style.TRIGRAPH.value: \
+                    "Replace symbols []\{\}#\\^|~ with corresponding three-letter digraphs.\n"
+                    "  e.g. \"[\" ---> \"??(\".",
+                DiTriGraphEncodeUnit.Style.MIXED.value: \
+                    "Replace symbols with corresponding two-letter digraphs or three-letter\n"
+                    "digraphs, chosen between randomly with equal probability."
+            }
+        )
+        layout.addWidget(style, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        probability, self.probability_entry = generate_float_widget(
+            "Probability:",
+            "The probability that an encoding will take place, which must be a number\n"
+            "in the range 0 <= p <= 1. A probability of 0 means that no encodings will\n"
+            "occur, a probability of 0.5 means approximately half of the symbols will\n"
+            "be encoded, and 1.0 means all symbols are encoded. This allows you to achieve\n"
+            "a mixture of digraphs, trigraphs and regular symbols for maximal obfuscation.",
+            self.chance,
+            0.0,
+            1.0,
+            parent
+        )
+        layout.addWidget(probability, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        parent.setLayout(layout)
+    
+    def load_gui_values(self) -> None:
+        if self.style_buttons is not None and len(self.style_buttons) > 0:
+            for button, style in self.style_buttons.items():
+                if button.isChecked():
+                    self.style = style
+                    break
+        if self.probability_entry is not None:
+            try:
+                self.chance = float(self.probability_entry.text())
+                if self.chance > 1.0:
+                    self.chance = 1.0
+                elif self.chance < 0.0:
+                    self.chance = 0.0
+            except:
+                self.chance = 0.75
     
     def get_gui() -> "GuiDiTriGraphEncodeUnit":
         return GuiDiTriGraphEncodeUnit(DiTriGraphEncodeUnit.Style.MIXED, 0.75)
@@ -765,7 +851,7 @@ class TransformOptionsForm(QFrame):
             # TODO figure out how to handle resetting default behaviour
             return
         self.remove_button.show()
-        if isinstance(transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit)): # TODO remove when done developing:
+        if isinstance(transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit)): # TODO remove when done developing:
             self.layout.removeWidget(self.options)
             self.options = QFrame()
             self.options.setMinimumHeight(200)
@@ -945,7 +1031,7 @@ class CurrentForm(QFrame):
 
     def select_transform(self, widget: SelectedTransformWidget) -> None:
         if self.current_widget is not None:
-            if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit)): # TODO remove when done developing:
+            if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit)): # TODO remove when done developing:
                 self.current_transform.load_gui_values()
             self.current_widget.deselect()
         self.current_transform = self.selected[self.selected_widgets.index(widget)]
@@ -990,7 +1076,7 @@ class CurrentForm(QFrame):
         return self.selected
 
     def load_selected_values(self):
-        if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit)): # TODO remove when done developing:
+        if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit)): # TODO remove when done developing:
             self.current_transform.load_gui_values()
 
     def add_options_form(self, options_form: TransformOptionsForm) -> None:

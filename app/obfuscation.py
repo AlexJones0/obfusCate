@@ -3464,9 +3464,9 @@ class DiTriGraphEncodeUnit(ObfuscationUnit):
     }
 
     class Style(Enum):
-        DIGRAPH = "Digraph Encoding"
-        TRIGRAPH = "Trigraph Encoding"
-        MIXED = "Mixed Digraph/Trigraph Encoding"
+        DIGRAPH = "Digraphs"
+        TRIGRAPH = "Trigraphs"
+        MIXED = "Mixed Digraph/Trigraphs"
 
     def __init__(self, style: Style, chance: float):
         self.style = style
@@ -3493,8 +3493,8 @@ class DiTriGraphEncodeUnit(ObfuscationUnit):
                 continue
             if (
                 self.style == self.Style.MIXED
-                and char in self.digraph_map
-                or char in self.trigraph_map
+                and (char in self.digraph_map
+                or char in self.trigraph_map)
             ):
                 if random.randint(1, 2) == 1 and char in self.digraph_map:
                     new_contents += self.digraph_map[char]
