@@ -1326,6 +1326,7 @@ class IdentifierRenamer:
         self.current_struct = None
         self.struct_ident_index = 0
         self.analyzer = VariableUseAnalyzer()
+        self._random_source = random.randint(0, 2**16)
 
     def generate_new_ident(self):
         new_ident = ""
@@ -1349,6 +1350,25 @@ class IdentifierRenamer:
                     cur_num = cur_num // len(choices)
                     if cur_num == 0:
                         break
+            elif self.style == IdentifierTraverser.Style.I_AND_L:
+                cur_num = len(self.new_idents)
+                num_chars = 16
+                num_vals = 2 ** num_chars
+                while cur_num * 4 > (2 ** num_vals):
+                    num_chars += 1
+                    num_vals *= 2
+                hash_val = (hash(str(cur_num)) + self._random_source) % (num_vals)
+                new_ident = bin(hash_val)[2:]
+                new_ident = "0" * (num_chars - len(new_ident)) + new_ident
+                new_ident = new_ident.replace('1','l').replace('0','I')
+                while new_ident in self.new_idents_set: 
+                    # Linear probe for next available hash value
+                    hash_val += 1
+                    if hash_val >= num_vals:
+                        hash_val = 0
+                    new_ident = bin(hash_val)[2:]
+                    new_ident = "0" * (num_chars - len(new_ident)) + new_ident
+                    new_ident = new_ident.replace('1','l').replace('0','I')
         self.new_idents_set.add(new_ident)
         self.new_idents.append(new_ident)
         return new_ident
@@ -1521,6 +1541,7 @@ class IdentifierTraverser(NodeVisitor):
         COMPLETE_RANDOM = "Complete Randomness"
         ONLY_UNDERSCORES = "Only underscores"  # TODO will this break anything?
         MINIMAL_LENGTH = "Minimal length"
+        I_AND_L = "Blocks of l's and I's"
 
     def __init__(self, style: Style, minimiseIdents: bool):
         self.style = style
@@ -1531,6 +1552,7 @@ class IdentifierTraverser(NodeVisitor):
         self.idents = {"main": "main"}
         self._new_idents = set()
         self._scopes = list()
+        self._random_source = random.randint(0, 2**16)
 
     def get_new_ident(
         self, ident
@@ -1568,6 +1590,25 @@ class IdentifierTraverser(NodeVisitor):
                     cur_num = cur_num // len(choices)
                     if cur_num == 0:
                         break
+            elif self.style == self.Style.I_AND_L:
+                cur_num = len(self._new_idents)
+                num_chars = 16
+                num_vals = 2 ** num_chars
+                while cur_num * 4 > (2 ** num_vals):
+                    num_chars += 1
+                    num_vals *= 2
+                hash_val = (hash(str(cur_num)) + self._random_source) % (num_vals)
+                new_ident = bin(hash_val)[2:]
+                new_ident = "0" * (num_chars - len(new_ident)) + new_ident
+                new_ident = new_ident.replace('1','l').replace('0','I')
+                while new_ident in self._new_idents: 
+                    # Linear probe for next available hash value
+                    hash_val += 1
+                    if hash_val >= num_vals:
+                        hash_val = 0
+                    new_ident = bin(hash_val)[2:]
+                    new_ident = "0" * (num_chars - len(new_ident)) + new_ident
+                    new_ident = new_ident.replace('1','l').replace('0','I')
         self._new_idents.add(new_ident)
         self.idents[ident] = new_ident
         return new_ident

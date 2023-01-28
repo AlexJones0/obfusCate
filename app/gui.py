@@ -984,6 +984,8 @@ class SelectedTransformWidget(QWidget):
         self.box_widget.resize(self.box_widget.maximumWidth(), self.box_widget.height())
         self.setLayout(self.layout)
         self.drag_start_pos = None
+        # TODO I think because of the drag pixmap image, it keeps printing text on drags
+        # - "QPixmap::scaled: Pixmap is a null pixmap". Need to fix.
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.buttons() == Qt.MouseButton.LeftButton:
