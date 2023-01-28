@@ -507,7 +507,7 @@ class GuiAugmentOpaqueUnit(AugmentOpaqueUnit):
             "opaque predicates, such as using user input (function parameters) or\n"
             "using random variables (entropy).",
             {" ".join(style.value.split(" ")[3:]).capitalize(): style for style in OpaqueAugmenter.Style},
-            set([style for style in OpaqueAugmenter.Style]),
+            set(self.styles),
             parent, 
             dict((" ".join(key.split(" ")[3:]).capitalize(), val) for key, val in tooltips.items())
         )
@@ -1062,6 +1062,8 @@ class TransformOptionsForm(QFrame):
         self.options = QFrame(self)
         self.options.setMinimumHeight(200)
         self.layout.addWidget(self.options, 9)
+        # TODO seems to be an issue - if you click on the label text the button doesn't work
+        # but if you click on any other part of the back it does? Need to troubleshoot this
         self.remove_button = QPushButton("Remove Transform", self)
         self.remove_button.setFont(QFont(DEFAULT_FONT, 12))
         self.remove_button.setStyleSheet(
