@@ -239,6 +239,40 @@ def generate_checkbox_widget(label_msg: str, tooltip_msg: str, init: bool, paren
     layout.addStretch()
     checkbox_widget.setLayout(layout)
     return (checkbox_widget, checkbox)
+
+
+def generate_checkboxes_widget(label_msg: str, tooltip_msg: str, options: Mapping[str, Any], init_vals: Iterable[str], parent: QWidget, option_tooltips: Optional[Mapping[str,str]] = None) -> Tuple[QWidget, Iterable[QCheckBox]]:
+    labelled_widget = QWidget(parent)
+    layout = QVBoxLayout(labelled_widget)
+    layout.setSpacing(0)
+    layout.setContentsMargins(0, 0, 0, 0)
+    label = QLabel(label_msg, labelled_widget)
+    label.setFont(QFont(DEFAULT_FONT, 12))
+    label.setToolTip(tooltip_msg)
+    QToolTip.setFont(QFont(DEFAULT_FONT, 13))
+    label.setStyleSheet("QLabel{color: #727463;}\n" + GENERAL_TOOLTIP_CSS)
+    layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignLeft)
+    checkbox_widget = QWidget(labelled_widget)
+    checkbox_layout = QVBoxLayout(checkbox_widget)
+    checkbox_layout.setContentsMargins(15, 5, 5, 5)
+    checkboxes = {}
+    for option in options.keys():
+        checkbox = QCheckBox(option, checkbox_widget)
+        checkbox.setFont(QFont(DEFAULT_FONT, 12))
+        checkbox.setStyleSheet(GENERAL_TOOLTIP_CSS + """
+            QCheckBox{
+                color: #727463
+            }"""
+        )
+        checkbox.setChecked(option in init_vals or options[option] in init_vals)
+        if option_tooltips is not None and option in option_tooltips:
+            checkbox.setToolTip(option_tooltips[option])
+        checkbox_layout.addWidget(checkbox, 1, alignment=Qt.AlignmentFlag.AlignLeft) # TODO will this alignment work?
+        checkboxes[checkbox] = options[option]
+    checkbox_widget.setLayout(checkbox_layout)
+    layout.addWidget(checkbox_widget)
+    labelled_widget.setLayout(layout)
+    return (labelled_widget, checkboxes)
         
 
 class GuiIdentityUnit(IdentityUnit):
@@ -447,8 +481,67 @@ class GuiArithmeticEncodeUnit(ArithmeticEncodeUnit):
 
 class GuiAugmentOpaqueUnit(AugmentOpaqueUnit):
     
+    def __init__(self, *args, **kwargs):
+        super(GuiAugmentOpaqueUnit, self).__init__(*args, **kwargs)
+        self.style_checkboxes = None
+        self.probability_entry = None
+    
     def edit_gui(self, parent: QWidget) -> None:
-        pass  # TODO
+        layout = QVBoxLayout(parent)
+        tooltips = {
+            OpaqueAugmenter.Style.INPUT.value: \
+                "Opaque predicates can be generated using user inputs (function parameters).",
+            OpaqueAugmenter.Style.ENTROPY.value: \
+                "Opaque predicates can be generated using entropic (random) variables, which\n"
+                "are created globally and initialised with random values at the start of the\n"
+                "main() function. In the current implementation, for every random variable\n"
+                "that is needed, it is decided at random whether to use an existing variable\n"
+                "or to make a new one (25 percent chance), to create good diversity and increase\n"
+                "complexity throughout the program."
+        }
+        styles, self.style_checkboxes = generate_checkboxes_widget(
+            "Predicate Style:",
+            "The opaque predicate generation styles that can be used by the program.\n"
+            "This simply refers to the types of inputs that can be utilised to make\n"
+            "opaque predicates, such as using user input (function parameters) or\n"
+            "using random variables (entropy).",
+            {" ".join(style.value.split(" ")[3:]).capitalize(): style for style in OpaqueAugmenter.Style},
+            set([style for style in OpaqueAugmenter.Style]),
+            parent, 
+            dict((" ".join(key.split(" ")[3:]).capitalize(), val) for key, val in tooltips.items())
+        )
+        layout.addWidget(styles, alignment=Qt.AlignmentFlag.AlignTop)
+        probability, self.probability_entry = generate_float_widget(
+            "Probability:",
+            "The probability that a conditional will be augmented with an opaque predicate,\n"
+            "which must be a number in the range 0 <= p <= 1. A probability of 0 means that\n"
+            "no augmentations will occur, a probability of 0.5 means approximately half of\n"
+            "the program's conditionals will be augmented with opaque predicates, and 1.0\n"
+            "means that where possible, all conditionals will be augmented. This allows you\n"
+            "to achieve a mixture of augmented and non-augmented conditionals.",
+            self.probability,
+            0.0,
+            1.0,
+            parent
+        )
+        layout.addWidget(probability, alignment=Qt.AlignmentFlag.AlignTop)
+        parent.setLayout(layout)
+
+    def load_gui_values(self) -> None:
+        if self.style_checkboxes is not None and len(self.style_checkboxes) > 0:
+            self.styles = [s for cbox, s in self.style_checkboxes.items() if cbox.isChecked()]
+            self.traverser.styles = self.styles
+        if self.probability_entry is not None:
+            try:
+                self.probability = float(self.probability_entry.text())
+                if self.probability > 1.0:
+                    self.probability = 1.0
+                elif self.probability < 0.0:
+                    self.probability = 0.0
+                self.traverser.probability = self.probability
+            except:
+                self.probability = 0.75
+                self.traverser.probability = self.probability
 
     def get_gui() -> "GuiAugmentOpaqueUnit":
         return GuiAugmentOpaqueUnit([s for s in OpaqueAugmenter.Style], 1.0)
@@ -851,7 +944,7 @@ class TransformOptionsForm(QFrame):
             # TODO figure out how to handle resetting default behaviour
             return
         self.remove_button.show()
-        if isinstance(transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit)): # TODO remove when done developing:
+        if isinstance(transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit, GuiAugmentOpaqueUnit)): # TODO remove when done developing:
             self.layout.removeWidget(self.options)
             self.options = QFrame()
             self.options.setMinimumHeight(200)
@@ -1031,7 +1124,7 @@ class CurrentForm(QFrame):
 
     def select_transform(self, widget: SelectedTransformWidget) -> None:
         if self.current_widget is not None:
-            if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit)): # TODO remove when done developing:
+            if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit, GuiAugmentOpaqueUnit)): # TODO remove when done developing:
                 self.current_transform.load_gui_values()
             self.current_widget.deselect()
         self.current_transform = self.selected[self.selected_widgets.index(widget)]
@@ -1076,7 +1169,7 @@ class CurrentForm(QFrame):
         return self.selected
 
     def load_selected_values(self):
-        if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit)): # TODO remove when done developing:
+        if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit, GuiAugmentOpaqueUnit)): # TODO remove when done developing:
             self.current_transform.load_gui_values()
 
     def add_options_form(self, options_form: TransformOptionsForm) -> None:

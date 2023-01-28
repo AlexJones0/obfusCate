@@ -2031,8 +2031,8 @@ class ArithmeticEncodeUnit(ObfuscationUnit):
 class OpaqueAugmenter(NodeVisitor):
     
     class Style(Enum):
-        INPUT = "Predicates constructed from dynamic user input (function parameters)."
-        ENTROPY = "Predicates constructed from random entropic variables."
+        INPUT = "Construct predicates from dynamic user input"
+        ENTROPY = "Construct predicates from entropic variables"
         # LINKED_LIST = "Predicates constructed from intractable pointer aliasing on a linked list."
         # TODO above is not implemented yet
 
@@ -2078,6 +2078,13 @@ class OpaqueAugmenter(NodeVisitor):
                     valid_style = True
             if valid_style == False:
                 return cond_expr  # No variables to use as parameters, so exit out
+                # TODO realistically I should rework this for cases with > 1 num-args, as it
+                # might be that it could use an opaque predicate but doesn't, which kind of
+                # goes against how I've said that probability works. Maybe I could do
+                # the whole input/entropy thing in different orders (choosing that first
+                # based on context factors), and then use the context of the maximum number
+                # of available args to decide on the predicate (but then that does also require
+                # some mess to generate entropic variables _afterwards_)
             if style == self.Style.INPUT:
                 # Choose a random function parameter (not used so far) to use
                 param = random.choice(self.parameters)
