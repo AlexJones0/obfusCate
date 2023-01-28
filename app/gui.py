@@ -189,7 +189,7 @@ def generate_radio_button_widget(label_msg: str, tooltip_msg: str, options: Mapp
             radio_button.setChecked(True)
         if option in option_tooltips:
             radio_button.setToolTip(option_tooltips[option])
-        radio_button.setFont(QFont(DEFAULT_FONT, 10))
+        radio_button.setFont(QFont(DEFAULT_FONT, 11))
         radio_button.setStyleSheet(GENERAL_TOOLTIP_CSS + """
             QRadioButton{
                 color: #727463;
@@ -255,10 +255,11 @@ def generate_checkboxes_widget(label_msg: str, tooltip_msg: str, options: Mappin
     checkbox_widget = QWidget(labelled_widget)
     checkbox_layout = QVBoxLayout(checkbox_widget)
     checkbox_layout.setContentsMargins(15, 5, 5, 5)
+    checkbox_layout.setSpacing(0)
     checkboxes = {}
     for option in options.keys():
         checkbox = QCheckBox(option, checkbox_widget)
-        checkbox.setFont(QFont(DEFAULT_FONT, 12))
+        checkbox.setFont(QFont(DEFAULT_FONT, 11))
         checkbox.setStyleSheet(GENERAL_TOOLTIP_CSS + """
             QCheckBox{
                 color: #727463
@@ -549,8 +550,153 @@ class GuiAugmentOpaqueUnit(AugmentOpaqueUnit):
 
 class GuiInsertOpaqueUnit(InsertOpaqueUnit):
     
+    def __init__(self, *args, **kwargs):
+        super(GuiInsertOpaqueUnit, self).__init__(*args, **kwargs)
+        self.style_checkboxes = None
+        self.granularity_checkboxes = None
+        self.kind_checkboxes = None
+        self.number_entry = None
+    
     def edit_gui(self, parent: QWidget) -> None:
-        pass  # TODO
+        layout = QVBoxLayout(parent)
+        layout.setContentsMargins(0, 0, 0, 20)
+        scroll_widget = QScrollArea(parent)
+        scroll_widget.setStyleSheet(
+            """
+            QScrollArea{
+                background-color: transparent;
+                border: none;
+            }"""
+            + MINIMAL_SCROLL_BAR_CSS
+        )
+        scroll_widget.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        scroll_widget.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        scroll_widget.setWidgetResizable(True)
+        scroll_content = QWidget(scroll_widget)
+        scroll_content.setObjectName("ScrollWidget")
+        scroll_content.setStyleSheet(
+            """
+            QWidget#ScrollWidget{
+                background-color: transparent;
+                border: none;
+            }"""
+        )
+        scroll_content.layout = QVBoxLayout(scroll_content)
+        scroll_content.setContentsMargins(0, 0, 0, 0)
+        scroll_content.layout.setContentsMargins(0, 0, 0, 0)
+        scroll_content.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum
+        )
+        scroll_widget.setWidget(scroll_content)
+        layout.addWidget(scroll_widget)
+        tooltips = {
+            OpaqueAugmenter.Style.INPUT.value: \
+                "Opaque predicates can be generated using user inputs (function parameters).",
+            OpaqueAugmenter.Style.ENTROPY.value: \
+                "Opaque predicates can be generated using entropic (random) variables, which\n"
+                "are created globally and initialised with random values at the start of the\n"
+                "main() function. In the current implementation, for every random variable\n"
+                "that is needed, it is decided at random whether to use an existing variable\n"
+                "or to make a new one (25 percent chance), to create good diversity and increase\n"
+                "complexity throughout the program."
+        }
+        styles, self.style_checkboxes = generate_checkboxes_widget(
+            "Predicate Style:",
+            "The opaque predicate generation styles that can be used by the program.\n"
+            "This simply refers to the types of inputs that can be utilised to make\n"
+            "opaque predicates, such as using user input (function parameters) or\n"
+            "using random variables (entropy).",
+            {" ".join(style.value.split(" ")[3:]).capitalize(): style for style in OpaqueInserter.Style},
+            set(self.styles),
+            parent, 
+            dict((" ".join(key.split(" ")[3:]).capitalize(), val) for key, val in tooltips.items())
+        )
+        scroll_content.layout.addWidget(styles, alignment=Qt.AlignmentFlag.AlignTop)
+        granularities, self.granularity_checkboxes = generate_checkboxes_widget(
+            "Predicate Granularities:",
+            "Opaque predicate granularities refer to the 'scope'/'size' of the program components\n"
+            "that are modified by the new conditional. For example, we can have conditionals that\n"
+            "apply to an entire function body (procedural granularity), conditionals that apply to\n"
+            "a contiguous sequence of multiple statements (block granularity), or new conditionals\n"
+            "that apply to singular program statements (statement granularity). Selecting a mixture\n"
+            "of these allows you to greatly increase program diversity.",
+            {g.value.split(":")[0].capitalize(): g for g in OpaqueInserter.Granularity},
+            set(self.granularities),
+            parent,
+            {
+                OpaqueInserter.Granularity.PROCEDURAL.value.split(":")[0].capitalize(): \
+                    "Generate new opaque predicate conditionals that encapsulate the entire\n"
+                    "function body.",
+                OpaqueInserter.Granularity.BLOCK.value.split(":")[0].capitalize(): \
+                    "Generate new opaque predicate conditionals that encapsulate contiguous\n"
+                    "sequences of statements (i.e. 'blocks' of code) within the function. These\n"
+                    "blocks are chosen entirely at random, and are of random length.",
+                OpaqueInserter.Granularity.STMT.value.split(":")[0].capitalize(): \
+                    "Generate new opaque predicate conditionals that encapsulate singular\n"
+                    "program statements within the function. These statements are chosen entirely\n"
+                    "at random from those within the function body."
+            }
+        )
+        scroll_content.layout.addWidget(granularities, alignment=Qt.AlignmentFlag.AlignTop)
+        kinds, self.kind_checkboxes = generate_checkboxes_widget(
+            "Predicate Kinds:",
+            "The kinds (formats) of opaque predicate conditionals that will be inserted. This\n"
+            "increases obfuscation diversity by inserting opaque predicates using different\n"
+            "programming constructs and logical structures. For example, one kind might evaluate\n"
+            "the real code on an else branch of an if statement, whereas another might evaluate\n"
+            "buggy code within a while loop.",
+            {k.value.split(":")[0].replace("_", " ").capitalize(): k for k in OpaqueInserter.Kind},
+            set(self.kinds),
+            parent,
+            dict(
+                (k.value.split(":")[0].replace("_", " ").capitalize(),
+                 "Enable construction of opaque predicate conditionals with the form\n"
+                 "  " + k.value.split(":")[1].strip())
+                for k in OpaqueInserter.Kind  
+            )
+        )
+        scroll_content.layout.addWidget(kinds, alignment=Qt.AlignmentFlag.AlignTop)
+        number, self.number_entry = generate_integer_widget(
+            "Number per function:",
+            "The number of new opaque predicates to add to each individual function (where\n"
+            "possible). Controlling this value allows you to control the degree to which the\n"
+            "program is obfuscated. A value of 1 <= n <= 10 is recommended, though this\n"
+            "depends on the kinds that you use, as some insertions can exponentially increase\n"
+            "the program size (notably, the 'EITHER' predicate type applied with the\n"
+            "'PROCEDURE' granularity will copy the function body each time it is applied\n"
+            "(doubling the program size).",
+            self.number,
+            0,
+            2147483647,
+            parent
+        )
+        # TODO slightly weird large spacing here?
+        scroll_content.layout.addWidget(number, alignment=Qt.AlignmentFlag.AlignTop)
+        parent.setLayout(layout)
+
+    def load_gui_values(self) -> None:
+        if self.style_checkboxes is not None and len(self.style_checkboxes) > 0:
+            self.styles = [s for cbox, s in self.style_checkboxes.items() if cbox.isChecked()]
+            self.traverser.styles = self.styles
+        if self.granularity_checkboxes is not None and len(self.granularity_checkboxes) > 0:
+            self.granularities = [g for cbox, g in self.granularity_checkboxes.items() if cbox.isChecked()]
+            self.traverser.granularities = self.granularities
+        if self.kind_checkboxes is not None and len(self.kind_checkboxes) > 0:
+            self.kinds = [k for cbox, k in self.kind_checkboxes.items() if cbox.isChecked()]
+            self.traverser.kinds = self.kinds
+        if self.number_entry is not None:
+            try:
+                self.number = int(self.number_entry.text())
+                if self.number < 0:
+                    self.number = 0
+                self.traverser.number = self.number
+            except:
+                self.number = 5
+                self.traverser.number = 5
 
     def get_gui() -> "GuiInsertOpaqueUnit":
         return GuiInsertOpaqueUnit(
@@ -944,7 +1090,7 @@ class TransformOptionsForm(QFrame):
             # TODO figure out how to handle resetting default behaviour
             return
         self.remove_button.show()
-        if isinstance(transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit, GuiAugmentOpaqueUnit)): # TODO remove when done developing:
+        if isinstance(transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit, GuiAugmentOpaqueUnit, GuiInsertOpaqueUnit)): # TODO remove when done developing:
             self.layout.removeWidget(self.options)
             self.options = QFrame()
             self.options.setMinimumHeight(200)
@@ -1124,7 +1270,7 @@ class CurrentForm(QFrame):
 
     def select_transform(self, widget: SelectedTransformWidget) -> None:
         if self.current_widget is not None:
-            if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit, GuiAugmentOpaqueUnit)): # TODO remove when done developing:
+            if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit, GuiAugmentOpaqueUnit, GuiInsertOpaqueUnit)): # TODO remove when done developing:
                 self.current_transform.load_gui_values()
             self.current_widget.deselect()
         self.current_transform = self.selected[self.selected_widgets.index(widget)]
@@ -1169,7 +1315,7 @@ class CurrentForm(QFrame):
         return self.selected
 
     def load_selected_values(self):
-        if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit, GuiAugmentOpaqueUnit)): # TODO remove when done developing:
+        if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit, GuiAugmentOpaqueUnit, GuiInsertOpaqueUnit)): # TODO remove when done developing:
             self.current_transform.load_gui_values()
 
     def add_options_form(self, options_form: TransformOptionsForm) -> None:
@@ -1418,6 +1564,8 @@ def handle_gui() -> None:
         if source.contents is None or not source.valid_parse:
             return False
         window.add_source(source)
+    
+    # TODO - I don't handle saving of output obfuscation yet!
 
     window.show()
     app.exec()

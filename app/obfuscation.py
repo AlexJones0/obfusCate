@@ -896,7 +896,7 @@ class StringEncodeTraverser(NodeVisitor):
         OCTAL = "Octal"
         HEX = "Hexadecimal"
         MIXED = "Octal/Hexadecimal"
-        ALL = "Octal/Hexadecimal/Regular"
+        ALL = "Octal/Hex/Regular"
 
     def __init__(self, style):
         self.style = style
@@ -2326,15 +2326,15 @@ class BugGenerator(NodeVisitor):
 class OpaqueInserter(NodeVisitor):
     
     class Style(Enum):
-        INPUT = "INPUT: Predicates constructed from dynamic user input (function parameters)."
-        ENTROPY = "ENTROPY: Predicates constructed from random entropic variables."
+        INPUT = "Construct predicates from dynamic user input"
+        ENTROPY = "Construct predicates from entropic variables"
         # LINKED_LIST = "Predicates constructed from intractable pointer aliasing on a linked list."
         # TODO above is not implemented yet
 
     class Granularity(Enum):
         PROCEDURAL = "PROCEDURAL: Predicates are constructed on a whole function-level"
         BLOCK = "BLOCK: Predicates are constructed for random blocks of code (sequential statements)"
-        STMT = "STMT: Predictes are constructed for random individual statements"
+        STMT = "STATEMENT: Predictes are constructed for random individual statements"
 
     class Kind(Enum):
         CHECK = "CHECK: if (true predicate) { YOUR CODE } "
