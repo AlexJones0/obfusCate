@@ -2051,6 +2051,8 @@ class OpaqueAugmenter(NodeVisitor):
         )  # TODO could add both global and function level entropic vars in the future?
 
     def process(self, source):
+        if len(self.styles) == 0:
+            return
         self.analyzer = NewVariableUseAnalyzer(source.t_unit)
         self.analyzer.process()
         self.source = source
@@ -2367,6 +2369,8 @@ class OpaqueInserter(NodeVisitor):
         self.entropic_vars = []
 
     def process(self, source):
+        if len(self.styles) == 0 or len(self.granularities) == 0 or len(self.kinds) == 0 or self.number == 0:
+            return
         self.analyzer = NewVariableUseAnalyzer(source.t_unit)
         self.analyzer.process()
         self.source = source
