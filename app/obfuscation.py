@@ -1352,9 +1352,9 @@ class IdentifierRenamer:
                         break
             elif self.style == IdentifierTraverser.Style.I_AND_L:
                 cur_num = len(self.new_idents)
-                num_chars = 16
+                num_chars = 2
                 num_vals = 2 ** num_chars
-                while cur_num * 4 > (2 ** num_vals):
+                while cur_num * 4 > num_vals:
                     num_chars += 1
                     num_vals *= 2
                 hash_val = (hash(str(cur_num)) + self._random_source) % (num_vals)
@@ -1594,7 +1594,7 @@ class IdentifierTraverser(NodeVisitor):
                 cur_num = len(self._new_idents)
                 num_chars = 16
                 num_vals = 2 ** num_chars
-                while cur_num * 4 > (2 ** num_vals):
+                while cur_num * 4 > num_vals:
                     num_chars += 1
                     num_vals *= 2
                 hash_val = (hash(str(cur_num)) + self._random_source) % (num_vals)
