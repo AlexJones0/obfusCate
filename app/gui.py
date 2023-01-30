@@ -15,7 +15,7 @@ from .interaction import (
 from app import settings as config
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
-from PyQt6.QtCore import Qt, QSize, QMimeData
+from PyQt6.QtCore import Qt, QSize, QMimeData, QDir, QCoreApplication
 from typing import Type, Tuple, Mapping, Any
 from copy import deepcopy
 import sys
@@ -1411,11 +1411,13 @@ class GeneralOptionsForm(QFrame):
         self.obfuscate_button.setObjectName("ObfuscateButton")
         self.obfuscate_button.clicked.connect(self.obfuscate)
         self.load_source_button = self.get_button("Load source file")
+        self.load_source_button.clicked.connect(self.load_source)
         self.save_obfuscated_button = self.get_button("Save obfuscated file")
+        self.save_obfuscated_button.clicked.connect(self.save_obfuscated)
         self.load_transformations_button = self.get_button("Load transformations")
         self.save_transformations_button = self.get_button("Save transformations")
         self.quit_button = self.get_button("Quit")
-        self.quit_button.clicked.connect(self.quit)
+        self.quit_button.clicked.connect(QCoreApplication.quit)
         self.setLayout(self.layout)
 
     def get_button(self, msg):
@@ -1424,7 +1426,7 @@ class GeneralOptionsForm(QFrame):
         self.layout.addWidget(button, 1)
         return button
 
-    def obfuscate(self):
+    def obfuscate(self) -> None:
         self.__load_selected_gui_reference()
         pipeline = Pipeline(config.SEED, *self.__transforms_reference())
         if config.SAVE_COMPOSITION:
@@ -1436,8 +1438,26 @@ class GeneralOptionsForm(QFrame):
         obfuscated = pipeline.process(source)
         self.__obfuscated_form_reference.add_source(obfuscated)
 
-    def quit(self):
-        sys.exit(0)
+    def load_source(self) -> None:
+        dialog = QFileDialog(self)
+        dialog.setFileMode(QFileDialog.FileMode.AnyFile)
+        dialog.setFilter(QDir.Filter.Readable)
+        dialog.setNameFilter("C source files (*.c)")
+        if not dialog.exec():
+            return
+        files = dialog.selectedFiles()
+        if len(files) == 0:
+            return
+        source = CSource(files[0])
+        if source.contents is None or not source.valid_parse:
+            return False
+        self.__source_form_reference.add_source(source)
+    
+    def save_obfuscated(self) -> None:
+        file, _ = QFileDialog.getSaveFileName(self, "Save", "", "C Source Files (*.c);;All Files (*)")
+        if not file or len(file) == 0:
+            return
+        print(file)
 
 
 class SelectionForm(QWidget):  # TODO move selection and misc just into obfuscatewidget?
@@ -1538,7 +1558,7 @@ class MainWindow(QMainWindow):
         self.obfuscate_widget.add_source(source)
 
 
-def handle_gui() -> None:
+def handle_gui() -> bool:
     # Patch: If on windows, change the python window application user model
     # ID so that the icon is displayed correctly in the taskbar.
     if ctypes.windll is not None and ctypes.windll.shell32 is not None:
@@ -1563,13 +1583,25 @@ def handle_gui() -> None:
         return args
 
     # Read file and display parse errors
-    if len(args) == 1:
+    if len(args) >= 1:
         source = CSource(args[0])
         if source.contents is None or not source.valid_parse:
             return False
         window.add_source(source)
-    
-    # TODO - I don't handle saving of output obfuscation yet!
 
     window.show()
     app.exec()
+
+    if len(args) == 2:
+        try:
+            log("Writing obfuscation output")
+            with open(args[1], "w+") as write_file:
+                write_file.write(window.obfuscate_widget.obfuscated_editor.toPlainText())
+            print("Obfuscation finished successfully.")
+            log("Obfuscation written successfully.")
+            log("Execution finished normally.")
+        except Exception as e:
+            print_error(f"Error creating output file '{args[1]}'")
+            log(f"Error when writing output to file: {str(e)}")
+            return False
+    return True
