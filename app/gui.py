@@ -61,19 +61,19 @@ MINIMAL_SCROLL_BAR_CSS = """
 
 options = [
     (
-        None,  # Function to call if argument supplied # TODO
+        None,  # Function to call if argument supplied
         ["-h", "--help"],  # Arguments that can be provided for this function
         "Displays this help menu.",  # A help menu description for this argument
         [],  # Names of proceeding values used by the function
     ),
     (
-        disable_logging,  # TODO
+        disable_logging,
         ["-l", "--noLogs"],
         "Stops a log file being created for this execution.",
         [],
     ),
     (
-        set_seed,  # TODO
+        set_seed,
         ["-s", "--seed"],
         "Initialises the program with the random seed x (some integer).",
         ["x"],
@@ -103,6 +103,39 @@ options = [
         ["file"],
     ),
 ]
+
+
+def help_menu() -> bool:
+    """Prints the help menu detailing usage of the CLI command interface.
+
+    Returns:
+        (bool) Always returns False, to signal that program execution should stop."""
+    help_str = """################ CLI Help Manual ################
+This program takes as an argument some input C source program file and allows the application of a sequence of obfuscation transformations, resulting in an obfuscated C source file being produced. For more information on usage and options, see below.
+
+Usage: python {} input_c_file [output_file] [options]
+
+Options:\n""".format(
+        __file__.split("\\")[-1]
+    )
+    opt_strings = [" ".join(opt[1] + opt[3]) for opt in options]
+    max_len = max([len(opt_str) for opt_str in opt_strings])
+    for i, option in enumerate(options):
+        opt_str = opt_strings[i]
+        help_str += (
+            "    "
+            + opt_str
+            + (max_len - len(opt_str) + 1) * " "
+            + "| "
+            + option[2]
+            + "\n"
+        )
+    print(help_str)
+    log("Displayed the help menu.")
+    return False
+
+
+options[0] = (help_menu, *options[0][1:])
 
 
 def set_no_options_widget(parent: QWidget) -> None:
