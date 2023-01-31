@@ -87,19 +87,20 @@ options = [
         [],
     ),
     (
-        display_progress,  # TODO implement progress display
+        display_progress,  # TODO implement progress display - not currently implemented in GUI
         ["-p", "--progress"],
-        "Outputs obfuscation pipleline progress (transformation completion) during obfuscation.",
+        "Outputs obfuscation pipleline progress (transformation completion) during obfuscation.\n"
+        "Note that this currently only displays progress to the terminal (not in the GUI).",
         [],
     ),
     (
-        save_composition,  # TODO add composition saving
+        save_composition,
         ["-c", "--save-comp"],
         "Saves the selected composition of obfuscation transformations as a JSON file to be reused.",
         [],
     ),
     (
-        load_composition,  # TODO add composition loading
+        load_composition,
         ["-l", "--load-comp"],
         "Loads a given JSON file containing the composition of obfuscation transformations to use.",
         ["file"],
@@ -129,7 +130,9 @@ Options:\n""".format(
             + opt_str
             + (max_len - len(opt_str) + 1) * " "
             + "| "
-            + option[2]
+            + option[2].split("\n")[0] 
+            + ("\n" if "\n" in option[2] else "")
+            + "\n".join([(5 + max_len) * " " + "| " + line for line in option[2].split("\n")[1:]])
             + "\n"
         )
     print(help_str)

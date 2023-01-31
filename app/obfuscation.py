@@ -176,6 +176,7 @@ class Pipeline:
         if source is None:
             return None
         if cfg.DISPLAY_PROGRESS:
+            print("===Starting Obfuscation===")
             start_time = datetime.datetime.now()
             self.print_progress(-1, start_time)
         for i, t in enumerate(self.transforms):

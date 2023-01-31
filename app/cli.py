@@ -80,7 +80,9 @@ Options:\n""".format(
             + opt_str
             + (max_len - len(opt_str) + 1) * " "
             + "| "
-            + option[2]
+            + option[2].split("\n")[0] 
+            + ("\n" if "\n" in option[2] else "")
+            + "\n".join([(5 + max_len) * " " + "| " + line for line in option[2].split("\n")[1:]])
             + "\n"
         )
     print(help_str)
