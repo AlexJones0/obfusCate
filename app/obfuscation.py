@@ -19,6 +19,7 @@ from enum import Enum
 from math import sqrt, floor
 from string import ascii_letters, digits as ascii_digits
 from copy import deepcopy
+import datetime
 import random
 import json
 
@@ -47,7 +48,11 @@ def generate_new_contents(source: CSource) -> str:
         (str) The generated file contents from the source's AST"""
     new_contents = ""
     for line in source.contents.splitlines():
-        if line.strip().startswith("#") or line.strip().startswith("%:") or line.strip().startswith("??="):
+        if (
+            line.strip().startswith("#")
+            or line.strip().startswith("%:")
+            or line.strip().startswith("??=")
+        ):
             new_contents += line + "\n"
     generator = c_generator.CGenerator()
     new_contents += generator.visit(source.t_unit)
@@ -134,6 +139,30 @@ class Pipeline:
             self.transforms[:index] + [transform] + self.transforms[index:]
         )
 
+    def print_progress(self, index: int, start_time: datetime.datetime) -> None:
+        """ Prints the current progress of the transformation pipeline to the standard
+        output stream, displaying the progress through the entire pipeline as well as 
+        the next transformation to process.
+        
+        Args:
+            index (int): The index of the last processed transform. If no transforms
+                are yet processed, then this is intuitvely just -1.
+            start_time (datetime): The start time of the pipeline processing. """
+        time_passed = str(datetime.datetime.now() - start_time)
+        if "." not in time_passed:
+            time_passed += ".000000"
+        max_transforms = len(self.transforms)
+        status = str(index + 1)
+        status = (len(str(max_transforms)) - len(status)) * "0" + status
+        prog_percent = "({:.2f}%)".format(100 if max_transforms == 0 else (index + 1)/max_transforms * 100)
+        prog_percent = (9 - len(prog_percent)) * " " + prog_percent
+        if index < len(self.transforms) - 1:
+            next_transform = self.transforms[index + 1]
+            next_str = str(next_transform)
+        else:
+            next_str = ""
+        print(f"{time_passed} - [{status}/{max_transforms}] {prog_percent} {next_str}")
+
     def process(self, source: CSource) -> Optional[CSource]:
         """Processes some C source code, applying all the pipeline's transformations in sequence
         to produce some output obfuscated C code.
@@ -146,10 +175,15 @@ class Pipeline:
         """
         if source is None:
             return None
-        for t in self.transforms:
+        if cfg.DISPLAY_PROGRESS:
+            start_time = datetime.datetime.now()
+            self.print_progress(-1, start_time)
+        for i, t in enumerate(self.transforms):
             source = t.transform(source)
             if source is None:
                 break
+            if cfg.DISPLAY_PROGRESS:
+                self.print_progress(i, start_time)
         # TODO remove - this is temporary
         analyzer = NewVariableUseAnalyzer(source.t_unit)
         analyzer.process()
@@ -170,56 +204,84 @@ class Pipeline:
         return json.dumps(
             {
                 "seed": self.seed,
+                "version": cfg.VERSION,
                 "transformations": [t.to_json() for t in self.transforms],
             }
         )
 
-    def from_json(json: str) -> Optional["Pipeline"]:
+    def from_json(json_str: str, use_gui: bool = False) -> Optional["Pipeline"]:
         """Converts the provided serialized JSON string to a transformation pipeline.
 
         Args:
-            json (str): The JSON string to attempt to load.
+            json_str (str): The JSON string to attempt to load.
+            use_gui (bool): Defaults false - whether to load command line units (false) or
+                GUI units (true).
 
         Returns:
             The corresponding Pipeline object if the given json is valid, or None otherwise."""
-        # TODO loading the string
-        if "seed" not in json:
-            log("Failed to load composition file - no seed supplied.", print_err=True)
-            return
         try:
-            seed = int(json["seed"])
+            json_obj = json.loads(json_str)
         except:
             log(
-                "Failed to load composition file - invalid seed supplied.",
-                print_err=True,
+                "Failed to load composition file - supplied information is not valid JSON."
             )
-            return
-        if "transformations" not in json or not isinstance(
-            json["transformations"], list
-        ):
+            return None
+        if "version" not in json_obj:
             log(
-                "Failed to load composition file - a list of transformations must be given.",
-                print_err=True,
+                "Failed to load composition file - supplied JSON contains no version field."
             )
-            return
+            return None
+        elif json_obj["version"] != cfg.VERSION:
+            log(
+                "Failed to load composition file - version mismatch. File is of version {}, running version {}".format(
+                    json_obj["version"], cfg.VERSION
+                )
+            )
+            return None
+        if "seed" not in json_obj or json_obj["seed"] is None:
+            seed = None
+        elif not isinstance(json_obj["seed"], int):
+            log(
+                "Failed to load composition file - supplied seed is not a valid integer."
+            )
+            return None
+        else:
+            seed = json_obj["seed"]
+        if "transformations" not in json_obj:
+            json_transformations = []
+        elif not isinstance(json_obj["transformations"], list):
+            log(
+                "Failed to load composition file - supplied transformation is not of list type."
+            )
+            return None
+        else:
+            json_transformations = json_obj["transformations"]
         transformations = []
-        for t in json["transformations"]:
-            if "type" not in t:
+        if use_gui:
+            subc = ObfuscationUnit.__subclasses__()
+            subclasses = []
+            for class_ in subc:
+                subclasses += class_.__subclasses__()
+        else:
+            subclasses = ObfuscationUnit.__subclasses__()
+        for t in json_transformations:
+            json_t = json.loads(t)
+            if "type" not in json_t:
                 log(
                     "Failed to load composition file - supplied transformation has no type.",
                     print_err=True,
                 )
                 return
-            elif t["type"] not in [str(t) for t in ObfuscationUnit.__subclasses__]:
+            elif json_t["type"] not in [t.name for t in subclasses]:
                 log(
-                    "Failed to load composition file - supplied transformation type {} is invalid.".format(
-                        t["type"]
+                    "Failed to load composition file - supplied transformation type '{}' is invalid.".format(
+                        json_t["type"]
                     ),
                     print_err=True,
                 )
                 return
-            for transform in ObfuscationUnit.__subclasses__:
-                if str(transform) == t["type"]:
+            for transform in subclasses:
+                if transform.name == json_t["type"]:
                     transformations.append(transform.from_json(t))
                     break
         return Pipeline(seed, *transformations)
@@ -621,17 +683,27 @@ class IdentityUnit(ObfuscationUnit):
 
         Returns:
             (str) The corresponding serialised JSON string."""
-        return json.dumps({"type": str(__class__)})
+        return json.dumps({"type": str(__class__.name)})
 
-    def from_json(json: str) -> Optional["IdentityUnit"]:
+    def from_json(json_str: str) -> Optional["IdentityUnit"]:
         """Converts the provided JSON string to an identity unit transformation, if possible.
 
         Args:
-            json (str): The JSON string to attempt to load.
+            json_str (str): The JSON string to attempt to load.
 
         Returns:
             The corresponding Identity Unit object if the given json is valid, or None otherwise."""
-        # TODO loading the string
+        try:
+            json_obj = json.loads(json_str)
+        except:
+            log("Failed to load Identity() - invalid JSON provided.", print_err=True)
+            return None
+        if "type" not in json_obj:
+            log("Failed to load Identity() - no type provided.", print_err=True)
+            return None
+        elif json_obj["type"] != __class__.name:
+            log("Failed to load Identity() - class/type mismatch.", print_err=True)
+            return None
         return IdentityUnit()
 
     def __str__(self):
@@ -676,7 +748,7 @@ class FuncArgRandomiserTraverser(NodeVisitor):
     def __init__(self, extra: int):
         self.extra = extra
         self.reset()
-    
+
     def reset(self):
         self.func_args = dict()
         self.walk_num = 1
@@ -853,18 +925,54 @@ class FuncArgumentRandomiseUnit(ObfuscationUnit):
 
         Returns:
             (str) The corresponding serialised JSON string."""
-        return json.dumps({"type": str(__class__), "extra_args": self.extra_args})
+        return json.dumps({"type": str(__class__.name), "extra_args": self.extra_args})
 
-    def from_json(json: str) -> Optional["FuncArgumentRandomiseUnit"]:
+    def from_json(json_str: str) -> Optional["FuncArgumentRandomiseUnit"]:
         """Converts the provided JSON string to a function argument randomisation transformation, if possible.
 
         Args:
-            json (str): The JSON string to attempt to load.
+            json_str (str): The JSON string to attempt to load.
 
         Returns:
             The corresponding argument randomisation unit object if the given json is valid, or None otherwise."""
-        # TODO loading the string & rest of the function
-        pass
+        try:
+            json_obj = json.loads(json_str)
+        except:
+            log(
+                "Failed to load RandomiseFuncArgs() - invalid JSON provided.",
+                print_err=True,
+            )
+            return None
+        if "type" not in json_obj:
+            log(
+                "Failed to load RandomiseFuncArgs() - no type provided.", print_err=True
+            )
+            return None
+        elif json_obj["type"] != __class__.name:
+            log(
+                "Failed to load RandomiseFuncArgs() - class/type mismatch.",
+                print_err=True,
+            )
+            return None
+        elif "extra_args" not in json_obj:
+            log(
+                "Failed to load RandomiseFuncArgs() - no extra arguments value provided.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["extra_args"], int):
+            log(
+                "Failed to load RandomiseFuncArgs() - extra arguments is not a valid integer.",
+                print_err=True,
+            )
+            return None
+        elif json_obj["extra_args"] < 0:
+            log(
+                "Failed to load RandomiseFuncArgs() - extra arguments is not >= 0.",
+                print_err=True,
+            )
+            return None
+        return FuncArgumentRandomiseUnit(json_obj["extra_args"])
 
     def __str__(self) -> str:
         extra_args_flag = f"extra={self.extra_args}"
@@ -1106,18 +1214,56 @@ class StringEncodeUnit(ObfuscationUnit):
 
         Returns:
             (str) The corresponding serialised JSON string."""
-        return json.dumps({"type": str(__class__), "style": self.style.name})
+        return json.dumps({"type": str(__class__.name), "style": self.style.name})
 
-    def from_json(json: str) -> Optional["StringEncodeUnit"]:
+    def from_json(json_str: str) -> Optional["StringEncodeUnit"]:
         """Converts the provided JSON string to a string encoding transformation, if possible.
 
         Args:
-            json (str): The JSON string to attempt to load.
+            json_str (str): The JSON string to attempt to load.
 
         Returns:
             The corresponding string encoding unit object if the given json is valid, or None otherwise."""
-        # TODO loading the string & rest of the function
-        pass
+        try:
+            json_obj = json.loads(json_str)
+        except:
+            log(
+                "Failed to load StringEncode() - invalid JSON provided.", print_err=True
+            )
+            return None
+        if "type" not in json_obj:
+            log("Failed to load StringEncode() - no type provided.", print_err=True)
+            return None
+        elif json_obj["type"] != __class__.name:
+            log("Failed to load StringEncode() - class/type mismatch.", print_err=True)
+            return None
+        elif "style" not in json_obj:
+            log(
+                "Failed to load StringEncode() - no style value provided.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["style"], str):
+            log(
+                "Failed to load StringEncode() - style is not a valid string.",
+                print_err=True,
+            )
+            return None
+        elif json_obj["style"] not in [
+            style.name for style in StringEncodeTraverser.Style
+        ]:
+            log(
+                "Failed to load StringEncode() - style '{}' is not a valid style.".format(
+                    json_obj["style"]
+                ),
+                print_err=True,
+            )
+            return None
+        return StringEncodeUnit(
+            {style.name: style for style in StringEncodeTraverser.Style}[
+                json_obj["style"]
+            ]
+        )
 
     def __str__(self):
         style_flag = f"style={self.style.name}"
@@ -1200,7 +1346,7 @@ class IntegerEncodeTraverser(NodeVisitor):
                     else:
                         getattr(node, parts[0])[int(parts[1])] = new_child
         NodeVisitor.generic_visit(self, node)
-    
+
     def visit_FileAST(self, node):
         NodeVisitor.generic_visit(self, node)
         self.ignore = set()
@@ -1258,18 +1404,57 @@ class IntegerEncodeUnit(ObfuscationUnit):
 
         Returns:
             (str) The corresponding serialised JSON string."""
-        return json.dumps({"type": str(__class__), "style": self.style.name})
+        return json.dumps({"type": str(__class__.name), "style": self.style.name})
 
-    def from_json(json: str) -> Optional["IntegerEncodeUnit"]:
+    def from_json(json_str: str) -> Optional["IntegerEncodeUnit"]:
         """Converts the provided JSON string to an integer encoding transformation, if possible.
 
         Args:
-            json (str): The JSON string to attempt to load.
+            json_str (str): The JSON string to attempt to load.
 
         Returns:
             The corresponding integer encoding unit object if the given json is valid, or None otherwise."""
-        # TODO loading the string & rest of the function
-        pass
+        try:
+            json_obj = json.loads(json_str)
+        except:
+            log(
+                "Failed to load IntegerEncode() - invalid JSON provided.",
+                print_err=True,
+            )
+            return None
+        if "type" not in json_obj:
+            log("Failed to load IntegerEncode() - no type provided.", print_err=True)
+            return None
+        elif json_obj["type"] != __class__.name:
+            log("Failed to load IntegerEncode() - class/type mismatch.", print_err=True)
+            return None
+        elif "style" not in json_obj:
+            log(
+                "Failed to load IntegerEncode() - no style value provided.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["style"], str):
+            log(
+                "Failed to load IntegerEncode() - style is not a valid string.",
+                print_err=True,
+            )
+            return None
+        elif json_obj["style"] not in [
+            style.name for style in IntegerEncodeTraverser.Style
+        ]:
+            log(
+                "Failed to load IntegerEncode() - style '{}' is not a valid style.".format(
+                    json_obj["style"]
+                ),
+                print_err=True,
+            )
+            return None
+        return IntegerEncodeUnit(
+            {style.name: style for style in IntegerEncodeTraverser.Style}[
+                json_obj["style"]
+            ]
+        )
 
     def __str__(self) -> str:
         style_flag = f"style={self.style.name}"
@@ -1298,7 +1483,7 @@ class IdentifierRenamer:
         self.style = style
         self.minimiseIdents = minimiseIdents
         self.reset()
-        
+
     def reset(self):
         self.mappings = [
             {
@@ -1353,22 +1538,22 @@ class IdentifierRenamer:
             elif self.style == IdentifierTraverser.Style.I_AND_L:
                 cur_num = len(self.new_idents)
                 num_chars = 2
-                num_vals = 2 ** num_chars
+                num_vals = 2**num_chars
                 while cur_num * 4 > num_vals:
                     num_chars += 1
                     num_vals *= 2
                 hash_val = (hash(str(cur_num)) + self._random_source) % (num_vals)
                 new_ident = bin(hash_val)[2:]
                 new_ident = "0" * (num_chars - len(new_ident)) + new_ident
-                new_ident = new_ident.replace('1','l').replace('0','I')
-                while new_ident in self.new_idents_set: 
+                new_ident = new_ident.replace("1", "l").replace("0", "I")
+                while new_ident in self.new_idents_set:
                     # Linear probe for next available hash value
                     hash_val += 1
                     if hash_val >= num_vals:
                         hash_val = 0
                     new_ident = bin(hash_val)[2:]
                     new_ident = "0" * (num_chars - len(new_ident)) + new_ident
-                    new_ident = new_ident.replace('1','l').replace('0','I')
+                    new_ident = new_ident.replace("1", "l").replace("0", "I")
         self.new_idents_set.add(new_ident)
         self.new_idents.append(new_ident)
         return new_ident
@@ -1547,7 +1732,7 @@ class IdentifierTraverser(NodeVisitor):
         self.style = style
         self.minimiseIdents = minimiseIdents
         self.reset()
-        
+
     def reset(self):
         self.idents = {"main": "main"}
         self._new_idents = set()
@@ -1593,22 +1778,22 @@ class IdentifierTraverser(NodeVisitor):
             elif self.style == self.Style.I_AND_L:
                 cur_num = len(self._new_idents)
                 num_chars = 16
-                num_vals = 2 ** num_chars
+                num_vals = 2**num_chars
                 while cur_num * 4 > num_vals:
                     num_chars += 1
                     num_vals *= 2
                 hash_val = (hash(str(cur_num)) + self._random_source) % (num_vals)
                 new_ident = bin(hash_val)[2:]
                 new_ident = "0" * (num_chars - len(new_ident)) + new_ident
-                new_ident = new_ident.replace('1','l').replace('0','I')
-                while new_ident in self._new_idents: 
+                new_ident = new_ident.replace("1", "l").replace("0", "I")
+                while new_ident in self._new_idents:
                     # Linear probe for next available hash value
                     hash_val += 1
                     if hash_val >= num_vals:
                         hash_val = 0
                     new_ident = bin(hash_val)[2:]
                     new_ident = "0" * (num_chars - len(new_ident)) + new_ident
-                    new_ident = new_ident.replace('1','l').replace('0','I')
+                    new_ident = new_ident.replace("1", "l").replace("0", "I")
         self._new_idents.add(new_ident)
         self.idents[ident] = new_ident
         return new_ident
@@ -1797,22 +1982,79 @@ class IdentifierRenameUnit(ObfuscationUnit):
             (str) The corresponding serialised JSON string."""
         return json.dumps(
             {
-                "type": str(__class__),
+                "type": str(__class__.name),
                 "style": self.style.name,
                 "minimiseIdents": self.minimiseIdents,
             }
         )
 
-    def from_json(json: str) -> Optional["IdentifierRenameUnit"]:
+    def from_json(json_str: str) -> Optional["IdentifierRenameUnit"]:
         """Converts the provided JSON string to an identifier renaming transformation, if possible.
 
         Args:
-            json (str): The JSON string to attempt to load.
+            json_str (str): The JSON string to attempt to load.
 
         Returns:
             The corresponding identifier renaming unit object if the given json is valid, or None otherwise."""
-        # TODO loading the string & rest of the function
-        pass
+        try:
+            json_obj = json.loads(json_str)
+        except:
+            log(
+                "Failed to load RenameIdentifiers() - invalid JSON provided.",
+                print_err=True,
+            )
+            return None
+        if "type" not in json_obj:
+            log(
+                "Failed to load RenameIdentifiers() - no type provided.", print_err=True
+            )
+            return None
+        elif json_obj["type"] != __class__.name:
+            log(
+                "Failed to load RenameIdentifiers() - class/type mismatch.",
+                print_err=True,
+            )
+            return None
+        elif "style" not in json_obj:
+            log(
+                "Failed to load RenameIdentifiers() - no style value provided.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["style"], str):
+            log(
+                "Failed to load RenameIdentifiers() - style is not a valid string.",
+                print_err=True,
+            )
+            return None
+        elif json_obj["style"] not in [
+            style.name for style in IdentifierTraverser.Style
+        ]:
+            log(
+                "Failed to load RenameIdentifiers() - style '{}' is not a valid style.".format(
+                    json_obj["style"]
+                ),
+                print_err=True,
+            )
+            return None
+        elif "minimiseIdents" not in json_obj:
+            log(
+                "Failed to load RenameIdentifiers() - no identifier minimisation flag value provided.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["minimiseIdents"], bool):
+            log(
+                "Failed to load RenameIdentifiers() - identifier minimisation flag value is not a Boolean.",
+                print_err=True,
+            )
+            return None
+        return IdentifierRenameUnit(
+            {style.name: style for style in IdentifierTraverser.Style}[
+                json_obj["style"]
+            ],
+            json_obj["minimiseIdents"],
+        )
 
     def __str__(self):
         style_flag = f"style={self.style.name}"
@@ -1828,7 +2070,7 @@ class ArithmeticEncodeTraverser(NodeVisitor):
     def __init__(self, transform_depth: int):
         self.transform_depth = transform_depth
         self.reset()
-    
+
     def reset(self):
         self.var_types = []
         self.func_types = dict()
@@ -1992,7 +2234,7 @@ class ArithmeticEncodeTraverser(NodeVisitor):
                     self.ignore_list.add(current)
                     applied_count += 1
         NodeVisitor.generic_visit(self, node)
-        
+
     def visit_FileAST(self, node):
         NodeVisitor.generic_visit(self, node)
         self.reset()
@@ -2041,7 +2283,7 @@ class ArithmeticEncodeUnit(ObfuscationUnit):
         print(
             "What recursive arithmetic encoding depth should be used? (recommended: 1 <= d <= 5)"
         )
-        depth = get_int(1, None)
+        depth = get_int(0, None)
         if depth is None:
             return False
         return ArithmeticEncodeUnit(depth)
@@ -2051,18 +2293,52 @@ class ArithmeticEncodeUnit(ObfuscationUnit):
 
         Returns:
             (str) The corresponding serialised JSON string."""
-        return json.dumps({"type": str(__class__), "depth": self.level})
+        return json.dumps({"type": str(__class__.name), "depth": self.level})
 
-    def from_json(json: str) -> Optional["ArithmeticEncodeUnit"]:
+    def from_json(json_str: str) -> Optional["ArithmeticEncodeUnit"]:
         """Converts the provided JSON string to an arithmetic encoding transformation, if possible.
 
         Args:
-            json (str): The JSON string to attempt to load.
+            json_str (str): The JSON string to attempt to load.
 
         Returns:
             The corresponding arithmetic encoding unit object if the given json is valid, or None otherwise."""
-        # TODO loading the string & rest of the function
-        pass
+        try:
+            json_obj = json.loads(json_str)
+        except:
+            log(
+                "Failed to load ArithmeticEncode() - invalid JSON provided.",
+                print_err=True,
+            )
+            return None
+        if "type" not in json_obj:
+            log("Failed to load ArithmeticEncode() - no type provided.", print_err=True)
+            return None
+        elif json_obj["type"] != __class__.name:
+            log(
+                "Failed to load ArithmeticEncode() - class/type mismatch.",
+                print_err=True,
+            )
+            return None
+        elif "depth" not in json_obj:
+            log(
+                "Failed to load ArithmeticEncode() - no depth value provided.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["depth"], int):
+            log(
+                "Failed to load ArithmeticEncode() - depth is not a valid integer.",
+                print_err=True,
+            )
+            return None
+        elif json_obj["depth"] < 0:
+            log(
+                "Failed to load ArithmeticEncode() - depth must be >= 0.",
+                print_err=True,
+            )
+            return None
+        return ArithmeticEncodeUnit(json_obj["depth"])
 
     def __str__(self) -> str:
         level_flag = f"depth={self.level}"
@@ -2070,7 +2346,6 @@ class ArithmeticEncodeUnit(ObfuscationUnit):
 
 
 class OpaqueAugmenter(NodeVisitor):
-    
     class Style(Enum):
         INPUT = "Construct predicates from dynamic user input"
         ENTROPY = "Construct predicates from entropic variables"
@@ -2226,6 +2501,7 @@ class OpaqueAugmenter(NodeVisitor):
         NodeVisitor.generic_visit(self, node)
         self.reset()
 
+
 class AugmentOpaqueUnit(ObfuscationUnit):
     """Augments exiting conditional statements in the program with opaque predicates,
     obfuscating the true conditional test by introducing invariants on inputs or entropy
@@ -2313,11 +2589,97 @@ class AugmentOpaqueUnit(ObfuscationUnit):
                 )
         return styles
 
-    def to_json():
-        pass  # TODO
+    def to_json(self) -> str:
+        """Converts the opaque augmentation unit to a JSON string.
 
-    def from_json(json):
-        pass  # TODO
+        Returns:
+            (str) The corresponding serialised JSON string."""
+        return json.dumps(
+            {
+                "type": str(__class__.name),
+                "styles": [style.name for style in self.styles],
+                "probability": self.probability,
+            }
+        )
+
+    def from_json(json_str: str) -> Optional["AugmentOpaqueUnit"]:
+        """Converts the provided JSON string to an opaque augmenting transformation, if possible.
+
+        Args:
+            json_str (str): The JSON string to attempt to load.
+
+        Returns:
+            The corresponding string encoding unit object if the given json is valid, or None otherwise."""
+        try:
+            json_obj = json.loads(json_str)
+        except:
+            log(
+                "Failed to load AugmentOpaqueUnit() - invalid JSON provided.",
+                print_err=True,
+            )
+            return None
+        if "type" not in json_obj:
+            log(
+                "Failed to load AugmentOpaqueUnit() - no type provided.", print_err=True
+            )
+            return None
+        elif json_obj["type"] != __class__.name:
+            log(
+                "Failed to load AugmentOpaqueUnit() - class/type mismatch.",
+                print_err=True,
+            )
+            return None
+        elif "styles" not in json_obj:
+            log(
+                "Failed to load AugmentOpaqueUnit() - no style values provided.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["styles"], list):
+            log(
+                "Failed to load AugmentOpaqueUnit() - styles is not a valid list.",
+                print_err=True,
+            )
+            return None
+        styles = []
+        style_map = {style.name: style for style in OpaqueAugmenter.Style}
+        for style in json_obj["styles"]:
+            if not isinstance(style, str):
+                log(
+                    "Failed to load AugmentOpaqueUnit() - style {} is not a valid string.".format(
+                        style
+                    ),
+                    print_err=True,
+                )
+                return None
+            elif style not in style_map.keys():
+                log(
+                    "Failed to load AugmentOpaqueUnit() - style {} is not a valid style.".format(
+                        style
+                    ),
+                    print_err=True,
+                )
+                return None
+            styles.append(style_map[style])
+        if "probability" not in json_obj:
+            log(
+                "Failed to load AugmentOpaqueUnit() - no probability value is given.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["probability"], (int, float)):
+            log(
+                "Failed to load AugmentOpaqueUnit() - probability value is not a valid number.",
+                print_err=True,
+            )
+            return None
+        elif json_obj["probability"] < 0 or json_obj["probability"] > 1:
+            log(
+                "Failed to load AugmentOpaqueUnit() - probability value must be 0 <= p <= 1.",
+                print_err=True,
+            )
+            return None
+        return AugmentOpaqueUnit(styles, json_obj["probability"])
 
     def __str__(self) -> str:
         style_flag = "styles=[" + ", ".join([x.name for x in self.styles]) + "]"
@@ -2326,7 +2688,6 @@ class AugmentOpaqueUnit(ObfuscationUnit):
 
 
 class BugGenerator(NodeVisitor):
-    
     def visit_Constant(self, node):
         if node.value is not None:
             if node.type is None:
@@ -2367,7 +2728,6 @@ class BugGenerator(NodeVisitor):
 
 
 class OpaqueInserter(NodeVisitor):
-    
     class Style(Enum):
         INPUT = "Construct predicates from dynamic user input"
         ENTROPY = "Construct predicates from entropic variables"
@@ -2400,7 +2760,7 @@ class OpaqueInserter(NodeVisitor):
         self.number = number
         self.bug_generator = BugGenerator()
         self.reset()
-    
+
     def reset(self):
         self.functions = []
         self.current_function = None
@@ -2410,7 +2770,12 @@ class OpaqueInserter(NodeVisitor):
         self.entropic_vars = []
 
     def process(self, source):
-        if len(self.styles) == 0 or len(self.granularities) == 0 or len(self.kinds) == 0 or self.number == 0:
+        if (
+            len(self.styles) == 0
+            or len(self.granularities) == 0
+            or len(self.kinds) == 0
+            or self.number == 0
+        ):
             return
         self.analyzer = NewVariableUseAnalyzer(source.t_unit)
         self.analyzer.process()
@@ -2570,7 +2935,7 @@ class OpaqueInserter(NodeVisitor):
         # Calculate maximal contiguous sequences of non-declarations
         blocks = [(0, len(compound.block_items) - 1)]
         for i, item in enumerate(compound.block_items):
-            # TODO still having issues with label for some reason I think? 
+            # TODO still having issues with label for some reason I think?
             if isinstance(item, (Decl, Case, Default, Label)):
                 to_remove = []
                 to_add = []
@@ -2682,7 +3047,7 @@ class OpaqueInserter(NodeVisitor):
             self.add_opaque_predicates(node)
         self.current_function = prev
         self.parameters = None
-    
+
     def visit_FileAST(self, node):
         NodeVisitor.generic_visit(self, node)
         self.reset()
@@ -2865,11 +3230,161 @@ class InsertOpaqueUnit(ObfuscationUnit):
                 )
         return kinds
 
-    def to_json():
-        pass  # TODO
+    def to_json(self):
+        """Converts the opaque insertion unit to a JSON string.
 
-    def from_json(json):
-        pass  # TODO
+        Returns:
+            (str) The corresponding serialised JSON string."""
+        return json.dumps(
+            {
+                "type": str(__class__.name),
+                "styles": [style.name for style in self.styles],
+                "granularities": [gran.name for gran in self.granularities],
+                "kinds": [kind.name for kind in self.kinds],
+                "number": self.number,
+            }
+        )
+
+    def from_json(json_str: str) -> Optional["InsertOpaqueUnit"]:
+        """Converts the provided JSON string to an opaque augmenting transformation, if possible.
+
+        Args:
+            json_str (str): The JSON string to attempt to load.
+
+        Returns:
+            The corresponding string encoding unit object if the given json is valid, or None otherwise."""
+        try:
+            json_obj = json.loads(json_str)
+        except:
+            log(
+                "Failed to load InsertOpaqueUnit() - invalid JSON provided.",
+                print_err=True,
+            )
+            return None
+        if "type" not in json_obj:
+            log("Failed to load InsertOpaqueUnit() - no type provided.", print_err=True)
+            return None
+        elif json_obj["type"] != __class__.name:
+            log(
+                "Failed to load InsertOpaqueUnit() - class/type mismatch.",
+                print_err=True,
+            )
+            return None
+        elif "styles" not in json_obj:
+            log(
+                "Failed to load InsertOpaqueUnit() - no style values provided.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["styles"], list):
+            log(
+                "Failed to load InsertOpaqueUnit() - styles is not a valid list.",
+                print_err=True,
+            )
+            return None
+        styles = []
+        style_map = {style.name: style for style in OpaqueInserter.Style}
+        for style in json_obj["styles"]:
+            if not isinstance(style, str):
+                log(
+                    "Failed to load InsertOpaqueUnit() - style {} is not a valid string.".format(
+                        style
+                    ),
+                    print_err=True,
+                )
+                return None
+            elif style not in style_map.keys():
+                log(
+                    "Failed to load InsertOpaqueUnit() - style {} is not a valid style.".format(
+                        style
+                    ),
+                    print_err=True,
+                )
+                return None
+            styles.append(style_map[style])
+        if "granularities" not in json_obj:
+            log(
+                "Failed to load InsertOpaqueUnit() - no granularity values provided.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["granularities"], list):
+            log(
+                "Failed to load InsertOpaqueUnit() - granularities is not a valid list.",
+                print_err=True,
+            )
+            return None
+        granularities = []
+        granularity_map = {g.name: g for g in OpaqueInserter.Granularity}
+        for granularity in json_obj["granularities"]:
+            if not isinstance(granularity, str):
+                log(
+                    "Failed to load InsertOpaqueUnit() - granularity {} is not a valid string.".format(
+                        granularity
+                    ),
+                    print_err=True,
+                )
+                return None
+            elif granularity not in granularity_map.keys():
+                log(
+                    "Failed to load InsertOpaqueUnit() - granularity {} is not a valid granularity.".format(
+                        granularity
+                    ),
+                    print_err=True,
+                )
+                return None
+            granularities.append(granularity_map[granularity])
+        if "kinds" not in json_obj:
+            log(
+                "Failed to load InsertOpaqueUnit() - no kind (type) values provided.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["kinds"], list):
+            log(
+                "Failed to load InsertOpaqueUnit() - kinds is not a valid list.",
+                print_err=True,
+            )
+            return None
+        kinds = []
+        kinds_map = {kinds.name: kinds for kinds in OpaqueInserter.Kind}
+        for kind in json_obj["kinds"]:
+            if not isinstance(kind, str):
+                log(
+                    "Failed to load InsertOpaqueUnit() - kind {} is not a valid string.".format(
+                        kind
+                    ),
+                    print_err=True,
+                )
+                return None
+            elif kind not in kinds_map.keys():
+                log(
+                    "Failed to load InsertOpaqueUnit() - kind {} is not a valid kind.".format(
+                        kind
+                    ),
+                    print_err=True,
+                )
+                return None
+            kinds.append(kinds_map[kind])
+        if "number" not in json_obj:
+            log(
+                "Failed to load InsertOpaqueUnit() - no number value is given.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["number"], int):
+            log(
+                "Failed to load InsertOpaqueUnit() - number value is not a valid number.",
+                print_err=True,
+            )
+            return None
+        elif json_obj["number"] < 0:
+            log(
+                "Failed to load InsertOpaqueUnit() - number value must be >= 0.",
+                print_err=True,
+            )
+            return None
+        return InsertOpaqueUnit(styles, granularities, kinds, json_obj["number"])
 
     def __str__(self) -> str:
         style_flag = "styles=[" + ", ".join([x.name for x in self.styles]) + "]"
@@ -2885,7 +3400,7 @@ class InsertOpaqueUnit(ObfuscationUnit):
 class ControlFlowFlattener(NodeVisitor):
     def __init__(self):
         self.reset()
-        
+
     def reset(self):
         self.levels = []
         self.breaks = []
@@ -2916,8 +3431,12 @@ class ControlFlowFlattener(NodeVisitor):
     def flatten_function(self, node):
         if node.body is None or len(node.body.block_items) == 0:
             return
-        while_label = self.analyzer.get_unique_identifier(node, TypeKinds.LABEL, node.body, node)
-        switch_variable = self.analyzer.get_unique_identifier(node, TypeKinds.NONSTRUCTURE, node.body, node)
+        while_label = self.analyzer.get_unique_identifier(
+            node, TypeKinds.LABEL, node.body, node
+        )
+        switch_variable = self.analyzer.get_unique_identifier(
+            node, TypeKinds.NONSTRUCTURE, node.body, node
+        )
         exit = self.get_unique_number()
         entry = self.get_unique_number()
         self.cases = []
@@ -3348,11 +3867,42 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
     ]:  # TODO case number randomisation options
         return ControlFlowFlattenUnit()  # TODO
 
-    def to_json():
-        pass  # TODO
+    def to_json(self):
+        """Converts the opaque insertion unit to a JSON string.
 
-    def from_json(json):
-        pass  # TODO
+        Returns:
+            (str) The corresponding serialised JSON string."""
+        return json.dumps({"type": str(__class__.name)})
+
+    def from_json(json_str: str) -> Optional["ControlFlowFlattenUnit"]:
+        """Converts the provided JSON string to a control flow flattening transformation, if possible.
+
+        Args:
+            json_str (str): The JSON string to attempt to load.
+
+        Returns:
+            The corresponding string encoding unit object if the given json is valid, or None otherwise."""
+        try:
+            json_obj = json.loads(json_str)
+        except:
+            log(
+                "Failed to load FlattenControlFlow() - invalid JSON provided.",
+                print_err=True,
+            )
+            return None
+        if "type" not in json_obj:
+            log(
+                "Failed to load FlattenControlFlow() - no type provided.",
+                print_err=True,
+            )
+            return None
+        elif json_obj["type"] != __class__.name:
+            log(
+                "Failed to load FlattenControlFlow() - class/type mismatch.",
+                print_err=True,
+            )
+            return None
+        return ControlFlowFlattenUnit()
 
     def __str__(self) -> str:
         return "FlattenControlFlow()"
@@ -3381,7 +3931,11 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
         # Preprocess contents
         new_contents = ""
         for line in source.contents.splitlines():
-            if line.strip().startswith("#") or line.strip().startswith("%:") or line.strip().startswith("??="):
+            if (
+                line.strip().startswith("#")
+                or line.strip().startswith("%:")
+                or line.strip().startswith("??=")
+            ):
                 new_contents += line + "\n"
         generator = c_generator.CGenerator()
         contents = generator.visit(source.t_unit)
@@ -3453,18 +4007,36 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
 
         Returns:
             (str) The corresponding serialised JSON string."""
-        return json.dumps({"type": str(__class__)})
+        return json.dumps({"type": str(__class__.name)})
 
-    def from_json(json: str) -> Optional["ClutterWhitespaceUnit"]:
+    def from_json(json_str: str) -> Optional["ClutterWhitespaceUnit"]:
         """Converts the provided JSON string to a whitespace cluttering transformation, if possible.
 
         Args:
-            json (str): The JSON string to attempt to load.
+            json_str (str): The JSON string to attempt to load.
 
         Returns:
             The corresponding whitespace cluttering unit object if the given json is valid, or None otherwise."""
-        # TODO loading the string & rest of the function
-        pass
+        try:
+            json_obj = json.loads(json_str)
+        except:
+            log(
+                "Failed to load ClutterWhitespace() - invalid JSON provided.",
+                print_err=True,
+            )
+            return None
+        if "type" not in json_obj:
+            log(
+                "Failed to load ClutterWhitespace() - no type provided.", print_err=True
+            )
+            return None
+        elif json_obj["type"] != __class__.name:
+            log(
+                "Failed to load ClutterWhitespace() - class/type mismatch.",
+                print_err=True,
+            )
+            return None
+        return ClutterWhitespaceUnit()
 
     def __str__(self):
         return "ClutterWhitespace()"
@@ -3543,10 +4115,8 @@ class DiTriGraphEncodeUnit(ObfuscationUnit):
                 new_contents += char
                 prev = char
                 continue
-            if (
-                self.style == self.Style.MIXED
-                and (char in self.digraph_map
-                or char in self.trigraph_map)
+            if self.style == self.Style.MIXED and (
+                char in self.digraph_map or char in self.trigraph_map
             ):
                 if random.randint(1, 2) == 1 and char in self.digraph_map:
                     new_contents += self.digraph_map[char]
@@ -3597,19 +4167,84 @@ class DiTriGraphEncodeUnit(ObfuscationUnit):
         Returns:
             (str) The corresponding serialised JSON string."""
         return json.dumps(
-            {"type": str(__class__), "style": self.style.name, "chance": self.chance}
+            {
+                "type": str(__class__.name),
+                "style": self.style.name,
+                "chance": self.chance,
+            }
         )
 
-    def from_json(json: str) -> Optional["ArithmeticEncodeUnit"]:
+    def from_json(json_str: str) -> Optional["DiTriGraphEncodeUnit"]:
         """Converts the provided JSON string to a digraph/trigraph encoding transformation, if possible.
 
         Args:
-            json (str): The JSON string to attempt to load.
+            json_str (str): The JSON string to attempt to load.
 
         Returns:
             The corresponding digraph/trigraph encoding unit object if the given json is valid, or None otherwise."""
-        # TODO loading the string & rest of the function
-        pass
+        try:
+            json_obj = json.loads(json_str)
+        except:
+            log(
+                "Failed to load DiTriGraphEncode() - invalid JSON provided.",
+                print_err=True,
+            )
+            return None
+        if "type" not in json_obj:
+            log("Failed to load DiTriGraphEncode() - no type provided.", print_err=True)
+            return None
+        elif json_obj["type"] != __class__.name:
+            log(
+                "Failed to load DiTriGraphEncode() - class/type mismatch.",
+                print_err=True,
+            )
+            return None
+        elif "style" not in json_obj:
+            log(
+                "Failed to load DiTriGraphEncode() - no style value provided.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["style"], str):
+            log(
+                "Failed to load DiTriGraphEncode() - style is not a valid string.",
+                print_err=True,
+            )
+            return None
+        elif json_obj["style"] not in [
+            style.name for style in DiTriGraphEncodeUnit.Style
+        ]:
+            log(
+                "Failed to load DiTriGraphEncode() - style '{}' is not a valid style.".format(
+                    json_obj["style"]
+                ),
+                print_err=True,
+            )
+            return None
+        elif "chance" not in json_obj:
+            log(
+                "Failed to load AugmentOpaqueUnit() - no probability value is given.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["chance"], (int, float)):
+            log(
+                "Failed to load AugmentOpaqueUnit() - probability value is not a valid number.",
+                print_err=True,
+            )
+            return None
+        elif json_obj["chance"] < 0 or json_obj["chance"] > 1:
+            log(
+                "Failed to load AugmentOpaqueUnit() - probability value must be 0 <= p <= 1.",
+                print_err=True,
+            )
+            return None
+        return DiTriGraphEncodeUnit(
+            {style.name: style for style in DiTriGraphEncodeUnit.Style}[
+                json_obj["style"]
+            ],
+            json_obj["chance"],
+        )
 
     def __str__(self):
         style_flag = f"style={self.style.name}"

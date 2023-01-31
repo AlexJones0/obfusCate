@@ -6,7 +6,7 @@ import io
 import random
 from app import settings as cfg
 from app.debug import *
-from app.io import *
+from app.interaction import *
 from pycparser.c_ast import FuncDef, Decl
 
 

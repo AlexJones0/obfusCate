@@ -5,7 +5,8 @@ import sys
 from typing import Optional
 from .debug import print_error, create_log_file, log
 from .interaction import CSource, menu_driven_option, handle_arguments, \
-    disable_logging, set_seed, suppress_errors, display_progress, save_composition, load_composition
+    disable_logging, set_seed, suppress_errors, display_progress, save_composition, load_composition, \
+    save_composition_file, load_composition_file
 from .obfuscation import *
 from app import settings as config
 
@@ -37,19 +38,19 @@ options = [
         [],
     ),
     (
-        display_progress,  # TODO implement progress display
+        display_progress,
         ["-p", "--progress"],
         "Outputs obfuscation pipleline progress (transformation completion) during obfuscation.",
         [],
     ),
     (
-        save_composition,  # TODO add composition saving
+        save_composition,
         ["-c", "--save-comp"],
         "Saves the selected composition of obfuscation transformations as a JSON file to be reused.",
         [],
     ),
     (
-        load_composition,  # TODO add composition loading
+        load_composition,
         ["-l", "--load-comp"],
         "Loads a given JSON file containing the composition of obfuscation transformations to use.",
         ["file"],
@@ -105,8 +106,22 @@ def get_transformations(
         Optional[CSource]: If successful, returns the obfuscated C source code. If an
         error occurs or the user quits, returns None.
     """
-    selected = []
-    cursor_index = 0  # Cursor to allow traversal of transforms in CLI.
+    if config.COMPOSITION is None:
+        selected = []
+        cursor_index = 0  # Cursor to allow traversal of transforms in CLI.
+    else:
+        contents = load_composition_file(config.COMPOSITION)
+        if contents is None:
+            log("Error loading saved transformations - please provide a valid compositions file", print_err=True)
+            return None
+        saved_pipeline = Pipeline.from_json(contents, use_gui=False)
+        if saved_pipeline is None:
+            log("Error loading saved transformations - please provide a valid compositions file", print_err=True)
+            return None
+        if config.SEED is None: # Only use saved seed if no seed was provided
+            config.SEED = saved_pipeline.seed
+        selected = saved_pipeline.transforms
+        cursor_index = len(selected)
 
     # Generate available transforms from implemented classes
     available_transforms = ObfuscationUnit.__subclasses__()
@@ -158,7 +173,7 @@ def get_transformations(
     # Apply selected transform pipeline to given source code
     pipeline = Pipeline(seed, *selected)
     if config.SAVE_COMPOSITION:
-        save_composition(pipeline.to_json())
+        save_composition_file(pipeline.to_json())
     obfuscated = pipeline.process(source)
     return obfuscated
 

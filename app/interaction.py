@@ -1,4 +1,4 @@
-""" File: io.py
+""" File: interaction.py
 Implements classes and functions for handling input and output. """
 from typing import Iterable, Optional, Tuple, Union
 from .debug import print_error, log, delete_log_file
@@ -252,7 +252,7 @@ def get_int(lower_bound: int = None, upper_bound: int = None) -> Optional[int]:
         return user_input
 
 
-def save_composition(json: str, filepath: str = None) -> bool:
+def save_composition_file(json: str, filepath: str = None) -> bool:
     """Creates a composition file and saves the JSON string representing the
     composition to it.
 
@@ -285,6 +285,22 @@ def save_composition(json: str, filepath: str = None) -> bool:
             "Failed to save composition file due to errors in accessing and writing to the file."
         )
     return False
+
+
+def load_composition_file(filepath: str = None) -> str:
+    if filepath is None:
+        filepath = cfg.COMPOSITION
+        if filepath is None:
+            return None
+    try:
+        with open(filepath, "r") as comp_file:
+            contents = comp_file.read()
+        return contents
+    except OSError:
+        print_error("Unable to open composition file to load the composition.")
+        log("Failed to load composition file {} due to errors in accessing and reading from the file.".format(filepath))
+    return None
+
 
 def disable_logging() -> None:
     """Sets the config to disable logging during program execution."""
@@ -383,7 +399,7 @@ def handle_arguments(supplied_args: Iterable[str], options) -> Iterable[str] | b
                 res = opt[0]() if len(opt[3]) == 0 else opt[0](supplied_args[(i + 1) :])
                 if res is not None and not res:
                     return False
-                skip_next = len(opt[2]) != 0
+                skip_next = len(opt[3]) != 0
                 matched = True
                 break
         if matched:

@@ -10,7 +10,9 @@ from .interaction import (
     suppress_errors,
     display_progress,
     save_composition,
+    save_composition_file,
     load_composition,
+    load_composition_file,
 )
 from app import settings as config
 from PyQt6.QtWidgets import *
@@ -317,6 +319,9 @@ class GuiIdentityUnit(IdentityUnit):
     def load_gui_values(self) -> None:
         return
 
+    def from_json(json_str: str) -> None:
+        return GuiIdentityUnit()
+
     def get_gui() -> "GuiIdentityUnit":
         return GuiIdentityUnit()
 
@@ -352,6 +357,12 @@ class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
             except:
                 self.extra_args = 3
                 self.traverser.extra = 3
+
+    def from_json(json_str: str) -> None:
+        unit = FuncArgumentRandomiseUnit.from_json(json_str)
+        if unit is None:
+            return None
+        return GuiFuncArgumentRandomiseUnit(unit.extra_args)
 
     def get_gui() -> "GuiFuncArgumentRandomiseUnit":
         return GuiFuncArgumentRandomiseUnit(3)
@@ -400,6 +411,12 @@ class GuiStringEncodeUnit(StringEncodeUnit):
                     self.traverser.style = style
                     break
 
+    def from_json(json_str: str) -> None:
+        unit = StringEncodeUnit.from_json(json_str)
+        if unit is None:
+            return None
+        return GuiStringEncodeUnit(unit.style)
+
     def get_gui() -> "GuiStringEncodeUnit":
         return GuiStringEncodeUnit(StringEncodeTraverser.Style.MIXED)
 
@@ -413,6 +430,12 @@ class GuiIntegerEncodeUnit(IntegerEncodeUnit):
     def load_gui_values(self) -> None:
         # TODO see above edit_gui method comment
         return
+
+    def from_json(json_str: str) -> None:
+        unit = IntegerEncodeUnit.from_json(json_str)
+        if unit is None:
+            return None
+        return GuiIntegerEncodeUnit(unit.style)
 
     def get_gui() -> "GuiIntegerEncodeUnit":
         return GuiIntegerEncodeUnit(IntegerEncodeTraverser.Style.SIMPLE)
@@ -471,6 +494,12 @@ class GuiIdentifierRenameUnit(IdentifierRenameUnit):
         if self.minimise_idents_checkbox is not None:
             self.minimiseIdents = self.minimise_idents_checkbox.isChecked()
 
+    def from_json(json_str: str) -> None:
+        unit = IdentifierRenameUnit.from_json(json_str)
+        if unit is None:
+            return None
+        return GuiIdentifierRenameUnit(unit.style, unit.minimiseIdents)
+
     def get_gui() -> "GuiIdentifierRenameUnit":
         return GuiIdentifierRenameUnit(IdentifierTraverser.Style.COMPLETE_RANDOM, False)
 
@@ -508,6 +537,12 @@ class GuiArithmeticEncodeUnit(ArithmeticEncodeUnit):
             except:
                 self.level = 1
                 self.traverser.transform_depth = 1
+
+    def from_json(json_str: str) -> None:
+        unit = ArithmeticEncodeUnit.from_json(json_str)
+        if unit is None:
+            return None
+        return GuiArithmeticEncodeUnit(unit.level)
 
     def get_gui() -> "GuiArithmeticEncodeUnit":
         return GuiArithmeticEncodeUnit(1)
@@ -576,6 +611,12 @@ class GuiAugmentOpaqueUnit(AugmentOpaqueUnit):
             except:
                 self.probability = 0.75
                 self.traverser.probability = self.probability
+
+    def from_json(json_str: str) -> None:
+        unit = AugmentOpaqueUnit.from_json(json_str)
+        if unit is None:
+            return None
+        return GuiAugmentOpaqueUnit(unit.styles, unit.probability)
 
     def get_gui() -> "GuiAugmentOpaqueUnit":
         return GuiAugmentOpaqueUnit([s for s in OpaqueAugmenter.Style], 1.0)
@@ -731,6 +772,12 @@ class GuiInsertOpaqueUnit(InsertOpaqueUnit):
                 self.number = 5
                 self.traverser.number = 5
 
+    def from_json(json_str: str) -> None:
+        unit = InsertOpaqueUnit.from_json(json_str)
+        if unit is None:
+            return None
+        return GuiInsertOpaqueUnit(unit.styles, unit.granularities, unit.kinds, unit.number)
+
     def get_gui() -> "GuiInsertOpaqueUnit":
         return GuiInsertOpaqueUnit(
             [s for s in OpaqueInserter.Style],
@@ -748,6 +795,9 @@ class GuiControlFlowFlattenUnit(ControlFlowFlattenUnit):
     def load_gui_values(self) -> None:
         return
     
+    def from_json(json_str: str) -> None:
+        return GuiControlFlowFlattenUnit()
+    
     def get_gui() -> "GuiControlFlowFlattenUnit":
         return GuiControlFlowFlattenUnit()
 
@@ -759,6 +809,9 @@ class GuiClutterWhitespaceUnit(ClutterWhitespaceUnit):
     
     def load_gui_values(self) -> None:
         return
+    
+    def from_json(json_str: str) -> None:
+        return GuiClutterWhitespaceUnit()
     
     def get_gui() -> "GuiClutterWhitespaceUnit":
         return GuiClutterWhitespaceUnit()
@@ -823,6 +876,12 @@ class GuiDiTriGraphEncodeUnit(DiTriGraphEncodeUnit):
                     self.chance = 0.0
             except:
                 self.chance = 0.75
+    
+    def from_json(json_str: str) -> None:
+        unit = DiTriGraphEncodeUnit.from_json(json_str)
+        if unit is None:
+            return None
+        return GuiDiTriGraphEncodeUnit(unit.style, unit.chance)
     
     def get_gui() -> "GuiDiTriGraphEncodeUnit":
         return GuiDiTriGraphEncodeUnit(DiTriGraphEncodeUnit.Style.MIXED, 0.75)
@@ -1293,6 +1352,24 @@ class CurrentForm(QFrame):
         )
         self.selected.append(class_.get_gui())
         self.selected_widgets.append(transform_widget)
+    
+    def set_transforms(self, transforms: Iterable[ObfuscationUnit]) -> None:
+        self.deselect_transform()
+        for transform in self.selected:
+            self.remove_transform(transform)
+        self.current_transform = None
+        self.current_widget = None
+        for i, transform in enumerate(transforms):
+            transform_widget = SelectedTransformWidget(
+                transform.__class__, i+1, self.select_transform, self
+            )
+            transform_widget.setMaximumHeight(transform_widget.height())
+            self.scroll_content.layout.addWidget(
+                transform_widget, alignment=Qt.AlignmentFlag.AlignTop
+            )
+            self.selected.append(transform)
+            self.selected_widgets.append(transform_widget)
+        
 
     def remove_transform(self, transform: ObfuscationUnit) -> None:
         index = self.selected.index(transform)
@@ -1397,6 +1474,7 @@ class GeneralOptionsForm(QFrame):
     def __init__(
         self,
         transforms_func: Callable,
+        set_transforms_func: Callable,
         load_gui_vals_func: Callable,
         source_form: SourceEditor,
         obfuscated_form: SourceEditor,
@@ -1406,6 +1484,7 @@ class GeneralOptionsForm(QFrame):
         self.obfuscate_shortcut = QShortcut(QKeySequence(SHORTCUT_OBFUSCATE), self)
         self.obfuscate_shortcut.activated.connect(self.obfuscate)
         self.__transforms_reference = transforms_func
+        self.__set_transforms_func = set_transforms_func
         self.__load_selected_gui_reference = load_gui_vals_func
         self.__source_form_reference = source_form
         self.__obfuscated_form_reference = obfuscated_form
@@ -1431,6 +1510,7 @@ class GeneralOptionsForm(QFrame):
             }"""
         )
         self.setMinimumHeight(200)  # TODO remove if not correct?
+        self.seed = config.SEED
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(5)
@@ -1448,7 +1528,9 @@ class GeneralOptionsForm(QFrame):
         self.save_obfuscated_button = self.get_button("Save obfuscated file")
         self.save_obfuscated_button.clicked.connect(self.save_obfuscated)
         self.load_transformations_button = self.get_button("Load transformations")
+        self.load_transformations_button.clicked.connect(self.load_composition)
         self.save_transformations_button = self.get_button("Save transformations")
+        self.save_transformations_button.clicked.connect(self.save_composition)
         self.quit_button = self.get_button("Quit")
         self.quit_button.clicked.connect(QCoreApplication.quit)
         self.setLayout(self.layout)
@@ -1461,9 +1543,7 @@ class GeneralOptionsForm(QFrame):
 
     def obfuscate(self) -> None:
         self.__load_selected_gui_reference()
-        pipeline = Pipeline(config.SEED, *self.__transforms_reference())
-        if config.SAVE_COMPOSITION:
-            save_composition(pipeline.to_json())
+        pipeline = Pipeline(self.seed, *self.__transforms_reference())
         source = deepcopy(self.__source_form_reference.source)
         source.contents = self.__source_form_reference.toPlainText()
         if self.__source_form_reference.modified_from_read:
@@ -1486,11 +1566,50 @@ class GeneralOptionsForm(QFrame):
             return False
         self.__source_form_reference.add_source(source)
     
+    def load_composition(self) -> None:
+        compositions_path = os.path.join(os.getcwd(), "compositions\\")
+        if not os.path.exists(compositions_path):
+            os.mkdir(compositions_path)
+        dialog = QFileDialog(self)
+        dialog.setFileMode(QFileDialog.FileMode.AnyFile)
+        dialog.setFilter(QDir.Filter.Readable)
+        dialog.setNameFilter("C Obfuscation Files (*.cobf)")
+        dialog.setDirectory(compositions_path)
+        if not dialog.exec():
+            return
+        files = dialog.selectedFiles()
+        if len(files) == 0:
+            return
+        try:
+            with open(files[0], "r") as f:
+                transform_pipeline = Pipeline.from_json(f.read(), use_gui=True)
+                if transform_pipeline is None:
+                    return
+                if config.SEED is None: # Only use the saved seed if no seed was given
+                    self.seed = transform_pipeline.seed
+                self.__set_transforms_func(transform_pipeline.transforms)
+        except:
+            return
+    
     def save_obfuscated(self) -> None:
-        file, _ = QFileDialog.getSaveFileName(self, "Save", "", "C Source Files (*.c);;All Files (*)")
+        file, _ = QFileDialog.getSaveFileName(self, "Save Obfuscated C", "", "C Source Files (*.c);;All Files (*)")
         if not file or len(file) == 0:
             return
-        print(file)
+        with open(file, "w+") as f:
+            f.write(self.__obfuscated_form_reference.toPlainText())
+        
+    
+    def save_composition(self) -> None:
+        compositions_path = os.path.join(os.getcwd(), "compositions\\")
+        if not os.path.exists(compositions_path):
+            os.mkdir(compositions_path)
+        file, _ = QFileDialog.getSaveFileName(self, "Save Composition", compositions_path, "C Obfuscation Files (*.cobf)")
+        if not file or len(file) == 0:
+            return
+        with open(file, "w+") as f:
+            self.__load_selected_gui_reference()
+            pipeline = Pipeline(self.seed, *self.__transforms_reference())
+            f.write(pipeline.to_json())
 
 
 class SelectionForm(QWidget):  # TODO move selection and misc just into obfuscatewidget?
@@ -1512,6 +1631,7 @@ class MiscForm(QWidget):
     def __init__(
         self,
         transforms_func: Callable,
+        set_transforms_func: Callable,
         load_gui_vals_func: Callable,
         source_form: SourceEditor,
         obfuscated_form: SourceEditor,
@@ -1528,7 +1648,7 @@ class MiscForm(QWidget):
         self.metrics_form = MetricsForm(self)
         self.layout.addWidget(self.metrics_form, 1)
         self.general_options = GeneralOptionsForm(
-            transforms_func, load_gui_vals_func, source_form, obfuscated_form, self
+            transforms_func, set_transforms_func, load_gui_vals_func, source_form, obfuscated_form, self
         )
         self.layout.addWidget(
             self.general_options, 1, alignment=Qt.AlignmentFlag.AlignBottom
@@ -1552,6 +1672,7 @@ class ObfuscateWidget(QWidget):
         self.selection_form = SelectionForm(self)
         self.misc_form = MiscForm(
             self.selection_form.current_form.get_transforms,
+            self.selection_form.current_form.set_transforms,
             self.selection_form.current_form.load_selected_values,
             self.source_editor,
             self.obfuscated_editor,
@@ -1598,9 +1719,6 @@ def handle_gui() -> bool:
         app_id = config.NAME + "." + config.VERSION[1:]
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
 
-    app = QApplication(sys.argv)
-    window = MainWindow()
-
     supplied_args = sys.argv
     if len(supplied_args) != 0 and supplied_args[0].endswith(".py"):
         supplied_args = supplied_args[1:]
@@ -1615,15 +1733,37 @@ def handle_gui() -> bool:
     if isinstance(args, bool):
         return args
 
+    app = QApplication(sys.argv)
+    window = MainWindow()
+
     # Read file and display parse errors
     if len(args) >= 1:
         source = CSource(args[0])
         if source.contents is None or not source.valid_parse:
             return False
         window.add_source(source)
+    if config.COMPOSITION is not None:
+        contents = load_composition_file(config.COMPOSITION)
+        if contents is None:
+            log("Error loading saved transformations - please provide a valid compositions file", print_err=True)
+            return False
+        saved_pipeline = Pipeline.from_json(contents, use_gui=True)
+        if saved_pipeline is None:
+            log("Error loading saved transformations - please provide a valid compositions file", print_err=True)
+            return False
+        if config.SEED is None: # Only use saved seed if no seed was provided
+            window.obfuscate_widget.misc_form.general_options.seed = saved_pipeline.seed
+        window.obfuscate_widget.selection_form.current_form.set_transforms(saved_pipeline.transforms)
 
     window.show()
     app.exec()
+
+    if config.SAVE_COMPOSITION:
+        window.obfuscate_widget.selection_form.current_form.load_selected_values()
+        seed = window.obfuscate_widget.misc_form.general_options.seed
+        transforms = window.obfuscate_widget.selection_form.current_form.selected
+        pipeline = Pipeline(seed, *transforms)
+        save_composition_file(pipeline.to_json())
 
     if len(args) == 2:
         try:
