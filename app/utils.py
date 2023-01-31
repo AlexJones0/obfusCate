@@ -244,6 +244,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
     def __find_new_ident(self, banned):
         # TODO can I ban header functions as well? Or no?
         banned = banned.union(set(CLexer.keywords))
+        banned = banned.union(set([kw.lower() for kw in CLexer.keywords]))
         new_ident = "a"
         count = 0
         while new_ident in banned:

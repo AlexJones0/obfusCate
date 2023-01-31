@@ -3541,21 +3541,21 @@ class ControlFlowFlattener(NodeVisitor):
         else_entry = self.get_unique_number() if if_stmt.iffalse is not None else exit
         case = Case(
             Constant("int", entry),
-                [
-                    self.get_labelled_stmt(
-                        label,
-                        If(
-                            if_stmt.cond,
-                            Assignment(
-                                "=", ID(switch_variable), Constant("int", then_entry)
-                            ),
-                            Assignment(
-                                "=", ID(switch_variable), Constant("int", else_entry)
-                            ),
+            [
+                self.get_labelled_stmt(
+                    label,
+                    If(
+                        if_stmt.cond,
+                        Assignment(
+                            "=", ID(switch_variable), Constant("int", then_entry)
+                        ),
+                        Assignment(
+                            "=", ID(switch_variable), Constant("int", else_entry)
                         ),
                     ),
-                    Break(),
-                ],
+                ),
+                Break(),
+            ],
         )
         self.cases.append(case)
         self.transform_block(if_stmt.iftrue, then_entry, exit)
@@ -3567,19 +3567,19 @@ class ControlFlowFlattener(NodeVisitor):
         body_entry = self.get_unique_number()
         case = Case(
             Constant("int", entry),
-                [
-                    self.get_labelled_stmt(
-                        label,
-                        If(
-                            while_stmt.cond,
-                            Assignment(
-                                "=", ID(switch_variable), Constant("int", body_entry)
-                            ),
-                            Assignment("=", ID(switch_variable), Constant("int", exit)),
+            [
+                self.get_labelled_stmt(
+                    label,
+                    If(
+                        while_stmt.cond,
+                        Assignment(
+                            "=", ID(switch_variable), Constant("int", body_entry)
                         ),
+                        Assignment("=", ID(switch_variable), Constant("int", exit)),
                     ),
-                    Break(),
-                ],
+                ),
+                Break(),
+            ],
         )
         self.cases.append(case)
         self.breaks.append((len(self.levels), exit))
@@ -3643,13 +3643,13 @@ class ControlFlowFlattener(NodeVisitor):
             goto_label = None
         case = Case(
             Constant("int", entry),
-                [
-                    self.get_labelled_stmt(
-                        label, Switch(switch_stmt.cond, Compound(goto_labels))
-                    ),
-                    Assignment("=", ID(switch_variable), Constant("int", exit)),
-                    Break(),
-                ],
+            [
+                self.get_labelled_stmt(
+                    label, Switch(switch_stmt.cond, Compound(goto_labels))
+                ),
+                Assignment("=", ID(switch_variable), Constant("int", exit)),
+                Break(),
+            ],
         )
         self.cases.append(case)
         self.breaks.append((len(self.levels), exit))
@@ -3663,29 +3663,25 @@ class ControlFlowFlattener(NodeVisitor):
         # TODO: Labels?
         test_case = Case(
             Constant("int", test_entry),
-                [
-                    If(
-                        do_stmt.cond,
-                        Assignment(
-                            "=", ID(switch_variable), Constant("int", body_entry)
-                        ),
-                        Assignment("=", ID(switch_variable), Constant("int", exit)),
-                    ),
-                    Break(),
-                ],
+            [
+                If(
+                    do_stmt.cond,
+                    Assignment("=", ID(switch_variable), Constant("int", body_entry)),
+                    Assignment("=", ID(switch_variable), Constant("int", exit)),
+                ),
+                Break(),
+            ],
         )
         self.cases.append(test_case)
         entry_case = Case(
             Constant("int", entry),
-                [
-                    self.get_labelled_stmt(
-                        label,
-                        Assignment(
-                            "=", ID(switch_variable), Constant("int", body_entry)
-                        ),
-                    ),
-                    Break(),
-                ],
+            [
+                self.get_labelled_stmt(
+                    label,
+                    Assignment("=", ID(switch_variable), Constant("int", body_entry)),
+                ),
+                Break(),
+            ],
         )
         self.cases.append(entry_case)
         self.breaks.append((len(self.levels), exit))
@@ -3702,36 +3698,34 @@ class ControlFlowFlattener(NodeVisitor):
         # TODO: Labels?
         entry_case = Case(
             Constant("int", entry),
-                [
-                    self.get_labelled_stmt(
-                        label, for_stmt.init
-                    ),  # TODO what if this is None? Need to deal with this
-                    Assignment("=", ID(switch_variable), Constant("int", test_entry)),
-                    Break(),
-                ],
+            [
+                self.get_labelled_stmt(
+                    label, for_stmt.init
+                ),  # TODO what if this is None? Need to deal with this
+                Assignment("=", ID(switch_variable), Constant("int", test_entry)),
+                Break(),
+            ],
         )
         self.cases.append(entry_case)
         test_case = Case(
             Constant("int", test_entry),
-                [
-                    If(
-                        for_stmt.cond,
-                        Assignment(
-                            "=", ID(switch_variable), Constant("int", body_entry)
-                        ),
-                        Assignment("=", ID(switch_variable), Constant("int", exit)),
-                    ),
-                    Break(),
-                ],
+            [
+                If(
+                    for_stmt.cond,
+                    Assignment("=", ID(switch_variable), Constant("int", body_entry)),
+                    Assignment("=", ID(switch_variable), Constant("int", exit)),
+                ),
+                Break(),
+            ],
         )
         self.cases.append(test_case)
         inc_case = Case(
             Constant("int", inc_entry),
-                [
-                    for_stmt.next,  # TODO what if this is None? Need to deal with this
-                    Assignment("=", ID(switch_variable), Constant("int", test_entry)),
-                    Break(),
-                ],
+            [
+                for_stmt.next,  # TODO what if this is None? Need to deal with this
+                Assignment("=", ID(switch_variable), Constant("int", test_entry)),
+                Break(),
+            ],
         )
         self.cases.append(inc_case)
         self.breaks.append((len(self.levels), exit))
@@ -3924,7 +3918,6 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
         self.traverser = ControlFlowFlattener()
 
     def transform(self, source: CSource) -> CSource:
-        print(source.t_unit)
         self.traverser.visit(source.t_unit)
         new_contents = generate_new_contents(source)
         return CSource(source.fpath, new_contents, source.t_unit)
