@@ -23,7 +23,9 @@ from copy import deepcopy
 import sys
 import ctypes
 
+
 # TODO not sure how GUI currently handles parsing of invalid programs, need to look into it
+
 
 DEFAULT_FONT = ["Consolas", "Fira Code", "Jetbrains Mono", "Courier New", "monospace"]
 CODE_FONT = ["Jetbrains Mono", "Fira Code", "Consolas", "Courier New", "monospace"]
@@ -918,6 +920,9 @@ class SourceEditor(QPlainTextEdit):
         self.source = CSource("", "", FileAST([]))
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.setFont(QFont(CODE_FONT, 10))
+        font_metrics = QFontMetricsF(self.font())
+        space_width = font_metrics.size(0, ' ').width()
+        self.setTabStopDistance(space_width * 4)
         self.setStyleSheet(
             """SourceEditor{
                 border-style: solid;
