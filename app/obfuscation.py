@@ -11,7 +11,7 @@ from .debug import *
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 from PyQt6.QtCore import Qt, QSize, QMimeData
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Tuple
 from abc import ABC, abstractmethod
 from pycparser.c_ast import *
 from pycparser import c_generator, c_lexer
@@ -140,21 +140,23 @@ class Pipeline:
         )
 
     def print_progress(self, index: int, start_time: datetime.datetime) -> None:
-        """ Prints the current progress of the transformation pipeline to the standard
-        output stream, displaying the progress through the entire pipeline as well as 
+        """Prints the current progress of the transformation pipeline to the standard
+        output stream, displaying the progress through the entire pipeline as well as
         the next transformation to process.
-        
+
         Args:
             index (int): The index of the last processed transform. If no transforms
                 are yet processed, then this is intuitvely just -1.
-            start_time (datetime): The start time of the pipeline processing. """
+            start_time (datetime): The start time of the pipeline processing."""
         time_passed = str(datetime.datetime.now() - start_time)
         if "." not in time_passed:
             time_passed += ".000000"
         max_transforms = len(self.transforms)
         status = str(index + 1)
         status = (len(str(max_transforms)) - len(status)) * "0" + status
-        prog_percent = "({:.2f}%)".format(100 if max_transforms == 0 else (index + 1)/max_transforms * 100)
+        prog_percent = "({:.2f}%)".format(
+            100 if max_transforms == 0 else (index + 1) / max_transforms * 100
+        )
         prog_percent = (9 - len(prog_percent)) * " " + prog_percent
         if index < len(self.transforms) - 1:
             next_transform = self.transforms[index + 1]
@@ -614,11 +616,11 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         ident = analyzer.get_new_identifier(exclude=[v[0] for v in existing_vars])
         ident_decl = Decl(
             ident,
-            None,
-            None,
-            None,
-            None,
-            TypeDecl(ident, None, None, IdentifierType(["int"])),
+            [],
+            [],
+            [],
+            [],
+            TypeDecl(ident, [], None, IdentifierType(["int"])),
             None,
             None,
         )
@@ -3397,7 +3399,6 @@ class InsertOpaqueUnit(ObfuscationUnit):
         return f"InsertOpaqueUnit({style_flag},{granularity_flag},{kind_flag},{number_flag})"
 
 
-# TODO make this work with labels - shouldn't be too bad
 class ControlFlowFlattener(NodeVisitor):
     def __init__(self):
         self.reset()
@@ -3407,6 +3408,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.breaks = []
         self.continues = []
         self.cases = []
+        self.labels = []
         self.current_function = None
         self.function_decls = None
         self.pending_decls = []
@@ -3435,6 +3437,7 @@ class ControlFlowFlattener(NodeVisitor):
         while_label = self.analyzer.get_unique_identifier(
             node, TypeKinds.LABEL, node.body, node
         )
+        self.labels = [while_label]
         switch_variable = self.analyzer.get_unique_identifier(
             node, TypeKinds.NONSTRUCTURE, node.body, node
         )
@@ -3444,11 +3447,11 @@ class ControlFlowFlattener(NodeVisitor):
         new_statements = [
             Decl(
                 switch_variable,
-                None,
-                None,
-                None,
-                None,
-                TypeDecl(switch_variable, None, None, IdentifierType(["int"])),
+                [],
+                [],
+                [],
+                [],
+                TypeDecl(switch_variable, [], [], IdentifierType(["int"])),
                 Constant("int", entry),
                 None,
             ),
@@ -3465,92 +3468,118 @@ class ControlFlowFlattener(NodeVisitor):
         self.levels = self.levels[:-1]
         node.body.block_items = new_statements
 
-    def transform_block(self, block, entry, exit):
+    def get_labels(self, stmt: Node) -> Tuple[Node, Optional[Label]]:
+        label = None
+        if isinstance(stmt, Label):
+            label = stmt
+        while isinstance(stmt, Label):
+            stmt = stmt.stmt
+        return (stmt, label)
+
+    def get_labelled_stmt(self, label: Label, stmt: Node) -> None:
+        if label is None:
+            return stmt
+        initial_label = label
+        label_stmt = label.stmt
+        while isinstance(label_stmt, Label):
+            label = label_stmt
+            label_stmt = label.stmt
+        label.stmt = stmt
+        return initial_label
+
+    def transform_block(self, block, entry, exit, label=None):
         block_parts = []
         current_seq = []
+        if label is None:
+            block, label = self.get_labels(block)
         if isinstance(
             block, Compound
         ):  # TODO logic here is a bit messy? Can I clean up?
             for stmt in block.block_items:
+                stmt, label = self.get_labels(stmt)
                 if isinstance(stmt, (Compound, If, Switch, While, DoWhile, For)):
                     if len(current_seq) != 0:
                         block_parts.append(current_seq)
                         current_seq = []
-                    block_parts.append(stmt)
-                elif isinstance(block, Decl):
+                    block_parts.append((stmt, label))
+                elif isinstance(stmt, Decl):
+                    # TODO URGENT TODO Changed 'block' above to 'stmt' - not sure if this broke anything,
+                    # might be worth changing back and seeing if anything ever ran this branch before
                     continue
                 else:
-                    current_seq.append(stmt)
+                    current_seq.append((stmt, label))
             block_parts.append(current_seq)
         elif isinstance(block, Decl):
             return
         elif isinstance(block, (If, Switch, While, DoWhile, For)):
-            block_parts.append(block)
+            block_parts.append((block, label))
         else:
-            block_parts.append([block])
+            block_parts.append([(block, label)])
         for part in block_parts:
             part_exit = exit if part == block_parts[-1] else self.get_unique_number()
-            if isinstance(part, Compound):
-                self.transform_block(part, entry, part_exit)
-            elif isinstance(part, If):
-                self.transform_if(part, entry, part_exit)
-            elif isinstance(part, Switch):
-                self.transform_switch(part, entry, part_exit)
-            elif isinstance(part, While):
-                self.transform_while(part, entry, part_exit)
-            elif isinstance(part, DoWhile):
-                self.transform_do_while(part, entry, part_exit)
-            elif isinstance(part, For):
-                self.transform_for(part, entry, part_exit)
+            if isinstance(part, tuple):
+                part, label = part
+                if isinstance(part, Compound):
+                    self.transform_block(part, entry, part_exit, label)
+                elif isinstance(part, If):
+                    self.transform_if(part, entry, part_exit, label)
+                elif isinstance(part, Switch):
+                    self.transform_switch(part, entry, part_exit, label)
+                elif isinstance(part, While):
+                    self.transform_while(part, entry, part_exit, label)
+                elif isinstance(part, DoWhile):
+                    self.transform_do_while(part, entry, part_exit, label)
+                elif isinstance(part, For):
+                    self.transform_for(part, entry, part_exit, label)
             elif isinstance(part, list):
                 self.transform_sequence(part, entry, part_exit)
             entry = part_exit
 
-    def transform_if(self, if_stmt, entry, exit):
+    def transform_if(self, if_stmt, entry, exit, label=None):
         switch_variable = self.levels[-1][0]
         then_entry = self.get_unique_number()
         else_entry = self.get_unique_number() if if_stmt.iffalse is not None else exit
-        # TODO: Labels?
         case = Case(
             Constant("int", entry),
-            Compound(
                 [
-                    If(
-                        if_stmt.cond,
-                        Assignment(
-                            "=", ID(switch_variable), Constant("int", then_entry)
-                        ),
-                        Assignment(
-                            "=", ID(switch_variable), Constant("int", else_entry)
+                    self.get_labelled_stmt(
+                        label,
+                        If(
+                            if_stmt.cond,
+                            Assignment(
+                                "=", ID(switch_variable), Constant("int", then_entry)
+                            ),
+                            Assignment(
+                                "=", ID(switch_variable), Constant("int", else_entry)
+                            ),
                         ),
                     ),
                     Break(),
-                ]
-            ),
+                ],
         )
         self.cases.append(case)
         self.transform_block(if_stmt.iftrue, then_entry, exit)
         if if_stmt.iffalse is not None:
             self.transform_block(if_stmt.iffalse, else_entry, exit)
 
-    def transform_while(self, while_stmt, entry, exit):
+    def transform_while(self, while_stmt, entry, exit, label=None):
         switch_variable = self.levels[-1][0]
         body_entry = self.get_unique_number()
-        # TODO: Labels?
         case = Case(
             Constant("int", entry),
-            Compound(
                 [
-                    If(
-                        while_stmt.cond,
-                        Assignment(
-                            "=", ID(switch_variable), Constant("int", body_entry)
+                    self.get_labelled_stmt(
+                        label,
+                        If(
+                            while_stmt.cond,
+                            Assignment(
+                                "=", ID(switch_variable), Constant("int", body_entry)
+                            ),
+                            Assignment("=", ID(switch_variable), Constant("int", exit)),
                         ),
-                        Assignment("=", ID(switch_variable), Constant("int", exit)),
                     ),
                     Break(),
-                ]
-            ),
+                ],
         )
         self.cases.append(case)
         self.breaks.append((len(self.levels), exit))
@@ -3559,50 +3588,81 @@ class ControlFlowFlattener(NodeVisitor):
         self.breaks = self.breaks[:-1]
         self.continues = self.continues[:-1]
 
-    def transform_switch(self, switch_stmt, entry, exit):
+    def transform_switch(self, switch_stmt, entry, exit, label=None):
         switch_variable = self.levels[-1][0]
         # TODO: Labels?
         switch_body = Compound([])
         goto_labels = []
-        for i, stmt in enumerate(switch_stmt.stmt.block_items):
-            if isinstance(stmt, (Case, Default)):
-                goto_label = self.analyzer.get_unique_identifier(
-                    switch_stmt, TypeKinds.LABEL
-                )
-                if isinstance(stmt, Case):
-                    goto_labels.append(Case(stmt.expr, [Goto(goto_label)]))
-                else:
-                    goto_labels.append(Default([Goto(goto_label)]))
-                if stmt.stmts is None or len(stmt.stmts) == 0:
-                    switch_body.block_items.append(Label(goto_label, None))
-                else:
-                    switch_body.block_items.append(Label(goto_label, stmt.stmts[0]))
-                    switch_body.block_items += stmt.stmts[1:]
+        goto_label = None
+        # TODO the code below is quite messy and probably has some incorrect logic, need to check it
+        for stmt in switch_stmt.stmt.block_items:
+            if isinstance(stmt, Label):
+                labelled_stmt, stmt_label = self.get_labels(stmt)
+                if isinstance(labelled_stmt, (Case, Default)):
+                    stmt = labelled_stmt
             else:
-                switch_body.block_items.append(stmt)
+                stmt_label = None
+            if isinstance(stmt, (Case, Default)):
+                if goto_label is None:
+                    goto_label = self.analyzer.get_unique_identifier(
+                        switch_stmt,
+                        TypeKinds.LABEL,
+                        function=self.current_function,
+                        exclude=self.labels,
+                    )
+                    self.labels.append(goto_label)
+                if isinstance(stmt, Case):
+                    goto_labels.append(
+                        self.get_labelled_stmt(
+                            stmt_label, Case(stmt.expr, [Goto(goto_label)])
+                        )
+                    )
+                else:
+                    goto_labels.append(
+                        self.get_labelled_stmt(stmt_label, Default([Goto(goto_label)]))
+                    )
+                if stmt.stmts is not None:
+                    if isinstance(stmt.stmts, list):
+                        if len(stmt.stmts) != 0:
+                            switch_body.block_items.append(
+                                Label(goto_label, stmt.stmts[0])
+                            )
+                            switch_body.block_items += stmt.stmts[1:]
+                            goto_label = None
+                    else:
+                        switch_body.block_items.append(Label(goto_label, stmt.stmts))
+                        goto_label = None
+            else:
+                if goto_label is not None:
+                    switch_body.block_items.append(Label(goto_label, stmt))
+                    goto_label = None
+                else:
+                    switch_body.block_items.append(stmt)
+        if goto_label is not None:  # TODO is this needed?
+            switch_body.block_items.append(Label(goto_label, EmptyStatement()))
+            goto_label = None
         case = Case(
             Constant("int", entry),
-            Compound(
                 [
-                    Switch(switch_stmt.cond, Compound(goto_labels)),
+                    self.get_labelled_stmt(
+                        label, Switch(switch_stmt.cond, Compound(goto_labels))
+                    ),
                     Assignment("=", ID(switch_variable), Constant("int", exit)),
                     Break(),
-                ]
-            ),
+                ],
         )
         self.cases.append(case)
         self.breaks.append((len(self.levels), exit))
         self.transform_block(switch_body, self.get_unique_number(), exit)
         self.breaks = self.breaks[:-1]
 
-    def transform_do_while(self, do_stmt, entry, exit):
+    def transform_do_while(self, do_stmt, entry, exit, label=None):
         switch_variable = self.levels[-1][0]
         test_entry = self.get_unique_number()
         body_entry = self.get_unique_number()
         # TODO: Labels?
         test_case = Case(
             Constant("int", test_entry),
-            Compound(
                 [
                     If(
                         do_stmt.cond,
@@ -3612,18 +3672,20 @@ class ControlFlowFlattener(NodeVisitor):
                         Assignment("=", ID(switch_variable), Constant("int", exit)),
                     ),
                     Break(),
-                ]
-            ),
+                ],
         )
         self.cases.append(test_case)
         entry_case = Case(
             Constant("int", entry),
-            Compound(
                 [
-                    Assignment("=", ID(switch_variable), Constant("int", body_entry)),
+                    self.get_labelled_stmt(
+                        label,
+                        Assignment(
+                            "=", ID(switch_variable), Constant("int", body_entry)
+                        ),
+                    ),
                     Break(),
-                ]
-            ),
+                ],
         )
         self.cases.append(entry_case)
         self.breaks.append((len(self.levels), exit))
@@ -3632,7 +3694,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.breaks = self.breaks[:-1]
         self.continues = self.continues[:-1]
 
-    def transform_for(self, for_stmt, entry, exit):
+    def transform_for(self, for_stmt, entry, exit, label=None):
         switch_variable = self.levels[-1][0]
         test_entry = self.get_unique_number()
         inc_entry = self.get_unique_number()
@@ -3640,18 +3702,17 @@ class ControlFlowFlattener(NodeVisitor):
         # TODO: Labels?
         entry_case = Case(
             Constant("int", entry),
-            Compound(
                 [
-                    for_stmt.init,  # TODO what if this is None? Need to deal with this
+                    self.get_labelled_stmt(
+                        label, for_stmt.init
+                    ),  # TODO what if this is None? Need to deal with this
                     Assignment("=", ID(switch_variable), Constant("int", test_entry)),
                     Break(),
-                ]
-            ),
+                ],
         )
         self.cases.append(entry_case)
         test_case = Case(
             Constant("int", test_entry),
-            Compound(
                 [
                     If(
                         for_stmt.cond,
@@ -3661,19 +3722,16 @@ class ControlFlowFlattener(NodeVisitor):
                         Assignment("=", ID(switch_variable), Constant("int", exit)),
                     ),
                     Break(),
-                ]
-            ),
+                ],
         )
         self.cases.append(test_case)
         inc_case = Case(
             Constant("int", inc_entry),
-            Compound(
                 [
                     for_stmt.next,  # TODO what if this is None? Need to deal with this
                     Assignment("=", ID(switch_variable), Constant("int", test_entry)),
                     Break(),
-                ]
-            ),
+                ],
         )
         self.cases.append(inc_case)
         self.breaks.append((len(self.levels), exit))
@@ -3683,16 +3741,19 @@ class ControlFlowFlattener(NodeVisitor):
         self.continues = self.continues[:-1]
 
     def transform_sequence(self, sequence, entry, exit):
-        # TODO: Labels?
         stmts = []
-        case = Case(Constant("int", entry), Compound(stmts))
+        case = Case(Constant("int", entry), stmts)
         for stmt in sequence:
+            stmt, label = stmt
             if isinstance(stmt, Continue):
                 stmts.append(
-                    Assignment(
-                        "=",
-                        ID(self.levels[self.continues[-1][0] - 1][0]),
-                        Constant("int", self.continues[-1][1]),
+                    self.get_labelled_stmt(
+                        label,
+                        Assignment(
+                            "=",
+                            ID(self.levels[self.continues[-1][0] - 1][0]),
+                            Constant("int", self.continues[-1][1]),
+                        ),
                     )
                 )
                 if self.continues[-1][0] != len(self.levels):
@@ -3701,10 +3762,13 @@ class ControlFlowFlattener(NodeVisitor):
                     stmts.append(Break())
             elif isinstance(stmt, Break):
                 stmts.append(
-                    Assignment(
-                        "=",
-                        ID(self.levels[self.breaks[-1][0] - 1][0]),
-                        Constant("int", self.breaks[-1][1]),
+                    self.get_labelled_stmt(
+                        label,
+                        Assignment(
+                            "=",
+                            ID(self.levels[self.breaks[-1][0] - 1][0]),
+                            Constant("int", self.breaks[-1][1]),
+                        ),
                     )
                 )
                 if self.breaks[-1][0] != len(self.levels):
@@ -3712,7 +3776,7 @@ class ControlFlowFlattener(NodeVisitor):
                 else:
                     stmts.append(Break())
             else:
-                stmts.append(stmt)
+                stmts.append(self.get_labelled_stmt(label, stmt))
         stmts.append(Assignment("=", ID(self.levels[-1][0]), Constant("int", exit)))
         stmts.append(Break())
         self.cases.append(case)
@@ -3848,14 +3912,19 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
         """sequents of code blocks with jumps between them. Control flow flattening separates these blocks,\n"""
         """numbering them all and putting every block inside a switch statement in a while loop. Jumps between\n"""
         """blocks are encoded as a variable change within the loop structure. This completely transforms the\n"""
-        """control flow graph representing the program, preventing analysis of the control flow."""
-    )
+        """control flow graph representing the program, preventing analysis of the control flow.\n\n"""
+        """WARNING: Due to limitations of pycparser, this currently does not work with labelled case statements, e.g.\n"""
+        """switch (x) {\n"""
+        """    abc: case 1: do_stuff(); break;\n"""
+        """}"""
+    )  # TODO talk about this limitation of pycparser in my report - downside to switching / Open source!
     type = TransformType.STRUCTURAL
 
     def __init__(self):
         self.traverser = ControlFlowFlattener()
 
     def transform(self, source: CSource) -> CSource:
+        print(source.t_unit)
         self.traverser.visit(source.t_unit)
         new_contents = generate_new_contents(source)
         return CSource(source.fpath, new_contents, source.t_unit)

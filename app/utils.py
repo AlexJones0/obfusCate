@@ -223,7 +223,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
             compound = self.get_stmt_compound(stmt)
         return self.get_nested_scope_usage(compound, stmt, None)
 
-    def get_unique_identifier(self, node, type, compound=None, function=None):
+    def get_unique_identifier(self, node, type, compound=None, function=None, exclude=None):
         stmt = self.get_stmt_from_node(node)
         if compound is None:
             compound = self.get_stmt_compound(stmt)
@@ -233,6 +233,8 @@ class NewVariableUseAnalyzer(NodeVisitor):
         if function is not None:
             defined = defined.union(set((x, TypeKinds.LABEL) for x in self.labels[function]))
         defined = set(x[0] for x in defined if x[1] == type)
+        if exclude is not None:
+            defined = defined.union(set(exclude))
         return self.__find_new_ident(defined)
 
     def get_new_identifier(self, exclude=None):
