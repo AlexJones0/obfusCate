@@ -17,12 +17,13 @@ from .interaction import (
 from app import settings as config
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
-from PyQt6.QtCore import Qt, QSize, QMimeData, QDir, QCoreApplication
+from PyQt6.QtCore import Qt, QSize, QMimeData, QDir, QCoreApplication, QPoint
 from typing import Type, Tuple, Mapping, Any
 from copy import deepcopy
 import sys
 import ctypes
 
+# TODO not sure how GUI currently handles parsing of invalid programs, need to look into it
 
 DEFAULT_FONT = ["Consolas", "Fira Code", "Jetbrains Mono", "Courier New", "monospace"]
 CODE_FONT = ["Jetbrains Mono", "Fira Code", "Consolas", "Courier New", "monospace"]
@@ -1058,9 +1059,8 @@ class SelectedTransformWidget(QWidget):
         self.layout.addWidget(self.number_label, 1)
         self.box_widget = QWidget(self)
         self.box_widget.layout = QHBoxLayout(self.box_widget)
-        # self.box_widget.setContentsMargins(0, 0, 0, 0)
-        # self.box_widget.layout.setContentsMargins(0, 0, 0, 0)
-        # self.box_widget.layout.setSpacing(0)
+        self.box_widget.setContentsMargins(0, 0, 0, 0)
+        self.box_widget.layout.setContentsMargins(10, 5, 10, 5)
         self.box_widget.setObjectName("TransformBackground")
         self.box_widget.setStyleSheet(
             """
@@ -1076,11 +1076,8 @@ class SelectedTransformWidget(QWidget):
         self.box_widget.layout.addWidget(self.name_label)
         self.layout.addWidget(self.box_widget, 9)
         self.layout.addSpacing(10)
-        self.box_widget.resize(self.box_widget.maximumWidth(), self.box_widget.height())
         self.setLayout(self.layout)
         self.drag_start_pos = None
-        # TODO I think because of the drag pixmap image, it keeps printing text on drags
-        # - "QPixmap::scaled: Pixmap is a null pixmap". Need to fix.
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.buttons() == Qt.MouseButton.LeftButton:
@@ -1095,10 +1092,9 @@ class SelectedTransformWidget(QWidget):
                 return
             drag = QDrag(self)
             drag.setMimeData(QMimeData())
+            drag.setPixmap(self.box_widget.grab())
+            drag.setHotSpot(event.pos() - self.box_widget.pos())
             drag.exec(Qt.DropAction.MoveAction)
-            drag.setPixmap(
-                self.box_widget.grab()
-            )  # TODO why is this not working? Try and get working
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         self.drag_start_pos = None
@@ -1349,7 +1345,7 @@ class CurrentForm(QFrame):
         transform_widget = SelectedTransformWidget(
             class_, number, self.select_transform, self
         )
-        transform_widget.setMaximumHeight(transform_widget.height())
+        transform_widget.height()
         self.scroll_content.layout.addWidget(
             transform_widget, alignment=Qt.AlignmentFlag.AlignTop
         )
@@ -1366,7 +1362,6 @@ class CurrentForm(QFrame):
             transform_widget = SelectedTransformWidget(
                 transform.__class__, i+1, self.select_transform, self
             )
-            transform_widget.setMaximumHeight(transform_widget.height())
             self.scroll_content.layout.addWidget(
                 transform_widget, alignment=Qt.AlignmentFlag.AlignTop
             )
