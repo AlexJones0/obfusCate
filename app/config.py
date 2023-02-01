@@ -11,7 +11,7 @@ class Config(object):
     LOG_FILE = ""
     LOGS_ENABLED = True
     NAME = "obfusCate"
-    VERSION = "v0.15.3"
+    VERSION = "v0.15.4"
     DISPLAY_ERRORS = False
     SUPPRESS_ERRORS = False
     DISPLAY_PROGRESS = False

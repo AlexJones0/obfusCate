@@ -4091,6 +4091,112 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
         return f"FlattenControlFlow({randomise_flag},{style_flag})"
 
 
+class IndexReverser(NodeVisitor):
+    
+    def __init__(self, probability: float) -> None:
+        self.probability = probability
+    
+    def visit_ArrayRef(self, node):
+        if node.name is not None and node.subscript is not None:
+            if random.random() < self.probability:
+                node.name, node.subscript = node.subscript, node.name
+        NodeVisitor.generic_visit(self, node)
+
+
+class ReverseIndexUnit(ObfuscationUnit):
+    """ Implements a simple source-level obfuscation in which array indexes e.g. a[i] are swapped
+        so that the index becomes the array and vice versa, e.g. i[a]. This exploits the symmetry
+        of indexing in C, as technically a[i] == *(a + i) == *(i + a) == i[a] by the commutativity
+        of the addition operation on integers."""
+        
+    name = "Reverse Indexes"
+    description = "Reverses indexing operations, swapping the array and the index"
+    extended_description = (
+        "This transformation reverses indexes, i.e. it changes all indexing operations a[i]\n"
+        "into equivalent indexing operations i[a], which are non-intuitive and difficult to\n"
+        "comprehend at a glance. This exploits the symmetry of indexing in C, as technically\n"
+        "a[i] == *(a + i) == *(i + a) == i[a] by the commutativity of the addition operation."
+    )
+    type = TransformType.LEXICAL # TODO lexical or encoding?
+    
+    def __init__(self, probability: float) -> None:
+        self.probability = probability
+        self.traverser = IndexReverser(probability)
+    
+    def transform(self, source: CSource) -> CSource:
+        self.traverser.visit(source.t_unit)
+        new_contents = generate_new_contents(source)
+        return CSource(source.fpath, new_contents, source.t_unit)
+
+    def edit_cli(self) -> bool: 
+        print(f"The current probability of index reversal is {self.probability}.")
+        print("What is the new probability (0.0 <= p <= 1.0) of reversal?")
+        prob = get_float(0.0, 1.0)
+        if prob == float("nan"):
+            return None
+        self.probability = prob
+        self.traverser.probability = prob
+        return True
+
+    def get_cli() -> Optional["ReverseIndexUnit"]:
+        print("What is the probability (0.0 <= p <= 1.0) of the augmentation?")
+        prob = get_float(0.0, 1.0)
+        if prob == float("nan"):
+            return None
+        return ReverseIndexUnit(prob)
+
+    def to_json(self) -> str:
+        """Converts the whitespace cluttering unit to a JSON string.
+
+        Returns:
+            (str) The corresponding serialised JSON string."""
+        return json.dumps({"type": str(__class__.name), "probability": self.probability})
+
+    def from_json(json_str: str) -> Optional["ReverseIndexUnit"]:
+        """Converts the provided JSON string to an index reversing transformation, if possible.
+
+        Args:
+            json_str (str): The JSON string to attempt to load.
+
+        Returns:
+            The corresponding index reversing unit object if the given json is valid, or None otherwise."""
+        try:
+            json_obj = json.loads(json_str)
+        except:
+            log(
+                "Failed to load ReverseIndexes() - invalid JSON provided.",
+                print_err=True,
+            )
+            return None
+        if "type" not in json_obj:
+            log(
+                "Failed to load ReverseIndexes() - no type provided.", print_err=True
+            )
+            return None
+        elif json_obj["type"] != __class__.name:
+            log(
+                "Failed to load ReverseIndexes() - class/type mismatch.",
+                print_err=True,
+            )
+            return None
+        elif "probability" not in json_obj:
+            log("Failed to load ReverseIndexes() - no probability provided.", print_err=True)
+            return None
+        elif not isinstance(json_obj["probability"], (float, int)):
+            log("Failed to load ReverseIndexes() - given probability {} is not a valid number.".format(json_obj["probability"]), print_err=True)
+            return None
+        elif json_obj["probability"] < 0 or json_obj["probability"] > 1:
+            log("Failed to load ReverseIndexes() - given probability {} is not 0 <= p <= 1.".format(json_obj["probability"]), print_err=True)
+            return None
+        return ReverseIndexUnit(json_obj["probability"])
+
+    def __str__(self):
+        probability_flag = f"p={self.probability}"
+        return f"ReverseIndexes({probability_flag})"
+    
+    
+
+
 class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
     """Implements simple source-level whitespace cluttering, breaking down the high-level abstraction of
     indentation and program structure by altering whitespace in the file."""

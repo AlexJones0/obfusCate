@@ -867,6 +867,52 @@ class GuiControlFlowFlattenUnit(ControlFlowFlattenUnit):
         return GuiControlFlowFlattenUnit(False, ControlFlowFlattener.Style.SEQUENTIAL)
 
 
+class GuiReverseIndexUnit(ReverseIndexUnit):
+    
+    def __init__(self, *args, **kwargs):
+        super(GuiReverseIndexUnit, self).__init__(*args, **kwargs)
+        self.probability_entry = None
+    
+    def edit_gui(self, parent: QWidget) -> None:
+        layout = QVBoxLayout(parent)
+        probability, self.probability_entry = generate_float_widget(
+            "Probability:",
+            "The probability that an index reversal will take place, which must be a number\n"
+            "in the range 0 <= p <= 1. A probability of 0 means that no reversals will\n"
+            "occur, a probability of 0.5 means approximately half of the indexing operations\n"
+            "will be encoded, and 1.0 means all indexing operations are encoded. This allows\n"
+            "you to achieve a mix of reversed and non-reversed indexes for maximal obfuscation.",
+            self.probability,
+            0.0,
+            1.0,
+            parent
+        )
+        layout.addWidget(probability, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        parent.setLayout(layout)
+        
+    def load_gui_values(self) -> None:
+        if self.probability_entry is not None:
+            try:
+                self.probability = float(self.probability_entry.text())
+                if self.probability > 1.0:
+                    self.probability = 1.0
+                elif self.probability < 0.0:
+                    self.probability = 0.0
+                self.traverser.probability = self.probability
+            except:
+                self.probability = 0.8
+                self.traverser.probability = 0.8
+    
+    def from_json(json_str: str) -> None:
+        unit = ReverseIndexUnit.from_json(json_str)
+        if unit is None:
+            return None
+        return GuiReverseIndexUnit(unit.probability)
+    
+    def get_gui() -> "GuiReverseIndexUnit":
+        return GuiReverseIndexUnit(0.8)
+
+
 class GuiClutterWhitespaceUnit(ClutterWhitespaceUnit):
     
     def edit_gui(self, parent: QWidget) -> None:
@@ -971,6 +1017,8 @@ class CHighlighter(QSyntaxHighlighter):
         return super().highlightBlock(text)
 
 
+# TODO can I make the editors _not_ reset scroll unless necessary
+# when text is changed?
 class SourceEditor(QPlainTextEdit):
     def __init__(self, parent: QWidget = None) -> None:
         super(SourceEditor, self).__init__(parent)
@@ -1009,6 +1057,19 @@ class SourceEditor(QPlainTextEdit):
     
     def set_modified(self):
         self.modified_from_read = True
+        
+    def setPlainText(self, text: str):
+        # TODO double check everything works here but I think it's good?
+        vertical_scrollbar = self.verticalScrollBar()
+        horizontal_scrollbar = self.horizontalScrollBar()
+        vertical_scroll = vertical_scrollbar.value()
+        horizontal_scroll = horizontal_scrollbar.value()
+        super(SourceEditor, self).setPlainText(text)
+        # Maintain scroll positions between content changes if possible so that minute
+        # obfuscation changes can be easily observed
+        vertical_scrollbar.setValue(vertical_scroll)
+        horizontal_scrollbar.setValue(horizontal_scroll)
+    
 
 
 class TransformWidget(QWidget):
@@ -1250,17 +1311,11 @@ class TransformOptionsForm(QFrame):
             # TODO figure out how to handle resetting default behaviour
             return
         self.remove_button.show()
-        if isinstance(transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit, GuiAugmentOpaqueUnit, GuiInsertOpaqueUnit)): # TODO remove when done developing:
-            self.layout.removeWidget(self.options)
-            self.options = QFrame()
-            self.options.setMinimumHeight(200)
-            transform.edit_gui(self.options)
-            self.layout.insertWidget(1, self.options)
-        else:
-            self.layout.removeWidget(self.options)
-            self.options = QFrame()
-            self.options.setMinimumHeight(200)
-            self.layout.insertWidget(1, self.options)
+        self.layout.removeWidget(self.options)
+        self.options = QFrame()
+        self.options.setMinimumHeight(200)
+        transform.edit_gui(self.options)
+        self.layout.insertWidget(1, self.options)
 
 
 class CurrentForm(QFrame):
@@ -1447,8 +1502,7 @@ class CurrentForm(QFrame):
 
     def select_transform(self, widget: SelectedTransformWidget) -> None:
         if self.current_widget is not None:
-            if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit, GuiAugmentOpaqueUnit, GuiInsertOpaqueUnit)): # TODO remove when done developing:
-                self.current_transform.load_gui_values()
+            self.current_transform.load_gui_values()
             self.current_widget.deselect()
         self.current_transform = self.selected[self.selected_widgets.index(widget)]
         self.current_widget = widget
@@ -1492,7 +1546,7 @@ class CurrentForm(QFrame):
         return self.selected
 
     def load_selected_values(self):
-        if isinstance(self.current_transform, (GuiIdentityUnit, GuiClutterWhitespaceUnit, GuiControlFlowFlattenUnit, GuiFuncArgumentRandomiseUnit, GuiStringEncodeUnit, GuiIntegerEncodeUnit, GuiIdentifierRenameUnit, GuiArithmeticEncodeUnit, GuiDiTriGraphEncodeUnit, GuiAugmentOpaqueUnit, GuiInsertOpaqueUnit)): # TODO remove when done developing:
+        if self.current_transform is not None:
             self.current_transform.load_gui_values()
 
     def add_options_form(self, options_form: TransformOptionsForm) -> None:
