@@ -1071,7 +1071,6 @@ class SourceEditor(QPlainTextEdit):
         horizontal_scrollbar.setValue(horizontal_scroll)
     
 
-
 class TransformWidget(QWidget):
     def __init__(
         self,

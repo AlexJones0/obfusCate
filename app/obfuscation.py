@@ -2693,43 +2693,73 @@ class AugmentOpaqueUnit(ObfuscationUnit):
 
 
 class BugGenerator(NodeVisitor):
+    
+    def __init__(self, p_replace_op: float, p_change_constants: float):
+        super(BugGenerator, self).__init__()
+        self.p_replace_op = p_replace_op
+        self.p_change_constants = p_change_constants
+        self.reset()
+        
+    def reset(self):
+        self.changed = False # Flag to guarantee at least 1 change if possible
+        # so we can ensure that the generated statement is buggy (and not just
+        # identical by random chance)
+    
     def visit_Constant(self, node):
-        if node.value is not None:
+        if node.value is not None and (not self.changed or random.random() < self.p_change_constants):
             if node.type is None:
                 pass
             elif (
                 node.type in ["int", "short", "long", "long long"]
                 and int(node.value) != 0
-            ):  # TODO better
-                node.value = str(int(node.value) + random.choice([-3, -2, -1, 1, 2, 3]))
-                if node.value == "0":
-                    node.value = str(random.randint(1, 3))
+            ):
+                node.value = str(max(1, int(node.value) + random.choice([-3, -2, -1, 1, 2, 3])))
+                self.changed = True              
             elif (
-                node.type in ["float", "double", "long dobule"]
+                node.type in ["float", "double", "long double"]
                 and float(node.value) != 0.0
             ):
                 node.value = str(float(node.value) + random.random())
+                self.changed = True
             elif node.type == "char":
                 node.value = "'" + chr((ord(node.value[0]) + 1) % 256) + "'"
+                self.changed = True
         self.generic_visit(node)
 
+    op_map = {
+        ">": ("<", "<=", "!=", "=="),
+        ">=": ("<", "<=", "!=", "=="),
+        "<": (">", ">=", "!=", "=="),
+        "<=": (">", ">=", "!=", "=="),
+        "+": ("-", "*"),
+        "-": ("+", "*"),
+        "*": ("+", "-"),
+        "==": ("!=", "<", ">"),
+        "!=": ("==", "<", ">"),
+        "&&": ("||"),
+        "||": ("&&"),
+    }
+
     def visit_BinaryOp(self, node):
-        op_map = {
-            ">": ("<", "<=", "!=", "=="),
-            ">=": ("<", "<=", "!=", "=="),
-            "<": (">", ">=", "!=", "=="),
-            "<=": (">", ">=", "!=", "=="),
-            "+": ("-", "*"),
-            "-": ("+", "*"),
-            "*": ("+", "-"),
-            "==": ("!=", "<", ">"),
-            "!=": ("==", "<", ">"),
-            "&&": ("||"),
-            "||": ("&&"),
-        }
-        if node.op in op_map and random.random() > 0.4:
-            node.op = random.choice(op_map[node.op])
+        if node.op in self.op_map and (not self.changed or random.random() < self.p_replace_op):
+            node.op = random.choice(self.op_map[node.op])
+            self.changed = True
         self.generic_visit(node)
+    
+
+class LabelFinder(NodeVisitor):
+    
+    def __init__(self):
+        super(LabelFinder, self).__init__()
+        self.reset()
+        
+    def reset(self):
+        self.labels = set()
+        
+    def visit_Label(self, node):
+        if node.name is not None:
+            self.labels.add(node)
+        NodeVisitor.generic_visit(self, node)
 
 
 class OpaqueInserter(NodeVisitor):
@@ -2763,7 +2793,8 @@ class OpaqueInserter(NodeVisitor):
         self.granularities = granularities
         self.kinds = kinds
         self.number = number
-        self.bug_generator = BugGenerator()
+        self.bug_generator = BugGenerator(0.5, 0.4)
+        self.label_finder = LabelFinder()
         self.reset()
 
     def reset(self):
@@ -2773,6 +2804,7 @@ class OpaqueInserter(NodeVisitor):
         self.analyzer = None
         self.source = None
         self.entropic_vars = []
+        self.label_names = set()
 
     def process(self, source):
         if (
@@ -2857,13 +2889,20 @@ class OpaqueInserter(NodeVisitor):
                 )
         return predicate(*args)
 
+    def replace_labels(self, node):
+        self.label_finder.visit(node)
+        for label in self.label_finder.labels:
+            new_ident = self.analyzer.get_new_identifier(exclude=self.label_names)
+            self.label_names.add(new_ident)
+            label.name = new_ident
+        self.label_finder.reset()
+
     def generate_buggy(self, stmt):
-        # TODO better buggy code generation; this is more proof of concept
-        return Compound([EmptyStatement()])
-        # TODO currently broken - no idea why (comehere)
-        # copy = deepcopy(stmt)
-        # self.bug_generator.visit(copy)
-        # return copy
+        copy = deepcopy(stmt)
+        self.bug_generator.visit(copy)
+        self.bug_generator.reset()
+        self.replace_labels(copy)
+        return Compound([copy])
 
     def generate_opaque_predicate(self, stmt):
         kind = random.choice(self.kinds)  # TODO do I make this proportional also?
@@ -2889,13 +2928,13 @@ class OpaqueInserter(NodeVisitor):
                 buggy = self.generate_buggy(stmt)
                 return Compound([If(cond, buggy, stmt)])
             case self.Kind.EITHER:  # if (either) { YOUR CODE } else { YOUR CODE }
-                # TODO maybe add some sort of limit to this one because it doubles your code each time?
                 cond = self.generate_opaque_predicate_cond(
                     [OpaquePredicate.EITHER_PREDICATES]
                 )
                 if cond is None:
                     return None
-                copied = deepcopy(stmt)  # TODO is this truly a deep copy? Or no?
+                copied = deepcopy(stmt)
+                self.replace_labels(copied)
                 return Compound([If(cond, stmt, copied)])
             case self.Kind.WHILE_FALSE:  # while (false) { buggy code }
                 cond = self.generate_opaque_predicate_cond()
@@ -2940,7 +2979,7 @@ class OpaqueInserter(NodeVisitor):
         # Calculate maximal contiguous sequences of non-declarations
         blocks = [(0, len(compound.block_items) - 1)]
         for i, item in enumerate(compound.block_items):
-            # TODO still having issues with label for some reason I think?
+            # TODO with new label copying I don't think I need to check the label case any more?
             if isinstance(item, (Decl, Case, Default, Label)):
                 to_remove = []
                 to_add = []
@@ -2985,7 +3024,7 @@ class OpaqueInserter(NodeVisitor):
             (i, s)
             for i, s in enumerate(compound.block_items)
             if not isinstance(s, (Decl, Case, Default, Label))
-        ]
+        ] # TODO with new label copying I don't think I need to check the label case any more?
         if len(stmts) == 0:
             return False
         index, stmt = random.choice(stmts)
@@ -4213,7 +4252,7 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
     )
     type = TransformType.LEXICAL
 
-    def __init__(self):
+    def __init__(self): # TODO could add a random line length option in the future
         pass
 
     def transform(self, source: CSource) -> CSource:
