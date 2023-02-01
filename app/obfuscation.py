@@ -178,7 +178,7 @@ class Pipeline:
         if source is None:
             return None
         if cfg.DISPLAY_PROGRESS:
-            print("===Starting Obfuscation===")
+            print(" ===Starting Obfuscation===")
             start_time = datetime.datetime.now()
             self.print_progress(-1, start_time)
         for i, t in enumerate(self.transforms):
@@ -3589,8 +3589,10 @@ class ControlFlowFlattener(NodeVisitor):
         self.continues = self.continues[:-1]
 
     def transform_switch(self, switch_stmt, entry, exit, label=None):
+        # TODO feels like I might be able to do this without labels, i.e.
+        # Encode every label section as a block, then just make each block link 
+        # to the next at the very end? Could work better, but not worth it for now
         switch_variable = self.levels[-1][0]
-        # TODO: Labels?
         switch_body = Compound([])
         goto_labels = []
         goto_label = None
@@ -3660,7 +3662,6 @@ class ControlFlowFlattener(NodeVisitor):
         switch_variable = self.levels[-1][0]
         test_entry = self.get_unique_number()
         body_entry = self.get_unique_number()
-        # TODO: Labels?
         test_case = Case(
             Constant("int", test_entry),
             [
@@ -3692,26 +3693,28 @@ class ControlFlowFlattener(NodeVisitor):
 
     def transform_for(self, for_stmt, entry, exit, label=None):
         switch_variable = self.levels[-1][0]
-        test_entry = self.get_unique_number()
+        if for_stmt.init is not None:
+            test_entry = self.get_unique_number()
+            entry_case = Case(
+                Constant("int", entry),
+                [
+                    self.get_labelled_stmt(
+                        label, for_stmt.init
+                    ),
+                    Assignment("=", ID(switch_variable), Constant("int", test_entry)),
+                    Break(),
+                ],
+            )
+            self.cases.append(entry_case)
+        else:
+            test_entry = entry
         inc_entry = self.get_unique_number()
         body_entry = self.get_unique_number()
-        # TODO: Labels?
-        entry_case = Case(
-            Constant("int", entry),
-            [
-                self.get_labelled_stmt(
-                    label, for_stmt.init
-                ),  # TODO what if this is None? Need to deal with this
-                Assignment("=", ID(switch_variable), Constant("int", test_entry)),
-                Break(),
-            ],
-        )
-        self.cases.append(entry_case)
         test_case = Case(
             Constant("int", test_entry),
             [
                 If(
-                    for_stmt.cond,
+                    for_stmt.cond if for_stmt.cond is not None else Constant("int", "1"),
                     Assignment("=", ID(switch_variable), Constant("int", body_entry)),
                     Assignment("=", ID(switch_variable), Constant("int", exit)),
                 ),
@@ -3721,8 +3724,8 @@ class ControlFlowFlattener(NodeVisitor):
         self.cases.append(test_case)
         inc_case = Case(
             Constant("int", inc_entry),
+            ([for_stmt.next] if for_stmt.next is not None else []) +
             [
-                for_stmt.next,  # TODO what if this is None? Need to deal with this
                 Assignment("=", ID(switch_variable), Constant("int", test_entry)),
                 Break(),
             ],
