@@ -14,11 +14,13 @@ from PyQt6.QtCore import Qt, QSize, QMimeData
 from typing import Iterable, Optional, Tuple
 from abc import ABC, abstractmethod
 from pycparser.c_ast import *
+from pycparser.c_ast import Enum as PyCPEnum
 from pycparser import c_generator, c_lexer
 from enum import Enum
 from math import sqrt, floor
 from string import ascii_letters, digits as ascii_digits
 from copy import deepcopy
+from math import log2
 import datetime
 import random
 import json
@@ -234,7 +236,7 @@ class Pipeline:
                 "Failed to load composition file - supplied JSON contains no version field."
             )
             return None
-        elif json_obj["version"] != cfg.VERSION:
+        elif json_obj["version"] != cfg.VERSION:            
             log(
                 "Failed to load composition file - version mismatch. File is of version {}, running version {}".format(
                     json_obj["version"], cfg.VERSION
@@ -1199,7 +1201,7 @@ class StringEncodeUnit(ObfuscationUnit):
         choice = menu_driven_option(options, prompt)
         if choice == -1:
             return False
-        self.style = self.Style(options[choice])
+        self.style = StringEncodeTraverser.Style(options[choice])
         self.traverser.style = self.style
         return True
 
@@ -1389,7 +1391,7 @@ class IntegerEncodeUnit(ObfuscationUnit):
         choice = menu_driven_option(options, prompt)
         if choice == -1:
             return False
-        self.style = self.Style(options[choice])
+        self.style = IntegerEncodeTraverser.Style(options[choice])
         self.traverser.style = self.style
         return True
 
@@ -3400,8 +3402,15 @@ class InsertOpaqueUnit(ObfuscationUnit):
 
 
 class ControlFlowFlattener(NodeVisitor):
-    def __init__(self):
+    class Style(Enum):
+        SEQUENTIAL = "Sequential Integers"
+        RANDOM_INT = "Random Integers"
+        ENUMERATOR = "Random Enum Members"
+    
+    def __init__(self, randomise_cases: bool, style):
         self.reset()
+        self.randomise_cases = randomise_cases
+        self.style = style
 
     def reset(self):
         self.levels = []
@@ -3414,6 +3423,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.pending_decls = []
         self.checked_stmts = None
         self.unavailable_idents = None
+        self.numbers = set()
         self.cur_number = 0
         self.parent = None
         self.attr = None
@@ -3421,9 +3431,27 @@ class ControlFlowFlattener(NodeVisitor):
         self.count = 0
 
     def get_unique_number(self):
-        num = self.cur_number
-        self.cur_number += 1
-        return str(num)
+        if self.style == self.Style.SEQUENTIAL:
+            num = self.cur_number
+            self.cur_number += 1
+            return Constant("int", str(num))
+        elif self.style == self.Style.RANDOM_INT:
+            self.cur_number += 1
+            power = int(log2(self.cur_number) + 3)
+            range_ = 2**power
+            num = None
+            while num is None or num in self.numbers:
+                num = random.randint(-range_, range_-1)
+            self.numbers.add(num)
+            return Constant("int", str(num))
+        elif self.style == self.Style.ENUMERATOR:
+            exclude_set = self.numbers.union(set(level[0] for level in self.levels))
+            # TODO: could use get_new_identifer for the set below instead?
+            enum = self.analyzer.get_unique_identifier(
+                self.current_function, TypeKinds.NONSTRUCTURE, function=self.current_function, exclude=exclude_set
+            )
+            self.numbers.add(enum)
+            return ID(enum)
 
     def visit_FileAST(self, node):
         self.analyzer = NewVariableUseAnalyzer(node)
@@ -3441,32 +3469,49 @@ class ControlFlowFlattener(NodeVisitor):
         switch_variable = self.analyzer.get_unique_identifier(
             node, TypeKinds.NONSTRUCTURE, node.body, node
         )
+        self.levels.append((switch_variable, while_label))
         exit = self.get_unique_number()
         entry = self.get_unique_number()
         self.cases = []
-        new_statements = [
+        if self.style == self.Style.ENUMERATOR:
+            enumerator = self.analyzer.get_unique_identifier(
+                node, TypeKinds.STRUCTURE, node.body, node
+            )
+            new_statements = [
+                Decl(None, [], [], [], [], PyCPEnum(enumerator, EnumeratorList([])), None, None)
+            ]
+            switch_var_type = TypeDecl(switch_variable, [], [], PyCPEnum(enumerator, None))
+        else:
+            new_statements = []
+            switch_var_type = TypeDecl(switch_variable, [], [], IdentifierType(["int"]))
+        new_statements += [
             Decl(
                 switch_variable,
                 [],
                 [],
                 [],
                 [],
-                TypeDecl(switch_variable, [], [], IdentifierType(["int"])),
-                Constant("int", entry),
+                switch_var_type,
+                deepcopy(entry),
                 None,
             ),
             Label(
                 while_label,
                 While(
-                    BinaryOp("!=", ID(switch_variable), Constant("int", exit)),
+                    BinaryOp("!=", ID(switch_variable), deepcopy(exit)),
                     Compound([Switch(ID(switch_variable), Compound(self.cases))]),
                 ),
             ),
         ]
-        self.levels.append((switch_variable, while_label))
         self.transform_block(node.body, entry, exit)
         self.levels = self.levels[:-1]
+        if self.style == self.Style.ENUMERATOR:
+            new_statements[0].type.values.enumerators = [
+                Enumerator(enum, None) for enum in self.numbers
+            ]
         node.body.block_items = new_statements
+        if self.randomise_cases:
+            random.shuffle(self.cases)
 
     def get_labels(self, stmt: Node) -> Tuple[Node, Optional[Label]]:
         label = None
@@ -3540,17 +3585,17 @@ class ControlFlowFlattener(NodeVisitor):
         then_entry = self.get_unique_number()
         else_entry = self.get_unique_number() if if_stmt.iffalse is not None else exit
         case = Case(
-            Constant("int", entry),
+            deepcopy(entry),
             [
                 self.get_labelled_stmt(
                     label,
                     If(
                         if_stmt.cond,
                         Assignment(
-                            "=", ID(switch_variable), Constant("int", then_entry)
+                            "=", ID(switch_variable), deepcopy(then_entry)
                         ),
                         Assignment(
-                            "=", ID(switch_variable), Constant("int", else_entry)
+                            "=", ID(switch_variable), deepcopy(else_entry)
                         ),
                     ),
                 ),
@@ -3566,16 +3611,16 @@ class ControlFlowFlattener(NodeVisitor):
         switch_variable = self.levels[-1][0]
         body_entry = self.get_unique_number()
         case = Case(
-            Constant("int", entry),
+            deepcopy(entry),
             [
                 self.get_labelled_stmt(
                     label,
                     If(
                         while_stmt.cond,
                         Assignment(
-                            "=", ID(switch_variable), Constant("int", body_entry)
+                            "=", ID(switch_variable), deepcopy(body_entry)
                         ),
-                        Assignment("=", ID(switch_variable), Constant("int", exit)),
+                        Assignment("=", ID(switch_variable), deepcopy(exit)),
                     ),
                 ),
                 Break(),
@@ -3644,12 +3689,12 @@ class ControlFlowFlattener(NodeVisitor):
             switch_body.block_items.append(Label(goto_label, EmptyStatement()))
             goto_label = None
         case = Case(
-            Constant("int", entry),
+            deepcopy(entry),
             [
                 self.get_labelled_stmt(
                     label, Switch(switch_stmt.cond, Compound(goto_labels))
                 ),
-                Assignment("=", ID(switch_variable), Constant("int", exit)),
+                Assignment("=", ID(switch_variable), deepcopy(exit)),
                 Break(),
             ],
         )
@@ -3663,23 +3708,23 @@ class ControlFlowFlattener(NodeVisitor):
         test_entry = self.get_unique_number()
         body_entry = self.get_unique_number()
         test_case = Case(
-            Constant("int", test_entry),
+            deepcopy(test_entry),
             [
                 If(
                     do_stmt.cond,
-                    Assignment("=", ID(switch_variable), Constant("int", body_entry)),
-                    Assignment("=", ID(switch_variable), Constant("int", exit)),
+                    Assignment("=", ID(switch_variable), deepcopy(body_entry)),
+                    Assignment("=", ID(switch_variable), deepcopy(exit)),
                 ),
                 Break(),
             ],
         )
         self.cases.append(test_case)
         entry_case = Case(
-            Constant("int", entry),
+            deepcopy(entry),
             [
                 self.get_labelled_stmt(
                     label,
-                    Assignment("=", ID(switch_variable), Constant("int", body_entry)),
+                    Assignment("=", ID(switch_variable), deepcopy(body_entry)),
                 ),
                 Break(),
             ],
@@ -3696,12 +3741,12 @@ class ControlFlowFlattener(NodeVisitor):
         if for_stmt.init is not None:
             test_entry = self.get_unique_number()
             entry_case = Case(
-                Constant("int", entry),
+                deepcopy(entry),
                 [
                     self.get_labelled_stmt(
                         label, for_stmt.init
                     ),
-                    Assignment("=", ID(switch_variable), Constant("int", test_entry)),
+                    Assignment("=", ID(switch_variable), deepcopy(test_entry)),
                     Break(),
                 ],
             )
@@ -3711,22 +3756,22 @@ class ControlFlowFlattener(NodeVisitor):
         inc_entry = self.get_unique_number()
         body_entry = self.get_unique_number()
         test_case = Case(
-            Constant("int", test_entry),
+            deepcopy(test_entry),
             [
                 If(
                     for_stmt.cond if for_stmt.cond is not None else Constant("int", "1"),
-                    Assignment("=", ID(switch_variable), Constant("int", body_entry)),
-                    Assignment("=", ID(switch_variable), Constant("int", exit)),
+                    Assignment("=", ID(switch_variable), deepcopy(body_entry)),
+                    Assignment("=", ID(switch_variable), deepcopy(exit)),
                 ),
                 Break(),
             ],
         )
         self.cases.append(test_case)
         inc_case = Case(
-            Constant("int", inc_entry),
+            deepcopy(inc_entry),
             ([for_stmt.next] if for_stmt.next is not None else []) +
             [
-                Assignment("=", ID(switch_variable), Constant("int", test_entry)),
+                Assignment("=", ID(switch_variable), deepcopy(test_entry)),
                 Break(),
             ],
         )
@@ -3739,7 +3784,7 @@ class ControlFlowFlattener(NodeVisitor):
 
     def transform_sequence(self, sequence, entry, exit):
         stmts = []
-        case = Case(Constant("int", entry), stmts)
+        case = Case(deepcopy(entry), stmts)
         for stmt in sequence:
             stmt, label = stmt
             if isinstance(stmt, Continue):
@@ -3749,7 +3794,7 @@ class ControlFlowFlattener(NodeVisitor):
                         Assignment(
                             "=",
                             ID(self.levels[self.continues[-1][0] - 1][0]),
-                            Constant("int", self.continues[-1][1]),
+                            deepcopy(self.continues[-1][1]),
                         ),
                     )
                 )
@@ -3764,7 +3809,7 @@ class ControlFlowFlattener(NodeVisitor):
                         Assignment(
                             "=",
                             ID(self.levels[self.breaks[-1][0] - 1][0]),
-                            Constant("int", self.breaks[-1][1]),
+                            deepcopy(self.breaks[-1][1]),
                         ),
                     )
                 )
@@ -3774,7 +3819,7 @@ class ControlFlowFlattener(NodeVisitor):
                     stmts.append(Break())
             else:
                 stmts.append(self.get_labelled_stmt(label, stmt))
-        stmts.append(Assignment("=", ID(self.levels[-1][0]), Constant("int", exit)))
+        stmts.append(Assignment("=", ID(self.levels[-1][0]), deepcopy(exit)))
         stmts.append(Break())
         self.cases.append(case)
 
@@ -3796,6 +3841,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.function_decls = None
         self.current_function = None
         self.cur_number = 0
+        self.numbers = set()
 
     def visit_Decl(self, node):
         if self.current_function is None:
@@ -3917,28 +3963,59 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
     )  # TODO talk about this limitation of pycparser in my report - downside to switching / Open source!
     type = TransformType.STRUCTURAL
 
-    def __init__(self):
-        self.traverser = ControlFlowFlattener()
+    def __init__(self, randomise_cases: bool, style: ControlFlowFlattener.Style):
+        self.randomise_cases = randomise_cases
+        self.style = style
+        self.traverser = ControlFlowFlattener(randomise_cases, style)
 
     def transform(self, source: CSource) -> CSource:
         self.traverser.visit(source.t_unit)
         new_contents = generate_new_contents(source)
         return CSource(source.fpath, new_contents, source.t_unit)
 
-    def edit_cli(self) -> bool:  # TODO case number randomisation options
-        return True  # TODO
+    def edit_cli(self) -> bool:
+        options = ["Randomise case order", "Do not randomise case order"]
+        prompt = "\nYou have currently selected to{} randomise the case order.\n".format("" if self.randomise_cases else " not")
+        prompt += "Select whether you would like to randomise the generated case order or not.\n"
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return False
+        randomise_cases = choice == 0
+        options = [s.value for s in ControlFlowFlattener.Style]
+        prompt = f"\nThe current case generation style is '{self.style.value}'.\n"
+        prompt += "Choose a new style for control flow flattening case generation.\n"
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return False
+        self.randomise_cases = randomise_cases
+        self.traverser.randomise_cases = randomise_cases
+        self.style = ControlFlowFlattener.Style(options[choice])
+        self.traverser.style = self.style
+        return True
 
-    def get_cli() -> Optional[
-        "ControlFlowFlattenUnit"
-    ]:  # TODO case number randomisation options
-        return ControlFlowFlattenUnit()  # TODO
+    def get_cli() -> Optional["ControlFlowFlattenUnit"]:
+        options = ["Randomise case order", "Do not randomise case order"]
+        prompt = "\nSelect whether you would like to randomise the generated case order or not.\n"
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return None
+        randomise_cases = choice == 0
+        options = [s.value for s in ControlFlowFlattener.Style]
+        prompt = "\nChoose a style for the cases generated in control flow flattening.\n"
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return None
+        style = ControlFlowFlattener.Style(options[choice])
+        return ControlFlowFlattenUnit(randomise_cases, style)
 
     def to_json(self):
         """Converts the opaque insertion unit to a JSON string.
 
         Returns:
             (str) The corresponding serialised JSON string."""
-        return json.dumps({"type": str(__class__.name)})
+        return json.dumps({"type": str(__class__.name),
+                           "randomise_cases": self.randomise_cases,
+                           "style": self.style.name})
 
     def from_json(json_str: str) -> Optional["ControlFlowFlattenUnit"]:
         """Converts the provided JSON string to a control flow flattening transformation, if possible.
@@ -3968,10 +4045,50 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
                 print_err=True,
             )
             return None
-        return ControlFlowFlattenUnit()
+        elif "randomise_cases" not in json_obj:
+            log(
+                "Failed to load FlattenControlFlow() - no case randomisation flag value provided.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["randomise_cases"], bool):
+            log(
+                "Failed to load FlattenControlFlow() - case randomisation flag value is not a Boolean.",
+                print_err=True,
+            )
+            return None
+        elif "style" not in json_obj:
+            log(
+                "Failed to load FlattenControlFlow() - no style value provided.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["style"], str):
+            log(
+                "Failed to load FlattenControlFlow() - style is not a valid string.",
+                print_err=True,
+            )
+            return None
+        elif json_obj["style"] not in [
+            style.name for style in ControlFlowFlattener.Style
+        ]:
+            log(
+                "Failed to load FlattenControlFlow() - style '{}' is not a valid style.".format(
+                    json_obj["style"]
+                ),
+                print_err=True,
+            )
+            return None
+        return ControlFlowFlattenUnit(
+            json_obj["randomise_cases"],
+            {style.name: style for style in ControlFlowFlattener.Style}[
+                json_obj["style"]
+            ])
 
     def __str__(self) -> str:
-        return "FlattenControlFlow()"
+        randomise_flag = f"random_order={'ENABLED' if self.randomise_cases else 'DISABLED'}"
+        style_flag = f"style={self.style.name}"
+        return f"FlattenControlFlow({randomise_flag},{style_flag})"
 
 
 class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?

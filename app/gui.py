@@ -794,18 +794,77 @@ class GuiInsertOpaqueUnit(InsertOpaqueUnit):
 
 
 class GuiControlFlowFlattenUnit(ControlFlowFlattenUnit):
-    
+
+    def __init__(self, *args, **kwargs):
+        super(GuiControlFlowFlattenUnit, self).__init__(*args, **kwargs)
+        self.style_buttons = None
+        self.randomise_cases_checkbox = None
+
     def edit_gui(self, parent: QWidget) -> None:
-        set_no_options_widget(parent)
+        layout = QVBoxLayout(parent)
+        style, self.style_buttons = generate_radio_button_widget(
+            "Case Expression Style:",
+            "The generation style to use when creating new cases for flattened\n"
+            "blocks in the control flow flattening procedure, dictating how cases\n"
+            "are labelled and transitioned between.",
+            {style.value: style for style in ControlFlowFlattener.Style},
+            self.style.value,
+            parent,
+            {
+                ControlFlowFlattener.Style.SEQUENTIAL.value: \
+                    "Generate new cases with sequentially generated integer expressions, e.g.\n"
+                    "  case 0: ...\n"
+                    "  case 1: ...\n"
+                    "  case 2: ...\n"
+                    "etc.",
+                ControlFlowFlattener.Style.RANDOM_INT.value: \
+                    "Generate new cases with random integer expressions, e.g.\n"
+                    "  case 12: ...\n"
+                    "  case 6: ...\n"
+                    "  case -37: ...\n"
+                    "etc.",
+                ControlFlowFlattener.Style.ENUMERATOR.value: \
+                    "Generate new cases as enumerator values, e.g.\n"
+                    "  enum x = {ABC, DEF, GHI}\n"
+                    "  switch (x) {\n"
+                    "    case ABC: ...\n"
+                    "    case DEF: ...\n"
+                    "    case GHI: ...\n"
+                    "  }\n"
+                    "etc.",
+            }
+        )
+        layout.addWidget(style, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        randomise_cases, self.randomise_cases_checkbox = generate_checkbox_widget(
+            "Randomise Case Order?",
+            "Randomises the order within which cases are dispatched within switch statements during\n"
+            "control flow flattening, such that it is more difficult to follow the code's original\n"
+            "sequential structure by reading through cases sequentially.", # TODO make this default?
+            self.randomise_cases,
+            parent
+        )
+        layout.addWidget(randomise_cases, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        parent.setLayout(layout)
     
     def load_gui_values(self) -> None:
-        return
+        if self.style_buttons is not None and len(self.style_buttons) > 0:
+            for button, style in self.style_buttons.items():
+                if button.isChecked():
+                    self.style = style
+                    self.traverser.style = style
+                    break
+        if self.randomise_cases_checkbox is not None:
+            self.randomise_cases = self.randomise_cases_checkbox.isChecked()
+            self.traverser.randomise_cases = self.randomise_cases
     
     def from_json(json_str: str) -> None:
-        return GuiControlFlowFlattenUnit()
+        unit = ControlFlowFlattenUnit.from_json(json_str)
+        if unit is None:
+            return None
+        return GuiControlFlowFlattenUnit(unit.randomise_cases, unit.style)
     
     def get_gui() -> "GuiControlFlowFlattenUnit":
-        return GuiControlFlowFlattenUnit()
+        return GuiControlFlowFlattenUnit(False, ControlFlowFlattener.Style.SEQUENTIAL)
 
 
 class GuiClutterWhitespaceUnit(ClutterWhitespaceUnit):
@@ -1162,6 +1221,7 @@ class TransformOptionsForm(QFrame):
         self.layout.addWidget(self.options, 9)
         # TODO seems to be an issue - if you click on the label text the button doesn't work
         # but if you click on any other part of the back it does? Need to troubleshoot this
+        # TODO above *may* (or may not) have something to do with having source editor text highlighted?
         self.remove_button = QPushButton("Remove Transform", self)
         self.remove_button.setFont(QFont(DEFAULT_FONT, 12))
         self.remove_button.setStyleSheet(
