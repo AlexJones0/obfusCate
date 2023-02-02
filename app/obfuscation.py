@@ -236,7 +236,7 @@ class Pipeline:
                 "Failed to load composition file - supplied JSON contains no version field."
             )
             return None
-        elif json_obj["version"] != cfg.VERSION:            
+        elif json_obj["version"] != cfg.VERSION:
             log(
                 "Failed to load composition file - version mismatch. File is of version {}, running version {}".format(
                     json_obj["version"], cfg.VERSION
@@ -2693,28 +2693,31 @@ class AugmentOpaqueUnit(ObfuscationUnit):
 
 
 class BugGenerator(NodeVisitor):
-    
     def __init__(self, p_replace_op: float, p_change_constants: float):
         super(BugGenerator, self).__init__()
         self.p_replace_op = p_replace_op
         self.p_change_constants = p_change_constants
         self.reset()
-        
+
     def reset(self):
-        self.changed = False # Flag to guarantee at least 1 change if possible
+        self.changed = False  # Flag to guarantee at least 1 change if possible
         # so we can ensure that the generated statement is buggy (and not just
         # identical by random chance)
-    
+
     def visit_Constant(self, node):
-        if node.value is not None and (not self.changed or random.random() < self.p_change_constants):
+        if node.value is not None and (
+            not self.changed or random.random() < self.p_change_constants
+        ):
             if node.type is None:
                 pass
             elif (
                 node.type in ["int", "short", "long", "long long"]
                 and int(node.value) != 0
             ):
-                node.value = str(max(1, int(node.value) + random.choice([-3, -2, -1, 1, 2, 3])))
-                self.changed = True              
+                node.value = str(
+                    max(1, int(node.value) + random.choice([-3, -2, -1, 1, 2, 3]))
+                )
+                self.changed = True
             elif (
                 node.type in ["float", "double", "long double"]
                 and float(node.value) != 0.0
@@ -2741,21 +2744,22 @@ class BugGenerator(NodeVisitor):
     }
 
     def visit_BinaryOp(self, node):
-        if node.op in self.op_map and (not self.changed or random.random() < self.p_replace_op):
+        if node.op in self.op_map and (
+            not self.changed or random.random() < self.p_replace_op
+        ):
             node.op = random.choice(self.op_map[node.op])
             self.changed = True
         self.generic_visit(node)
-    
+
 
 class LabelFinder(NodeVisitor):
-    
     def __init__(self):
         super(LabelFinder, self).__init__()
         self.reset()
-        
+
     def reset(self):
         self.labels = set()
-        
+
     def visit_Label(self, node):
         if node.name is not None:
             self.labels.add(node)
@@ -3024,7 +3028,7 @@ class OpaqueInserter(NodeVisitor):
             (i, s)
             for i, s in enumerate(compound.block_items)
             if not isinstance(s, (Decl, Case, Default, Label))
-        ] # TODO with new label copying I don't think I need to check the label case any more?
+        ]  # TODO with new label copying I don't think I need to check the label case any more?
         if len(stmts) == 0:
             return False
         index, stmt = random.choice(stmts)
@@ -3445,7 +3449,7 @@ class ControlFlowFlattener(NodeVisitor):
         SEQUENTIAL = "Sequential Integers"
         RANDOM_INT = "Random Integers"
         ENUMERATOR = "Random Enum Members"
-    
+
     def __init__(self, randomise_cases: bool, style):
         self.reset()
         self.randomise_cases = randomise_cases
@@ -3480,14 +3484,17 @@ class ControlFlowFlattener(NodeVisitor):
             range_ = 2**power
             num = None
             while num is None or num in self.numbers:
-                num = random.randint(-range_, range_-1)
+                num = random.randint(-range_, range_ - 1)
             self.numbers.add(num)
             return Constant("int", str(num))
         elif self.style == self.Style.ENUMERATOR:
             exclude_set = self.numbers.union(set(level[0] for level in self.levels))
             # TODO: could use get_new_identifer for the set below instead?
             enum = self.analyzer.get_unique_identifier(
-                self.current_function, TypeKinds.NONSTRUCTURE, function=self.current_function, exclude=exclude_set
+                self.current_function,
+                TypeKinds.NONSTRUCTURE,
+                function=self.current_function,
+                exclude=exclude_set,
             )
             self.numbers.add(enum)
             return ID(enum)
@@ -3517,9 +3524,20 @@ class ControlFlowFlattener(NodeVisitor):
                 node, TypeKinds.STRUCTURE, node.body, node
             )
             new_statements = [
-                Decl(None, [], [], [], [], PyCPEnum(enumerator, EnumeratorList([])), None, None)
+                Decl(
+                    None,
+                    [],
+                    [],
+                    [],
+                    [],
+                    PyCPEnum(enumerator, EnumeratorList([])),
+                    None,
+                    None,
+                )
             ]
-            switch_var_type = TypeDecl(switch_variable, [], [], PyCPEnum(enumerator, None))
+            switch_var_type = TypeDecl(
+                switch_variable, [], [], PyCPEnum(enumerator, None)
+            )
         else:
             new_statements = []
             switch_var_type = TypeDecl(switch_variable, [], [], IdentifierType(["int"]))
@@ -3630,12 +3648,8 @@ class ControlFlowFlattener(NodeVisitor):
                     label,
                     If(
                         if_stmt.cond,
-                        Assignment(
-                            "=", ID(switch_variable), deepcopy(then_entry)
-                        ),
-                        Assignment(
-                            "=", ID(switch_variable), deepcopy(else_entry)
-                        ),
+                        Assignment("=", ID(switch_variable), deepcopy(then_entry)),
+                        Assignment("=", ID(switch_variable), deepcopy(else_entry)),
                     ),
                 ),
                 Break(),
@@ -3656,9 +3670,7 @@ class ControlFlowFlattener(NodeVisitor):
                     label,
                     If(
                         while_stmt.cond,
-                        Assignment(
-                            "=", ID(switch_variable), deepcopy(body_entry)
-                        ),
+                        Assignment("=", ID(switch_variable), deepcopy(body_entry)),
                         Assignment("=", ID(switch_variable), deepcopy(exit)),
                     ),
                 ),
@@ -3674,7 +3686,7 @@ class ControlFlowFlattener(NodeVisitor):
 
     def transform_switch(self, switch_stmt, entry, exit, label=None):
         # TODO feels like I might be able to do this without labels, i.e.
-        # Encode every label section as a block, then just make each block link 
+        # Encode every label section as a block, then just make each block link
         # to the next at the very end? Could work better, but not worth it for now
         switch_variable = self.levels[-1][0]
         switch_body = Compound([])
@@ -3782,9 +3794,7 @@ class ControlFlowFlattener(NodeVisitor):
             entry_case = Case(
                 deepcopy(entry),
                 [
-                    self.get_labelled_stmt(
-                        label, for_stmt.init
-                    ),
+                    self.get_labelled_stmt(label, for_stmt.init),
                     Assignment("=", ID(switch_variable), deepcopy(test_entry)),
                     Break(),
                 ],
@@ -3798,7 +3808,9 @@ class ControlFlowFlattener(NodeVisitor):
             deepcopy(test_entry),
             [
                 If(
-                    for_stmt.cond if for_stmt.cond is not None else Constant("int", "1"),
+                    for_stmt.cond
+                    if for_stmt.cond is not None
+                    else Constant("int", "1"),
                     Assignment("=", ID(switch_variable), deepcopy(body_entry)),
                     Assignment("=", ID(switch_variable), deepcopy(exit)),
                 ),
@@ -3808,8 +3820,8 @@ class ControlFlowFlattener(NodeVisitor):
         self.cases.append(test_case)
         inc_case = Case(
             deepcopy(inc_entry),
-            ([for_stmt.next] if for_stmt.next is not None else []) +
-            [
+            ([for_stmt.next] if for_stmt.next is not None else [])
+            + [
                 Assignment("=", ID(switch_variable), deepcopy(test_entry)),
                 Break(),
             ],
@@ -4014,7 +4026,11 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
 
     def edit_cli(self) -> bool:
         options = ["Randomise case order", "Do not randomise case order"]
-        prompt = "\nYou have currently selected to{} randomise the case order.\n".format("" if self.randomise_cases else " not")
+        prompt = (
+            "\nYou have currently selected to{} randomise the case order.\n".format(
+                "" if self.randomise_cases else " not"
+            )
+        )
         prompt += "Select whether you would like to randomise the generated case order or not.\n"
         choice = menu_driven_option(options, prompt)
         if choice == -1:
@@ -4040,7 +4056,9 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
             return None
         randomise_cases = choice == 0
         options = [s.value for s in ControlFlowFlattener.Style]
-        prompt = "\nChoose a style for the cases generated in control flow flattening.\n"
+        prompt = (
+            "\nChoose a style for the cases generated in control flow flattening.\n"
+        )
         choice = menu_driven_option(options, prompt)
         if choice == -1:
             return None
@@ -4052,9 +4070,13 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
 
         Returns:
             (str) The corresponding serialised JSON string."""
-        return json.dumps({"type": str(__class__.name),
-                           "randomise_cases": self.randomise_cases,
-                           "style": self.style.name})
+        return json.dumps(
+            {
+                "type": str(__class__.name),
+                "randomise_cases": self.randomise_cases,
+                "style": self.style.name,
+            }
+        )
 
     def from_json(json_str: str) -> Optional["ControlFlowFlattenUnit"]:
         """Converts the provided JSON string to a control flow flattening transformation, if possible.
@@ -4122,19 +4144,21 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
             json_obj["randomise_cases"],
             {style.name: style for style in ControlFlowFlattener.Style}[
                 json_obj["style"]
-            ])
+            ],
+        )
 
     def __str__(self) -> str:
-        randomise_flag = f"random_order={'ENABLED' if self.randomise_cases else 'DISABLED'}"
+        randomise_flag = (
+            f"random_order={'ENABLED' if self.randomise_cases else 'DISABLED'}"
+        )
         style_flag = f"style={self.style.name}"
         return f"FlattenControlFlow({randomise_flag},{style_flag})"
 
 
 class IndexReverser(NodeVisitor):
-    
     def __init__(self, probability: float) -> None:
         self.probability = probability
-    
+
     def visit_ArrayRef(self, node):
         if node.name is not None and node.subscript is not None:
             if random.random() < self.probability:
@@ -4143,11 +4167,11 @@ class IndexReverser(NodeVisitor):
 
 
 class ReverseIndexUnit(ObfuscationUnit):
-    """ Implements a simple source-level obfuscation in which array indexes e.g. a[i] are swapped
-        so that the index becomes the array and vice versa, e.g. i[a]. This exploits the symmetry
-        of indexing in C, as technically a[i] == *(a + i) == *(i + a) == i[a] by the commutativity
-        of the addition operation on integers."""
-        
+    """Implements a simple source-level obfuscation in which array indexes e.g. a[i] are swapped
+    so that the index becomes the array and vice versa, e.g. i[a]. This exploits the symmetry
+    of indexing in C, as technically a[i] == *(a + i) == *(i + a) == i[a] by the commutativity
+    of the addition operation on integers."""
+
     name = "Reverse Indexes"
     description = "Reverses indexing operations, swapping the array and the index"
     extended_description = (
@@ -4156,18 +4180,18 @@ class ReverseIndexUnit(ObfuscationUnit):
         "comprehend at a glance. This exploits the symmetry of indexing in C, as technically\n"
         "a[i] == *(a + i) == *(i + a) == i[a] by the commutativity of the addition operation."
     )
-    type = TransformType.LEXICAL # TODO lexical or encoding?
-    
+    type = TransformType.LEXICAL  # TODO lexical or encoding?
+
     def __init__(self, probability: float) -> None:
         self.probability = probability
         self.traverser = IndexReverser(probability)
-    
+
     def transform(self, source: CSource) -> CSource:
         self.traverser.visit(source.t_unit)
         new_contents = generate_new_contents(source)
         return CSource(source.fpath, new_contents, source.t_unit)
 
-    def edit_cli(self) -> bool: 
+    def edit_cli(self) -> bool:
         print(f"The current probability of index reversal is {self.probability}.")
         print("What is the new probability (0.0 <= p <= 1.0) of reversal?")
         prob = get_float(0.0, 1.0)
@@ -4189,7 +4213,9 @@ class ReverseIndexUnit(ObfuscationUnit):
 
         Returns:
             (str) The corresponding serialised JSON string."""
-        return json.dumps({"type": str(__class__.name), "probability": self.probability})
+        return json.dumps(
+            {"type": str(__class__.name), "probability": self.probability}
+        )
 
     def from_json(json_str: str) -> Optional["ReverseIndexUnit"]:
         """Converts the provided JSON string to an index reversing transformation, if possible.
@@ -4208,9 +4234,7 @@ class ReverseIndexUnit(ObfuscationUnit):
             )
             return None
         if "type" not in json_obj:
-            log(
-                "Failed to load ReverseIndexes() - no type provided.", print_err=True
-            )
+            log("Failed to load ReverseIndexes() - no type provided.", print_err=True)
             return None
         elif json_obj["type"] != __class__.name:
             log(
@@ -4219,21 +4243,32 @@ class ReverseIndexUnit(ObfuscationUnit):
             )
             return None
         elif "probability" not in json_obj:
-            log("Failed to load ReverseIndexes() - no probability provided.", print_err=True)
+            log(
+                "Failed to load ReverseIndexes() - no probability provided.",
+                print_err=True,
+            )
             return None
         elif not isinstance(json_obj["probability"], (float, int)):
-            log("Failed to load ReverseIndexes() - given probability {} is not a valid number.".format(json_obj["probability"]), print_err=True)
+            log(
+                "Failed to load ReverseIndexes() - given probability {} is not a valid number.".format(
+                    json_obj["probability"]
+                ),
+                print_err=True,
+            )
             return None
         elif json_obj["probability"] < 0 or json_obj["probability"] > 1:
-            log("Failed to load ReverseIndexes() - given probability {} is not 0 <= p <= 1.".format(json_obj["probability"]), print_err=True)
+            log(
+                "Failed to load ReverseIndexes() - given probability {} is not 0 <= p <= 1.".format(
+                    json_obj["probability"]
+                ),
+                print_err=True,
+            )
             return None
         return ReverseIndexUnit(json_obj["probability"])
 
     def __str__(self):
         probability_flag = f"p={self.probability}"
         return f"ReverseIndexes({probability_flag})"
-    
-    
 
 
 class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
@@ -4252,8 +4287,10 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
     )
     type = TransformType.LEXICAL
 
-    def __init__(self): # TODO could add a random line length option in the future
-        pass
+    def __init__(self, target_length: int, pad_lines: bool):
+        # TODO could add a random line length option in the future
+        self.target_length = target_length
+        self.pad_lines = pad_lines
 
     def transform(self, source: CSource) -> CSource:
         # Preprocess contents
@@ -4268,15 +4305,12 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
         generator = c_generator.CGenerator()
         contents = generator.visit(source.t_unit)
         # Initialise lexer
-        discard_f = lambda: None
-        lexer = c_lexer.CLexer(discard_f, discard_f, discard_f, lambda tok: None)
+        lexer = c_lexer.CLexer(
+            lambda: None, lambda: None, lambda: None, lambda tok: None
+        )
         lexer.build()
         lexer.input(contents)
         # Lex tokens and format according to whitespace rules
-        cur_line_length = 0
-        max_line_length = 100  # TODO max line length option? All on one line? Random?
-        token = lexer.token()
-        prev = None
         spaced_tokens = c_lexer.CLexer.keywords + c_lexer.CLexer.keywords_new + ("ID",)
         spaced_end_tokens = spaced_tokens + (
             "INT_CONST_DEC",
@@ -4287,55 +4321,122 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
             "FLOAT_CONST",
             "HEX_FLOAT_CONST",
         )
+        cur_line_length = 0
+        cur_line = []
+        token = lexer.token()
+        prev = None
         while token is not None:
             addSpace = (
                 prev is not None
                 and prev.type in spaced_tokens
                 and token.type in spaced_end_tokens
             )
-            cur_line_length += len(token.value) + (1 if addSpace else 0)
-            if cur_line_length <= max_line_length:
+            cur_line_length += (1 if addSpace else 0) + len(token.value)
+            if cur_line_length <= self.target_length:
                 if addSpace:
-                    new_contents += " "
-                new_contents += token.value
-            elif (
-                token.type
-                in (
-                    "STRING_LITERAL",
-                    "WSTRING_LITERAL",
-                    "U8STRING_LITERAL",
-                    "U16STRING_LITERAL",
-                    "U32STRING_LITERAL",
-                )
-                and cur_line_length - len(token.value) >= 4
-            ):
-                split_size = max_line_length - cur_line_length + len(token.value) - 1
-                if addSpace:
-                    new_contents += " "
-                    split_size -= 1
-                new_contents += token.value[:split_size] + token.value[0] + "\n"
-                cur_line_length = 0
-                token.value = token.value[0] + token.value[split_size:]
-                continue
+                    cur_line.append(" ")
+                cur_line.append(token.value)
+            # TODO do escape characters make this non-salvageable? How can I detect these cases?
+            #elif (
+            #    token.type
+            #    in (
+            #        "STRING_LITERAL",
+            #        "WSTRING_LITERAL",
+            #        "U8STRING_LITERAL",
+            #        "U16STRING_LITERAL",
+            #        "U32STRING_LITERAL",
+            #    )
+            #    and cur_line_length - len(token.value) >= 4
+            #):  # Split strings across multiple lines where possible and required
+                #split_size = self.target_length - cur_line_length + len(token.value) - 1
+                #if addSpace:
+                #    cur_line.append(" ")
+                #    split_size -= 1
+                #cur_line.append(token.value[:split_size] + token.value[0] + "\n")
+                #new_contents += "".join(cur_line)
+                #cur_line = []
+                #cur_line_length = 0
+                #token.value = token.value[0] + token.value[split_size:]
+                #continue
             else:
-                cur_line_length = len(token.value)
-                new_contents += "\n" + token.value
+                cur_line_length -= (1 if addSpace else 0) + len(token.value)
+                if len(cur_line) > 0 and cur_line_length <= self.target_length:
+                    if self.pad_lines and len(cur_line) > 1:
+                        # Pad from a random position in random increments of 1-3 so
+                        # that padding is adequately spread out
+                        token_index = random.randint(0, max(0, len(cur_line) - 2))
+                        while cur_line_length < self.target_length:
+                            cur_line[token_index] = cur_line[token_index] + " "
+                            cur_line_length += 1
+                            token_index = (token_index + random.randint(1, 3)) % (
+                                len(cur_line) - 1
+                            )
+                    cur_line.append("\n")
+                    new_contents += "".join(cur_line)
+                    cur_line = [token.value]
+                    cur_line_length = len(token.value)
+                elif len(cur_line) > 0:
+                    cur_line.append("\n")
+                    new_contents += "".join(cur_line)
+                    cur_line = [token.value]
+                    cur_line_length = len(token.value)
+                else:  # Nothing else on line and token size > max -> Must overflow
+                    new_contents += token.value + "\n"
+                    cur_line = []
+                    cur_line_length = 0
             prev = token
             token = lexer.token()
+        if len(cur_line) != 0:
+            cur_line.append("\n")
+            new_contents += "".join(cur_line)
         return CSource(source.fpath, new_contents, source.t_unit)
 
     def edit_cli(self) -> bool:
+        print(f"The current target maximum line length is {self.target_length}.")
+        print(
+            "What target maximum line length (l >= 0) should be used? (recommended: l = 100)"
+        )
+        target_length = get_int(0, None)
+        if target_length is None:
+            return False
+        options = ["Pad lines to max length", "Do not pad lines to max length"]
+        prompt = "\nYou have currently selected to{} pad the generated lines.\n".format(
+            "" if self.pad_lines else " not"
+        )
+        prompt += "Select whether you would like to pad the generated lines to max length (where possible) or not.\n"
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return False
+        self.target_length = target_length
+        self.pad_lines = choice == 0
         return True
 
     def get_cli() -> Optional["ClutterWhitespaceUnit"]:
-        return ClutterWhitespaceUnit()
+        print(
+            "What target maximum line length (l >= 0) should be used? (recommended: l = 100)"
+        )
+        target_length = get_int(0, None)
+        if target_length is None:
+            return False
+        options = ["Pad lines to max length", "Do not pad lines to max length"]
+        prompt = "\nSelect whether you would like to pad the generated lines to max length (where possible) or not.\n"
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return None
+        return ClutterWhitespaceUnit(target_length, choice == 0)
 
     def to_json(self) -> str:
         """Converts the whitespace cluttering unit to a JSON string.
 
         Returns:
             (str) The corresponding serialised JSON string."""
-        return json.dumps({"type": str(__class__.name)})
+        return json.dumps(
+            {
+                "type": str(__class__.name),
+                "target_length": self.target_length,
+                "pad_lines": self.pad_lines,
+            }
+        )
 
     def from_json(json_str: str) -> Optional["ClutterWhitespaceUnit"]:
         """Converts the provided JSON string to a whitespace cluttering transformation, if possible.
@@ -4364,10 +4465,46 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
                 print_err=True,
             )
             return None
-        return ClutterWhitespaceUnit()
+        elif "target_length" not in json_obj:
+            log(
+                "Failed to load ClutterWhitespace() - target length not provided.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["target_length"], int):
+            log(
+                "Failed to load ClutterWhitespace() - target length {} is not a valid integer.".format(
+                    json_obj["target_length"]
+                ),
+                print_err=True,
+            )
+            return None
+        elif json_obj["target_length"] < 0:
+            log(
+                "Failed to load ClutterWhitespace() - target length {} is not >= 0.".format(
+                    json_obj["target_length"]
+                ),
+                print_err=True,
+            )
+            return None
+        elif "pad_lines" not in json_obj:
+            log(
+                "Failed to load ClutterWhitespace() - line padding flag not provided.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["pad_lines"], bool):
+            log(
+                "Failed to load ClutterWhitespace() - line padding flag is not a valid Boolean.",
+                print_err=True,
+            )
+            return None
+        return ClutterWhitespaceUnit(json_obj["target_length"], json_obj["pad_lines"])
 
     def __str__(self):
-        return "ClutterWhitespace()"
+        target_length_flag = f"target_len={self.target_length}"
+        pad_flag = f"padding={'ENABLED' if self.pad_lines else 'DISABLED'}"
+        return f"ClutterWhitespace({target_length_flag},{pad_flag})"
 
 
 class DiTriGraphEncodeUnit(ObfuscationUnit):

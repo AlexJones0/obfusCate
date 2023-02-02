@@ -914,18 +914,55 @@ class GuiReverseIndexUnit(ReverseIndexUnit):
 
 
 class GuiClutterWhitespaceUnit(ClutterWhitespaceUnit):
+
+    def __init__(self, *args, **kwargs):
+        super(GuiClutterWhitespaceUnit, self).__init__(*args, **kwargs)
+        self.target_length_entry = None
+        self.pad_lines_checkbox = None
     
     def edit_gui(self, parent: QWidget) -> None:
-        set_no_options_widget(parent)
+        layout = QVBoxLayout(parent)
+        target_length, self.target_length_entry = generate_integer_widget(
+            "Target Line Length:",
+            "The target maximum line length to aim to achieve when altering whitespace.\n"
+            "The line length will always be less than or equal to this, unless a single\n"
+            "token is greater than this length (e.g. a very long variable name). If the\n"
+            "padding option is set, this is the length that will be padded towards.",
+            self.target_length,
+            0,
+            2147483647,
+            parent
+        )
+        layout.addWidget(target_length, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        pad_lines, self.pad_lines_checkbox = generate_checkbox_widget(
+            "Pad Lines?",
+            "Where possible, this pads lines by inserting extra spaces between tokens, such that all\n"
+            "lines (except those with pre-processor directives) are padded to the set target length.",
+            self.pad_lines,
+            parent
+        )
+        layout.addWidget(pad_lines, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        parent.setLayout(layout)
     
     def load_gui_values(self) -> None:
-        return
+        if self.target_length_entry is not None:
+            try:
+                self.target_length = int(self.target_length_entry.text())
+                if self.target_length < 0:
+                    self.target_length = 0
+            except:
+                self.target_length = 3
+        if self.pad_lines_checkbox is not None:
+            self.pad_lines = self.pad_lines_checkbox.isChecked()
     
     def from_json(json_str: str) -> None:
-        return GuiClutterWhitespaceUnit()
+        unit = ClutterWhitespaceUnit.from_json(json_str)
+        if unit is None:
+            return None
+        return GuiClutterWhitespaceUnit(unit.target_length, unit.pad_lines)
     
     def get_gui() -> "GuiClutterWhitespaceUnit":
-        return GuiClutterWhitespaceUnit()
+        return GuiClutterWhitespaceUnit(100, True)
 
 
 class GuiDiTriGraphEncodeUnit(DiTriGraphEncodeUnit):
