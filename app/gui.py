@@ -1140,7 +1140,7 @@ class TransformWidget(QWidget):
         self.buttons_widget.layout.setContentsMargins(0, 0, 0, 0)
         self.buttons_widget.layout.setSpacing(0)
         self.info_symbol = QLabel(self)
-        self.info_symbol.setPixmap(QPixmap(".\\app\\graphics\\info.png").scaled(21, 21))
+        self.info_symbol.setPixmap(QIcon(".\\app\\graphics\\info.png").pixmap(QSize(21,21)))
         self.info_symbol.setToolTip(class_.extended_description)
         QToolTip.setFont(QFont(DEFAULT_FONT, 13))
         self.info_symbol.setStyleSheet(GENERAL_TOOLTIP_CSS)
