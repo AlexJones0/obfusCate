@@ -1823,7 +1823,7 @@ class NameLabel(QWidget):
     
     def __init__(self, icon: QIcon, icon_size: QSize, filename: str, parent: QWidget = None) -> None:
         super(NameLabel, self).__init__(parent)
-        self.layout = QHBoxLayout(parent)
+        self.layout = QHBoxLayout(self)
         self.layout.setContentsMargins(8, 0, 0, 0)
         self.layout.setSpacing(5)
         self.setLayout(self.layout)
