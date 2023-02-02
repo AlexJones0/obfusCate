@@ -2176,6 +2176,7 @@ class ArithmeticEncodeTraverser(NodeVisitor):
         for child in node.children():
             if isinstance(child[1], (UnaryOp, BinaryOp)):
                 current = child[1]
+                # TODO is this correct, or should I check .expr and .left/.right instead?
                 if not self.analyzer.is_type(current, ExpressionTypeAnalyzer.SimpleType.INT):
                     continue
                 applied_count = 0
@@ -2220,17 +2221,14 @@ class ArithmeticEncodeUnit(ObfuscationUnit):
     name = "Integer Arithmetic Encoding"
     description = "Encode integer variable arithmetic to make code less comprehensible"
     extended_description = (
-        """<html>This transformation encodes arithmetic operations within the code, replacing simple\n"""
+        """This transformation encodes arithmetic operations within the code, replacing simple\n"""
         """additions and multipliations with compound combinations of bitwise operations and\n"""
         """alternative arithmetic. When performed on arithmetic dependent upon inputs, this cannot be\n"""
-        """optimised out by a compiler and will greatly increase obfuscation.<br><br>\n\n"""
+        """optimised out by a compiler and will greatly increase obfuscation.\n\n"""
         """The only available option is the encoding depth - arithmetic operations within encoded\n"""
         """arithmetic operations can be recursively encoded to increase code complexity, and so depth\n"""
         """refers to the maximum recursive encoding depth that is allowed. A value > 5 is not recommended\n"""
-        """due to the potential slowdown.<br><br>\n\n"""
-        """<b>Warning:</b> This does not currently work with programs with float operations. All\n"""
-        """arithmetic is encoded, and there is currently no type analysis done to only encode integer\n"""
-        """operations. Do not use in programs with floats for now.<\html>"""
+        """due to the potential slowdown."""
     )
     type = TransformType.ENCODING
 
