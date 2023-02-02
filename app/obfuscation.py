@@ -6,6 +6,7 @@ from .utils import (
     NewVariableUseAnalyzer,
     TypeKinds,
     ExpressionTypeAnalyzer,
+    FormattedCGenerator,
     is_initialised,
 )  # TODO remove if not used
 from .debug import *
@@ -57,7 +58,7 @@ def generate_new_contents(source: CSource) -> str:
             or line.strip().startswith("??=")
         ):
             new_contents += line + "\n"
-    generator = c_generator.CGenerator()
+    generator = c_generator.CGenerator(True)
     new_contents += generator.visit(source.t_unit)
     return new_contents
 
@@ -788,13 +789,25 @@ class FuncArgRandomiserTraverser(NodeVisitor):
         self.generic_visit(node)
         self.current_func = old_func
 
+    def get_fname(self, node): # TODO is this fix good enough?
+        while isinstance(node, (PtrDecl, ArrayDecl)):
+            node = node.type
+        if isinstance(node, TypeDecl) and node.declname is not None:
+            return node.declname
+        else:
+            return None
+
     def visit_FuncDecl(self, node):
         # TODO this code could use some major cleaning up!
-        if self.walk_num != 1:
+        if self.walk_num != 1 or node.type is None:
+            if self.walk_num == 1: # TODO remove testing
+                print(node) 
             return NodeVisitor.generic_visit(self, node)
         defined_idents = self.analyzer.idents
         fdecl = node
-        fname = fdecl.type.declname
+        fname = self.get_fname(fdecl.type)
+        if fname is None:
+            return NodeVisitor.generic_visit(self, node)
         if fname == "main":
             return NodeVisitor.generic_visit(self, node)
         if fname not in self.func_args:

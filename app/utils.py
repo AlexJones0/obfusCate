@@ -3,6 +3,7 @@ from .interaction import CSource
 from .debug import *
 from pycparser.c_ast import *
 from pycparser.c_lexer import CLexer
+from pycparser.c_generator import CGenerator
 from string import ascii_letters
 import enum
 
@@ -1496,3 +1497,32 @@ class ExpressionTypeAnalyzer(NodeVisitor):
             self.types[node] = self.get_var_type(node.name)
     
     # TODO what is a CompoundLiteral? Do I need to account for it?
+
+
+# TODO: abandoned for now, maybe finish another time?
+class FormattedCGenerator(CGenerator):
+    # NOTE: my code, but highly based on the original CGenerator object
+    # which is being extended - I'm just replacing some of its functions
+    # to remove whitespace that is being generated.
+    # See: https://github.com/eliben/pycparser/blob/master/pycparser/c_generator.py
+    
+    def visit_FuncDef(self, node):
+        decl = self.visit(node.decl)
+        self.indent_level = 0
+        body = self.visit(node.body)
+        if node.param_decls:
+            params = ';\n'.join(self.visit(p) for p in node.param_decls)
+            return decl + '\n' + params + '; ' + body + ''
+        else:
+            return decl + ' ' + body + ''
+        
+    def visit_If(self, node):
+        string = 'if ('
+        if node.cond: 
+            string += self.visit(node.cond)
+        string += ') '
+        string += self._generate_stmt(node.iftrue, add_indent=False)
+        if node.iffalse:
+            string += self._make_indent() + 'else '
+            string += self._generate_stmt(node.iffalse, add_indent=False)
+        return string
