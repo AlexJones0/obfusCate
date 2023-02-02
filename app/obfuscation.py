@@ -2700,12 +2700,13 @@ class BugGenerator(NodeVisitor):
         self.reset()
 
     def reset(self):
+        self.in_case = False
         self.changed = False  # Flag to guarantee at least 1 change if possible
         # so we can ensure that the generated statement is buggy (and not just
         # identical by random chance)
 
     def visit_Constant(self, node):
-        if node.value is not None and (
+        if node.value is not None and not self.in_case and (
             not self.changed or random.random() < self.p_change_constants
         ):
             if node.type is None:
@@ -2750,6 +2751,16 @@ class BugGenerator(NodeVisitor):
             node.op = random.choice(self.op_map[node.op])
             self.changed = True
         self.generic_visit(node)
+    
+    def visit_Case(self, node):
+        was_in_case = self.in_case
+        self.in_case = True
+        if node.expr is not None:
+            NodeVisitor.generic_visit(self, node)
+        self.in_case = was_in_case
+        if node.stmts is not None:
+            for child in node.stmts:
+                NodeVisitor.generic_visit(self, child)
 
 
 class LabelFinder(NodeVisitor):
