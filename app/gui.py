@@ -933,7 +933,7 @@ class GuiClutterWhitespaceUnit(ClutterWhitespaceUnit):
             2147483647,
             parent
         )
-        layout.addWidget(target_length, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        layout.addWidget(target_length, alignment=Qt.AlignmentFlag.AlignTop)
         pad_lines, self.pad_lines_checkbox = generate_checkbox_widget(
             "Pad Lines?",
             "Where possible, this pads lines by inserting extra spaces between tokens, such that all\n"
@@ -941,7 +941,7 @@ class GuiClutterWhitespaceUnit(ClutterWhitespaceUnit):
             self.pad_lines,
             parent
         )
-        layout.addWidget(pad_lines, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        layout.addWidget(pad_lines, alignment=Qt.AlignmentFlag.AlignTop)
         parent.setLayout(layout)
     
     def load_gui_values(self) -> None:
@@ -1776,8 +1776,9 @@ class GeneralOptionsForm(QFrame):
 
 
 class SelectionForm(QWidget):  # TODO move selection and misc just into obfuscatewidget?
-    def __init__(self, parent: QWidget = None) -> None:
+    def __init__(self, resize_func: Callable, parent: QWidget = None) -> None:
         super(SelectionForm, self).__init__(parent)
+        self.resize_func = resize_func
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.available_form = AvailableForm(self.add_transform, self)
@@ -1785,6 +1786,10 @@ class SelectionForm(QWidget):  # TODO move selection and misc just into obfuscat
         self.current_form = CurrentForm(self)
         self.layout.addWidget(self.current_form, 1)
         self.setLayout(self.layout)
+
+    def resizeEvent(self, event) -> None:
+        super(SelectionForm, self).resizeEvent(event)
+        self.resize_func()
 
     def add_transform(self, class_):
         self.current_form.add_transform(class_)
@@ -1799,11 +1804,13 @@ class MiscForm(QWidget):
         source_form: SourceEditor,
         obfuscated_form: SourceEditor,
         remove_func: Callable,
+        resize_func: Callable,
         parent: QWidget = None,
     ) -> None:
         super(MiscForm, self).__init__(parent)
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
+        self.resize_func = resize_func
         self.transform_options = TransformOptionsForm(remove_func, self)
         self.layout.addWidget(
             self.transform_options, 1, alignment=Qt.AlignmentFlag.AlignTop
@@ -1817,6 +1824,10 @@ class MiscForm(QWidget):
             self.general_options, 1, alignment=Qt.AlignmentFlag.AlignBottom
         )  # TODO temp alignment
         self.setLayout(self.layout)
+    
+    def resizeEvent(self, event) -> None:
+        super(MiscForm, self).resizeEvent(event)
+        self.resize_func()
 
 
 class NameLabel(QWidget):
@@ -1893,7 +1904,7 @@ class ObfuscateWidget(QWidget):
         self.splitter.setStretchFactor(1, 1)
         self.splitter.splitterMoved.connect(self.update_namelabels)
         # Define column widgets for transform selection and miscallaneous options
-        self.selection_form = SelectionForm(self)
+        self.selection_form = SelectionForm(self.update_namelabels, self)
         self.misc_form = MiscForm(
             self.selection_form.current_form.get_transforms,
             self.selection_form.current_form.set_transforms,
@@ -1901,6 +1912,7 @@ class ObfuscateWidget(QWidget):
             self.source_editor,
             self.obfuscated_editor,
             self.selection_form.current_form.remove_selected,
+            self.update_namelabels,
             self,
         )
         self.selection_form.current_form.add_options_form(
@@ -1916,9 +1928,9 @@ class ObfuscateWidget(QWidget):
         self.top_layout.setStretch(3, self.selection_form.width() + self.misc_form.width())
 
     def update_namelabels(self) -> None:
-        source_size = self.source_editor.width()
+        source_size = self.source_editor.width() + self.main_layout.spacing()
         obfuscated_size = self.obfuscated_editor.width()
-        other_size = self.selection_form.width() + self.misc_form.width()
+        other_size = self.selection_form.width() + self.misc_form.width() + self.main_layout.spacing() * 2
         source_width = self.source_namelabel.label_width() + 16
         if not self.source_namelabel.isHidden() and source_size < source_width:
             self.source_namelabel.hide()
