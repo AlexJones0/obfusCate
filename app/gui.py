@@ -1235,6 +1235,9 @@ class SelectedTransformWidget(QWidget):
             "QLabel{ color: " + get_transform_colour(class_.type) + "; }"
         )
         self.box_widget.layout.addWidget(self.name_label)
+        sp = self.box_widget.sizePolicy()
+        sp.setRetainSizeWhenHidden(True)
+        self.box_widget.setSizePolicy(sp)
         self.layout.addWidget(self.box_widget, 9)
         self.layout.addSpacing(10)
         self.setLayout(self.layout)
@@ -1254,6 +1257,7 @@ class SelectedTransformWidget(QWidget):
             drag = QDrag(self)
             drag.setMimeData(QMimeData())
             drag.setPixmap(self.box_widget.grab())
+            self.box_widget.hide()
             drag.setHotSpot(event.pos() - self.box_widget.pos())
             drag.exec(Qt.DropAction.MoveAction)
 
@@ -1464,7 +1468,8 @@ class CurrentForm(QFrame):
         self.move_transform(index, source)
         event.accept()
 
-    def move_transform(self, new_index: int, source: QWidget) -> None:
+    def move_transform(self, new_index: int, source: SelectedTransformWidget) -> None:
+        source.box_widget.show()
         prev_index = self.selected_widgets.index(source)
         prev_transform = self.selected[prev_index]
         if prev_index < new_index:
