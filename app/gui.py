@@ -1057,11 +1057,12 @@ class CHighlighter(QSyntaxHighlighter):
 # TODO can I make the editors _not_ reset scroll unless necessary
 # when text is changed?
 class SourceEditor(QPlainTextEdit):
-    def __init__(self, parent: QWidget = None) -> None:
+    def __init__(self, file_label: QLabel, parent: QWidget = None) -> None:
         super(SourceEditor, self).__init__(parent)
+        self.file_label = file_label
         self.modified_from_read = True
         self.textChanged.connect(self.set_modified)
-        self.source = CSource("", "", FileAST([]))
+        self.source = CSource("obfuscated.c", "", FileAST([]))
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.setFont(QFont(CODE_FONT, 10))
         font_metrics = QFontMetricsF(self.font())
@@ -1091,6 +1092,9 @@ class SourceEditor(QPlainTextEdit):
         self.source = source
         self.setPlainText(source.contents)
         self.modified_from_read = False
+        if self.file_label is not None:
+            fname = source.fpath.split("\\")[-1].split("/")[-1]
+            self.file_label.setText("/" + fname)
     
     def set_modified(self):
         self.modified_from_read = True
@@ -1136,13 +1140,13 @@ class TransformWidget(QWidget):
         self.buttons_widget.layout.setContentsMargins(0, 0, 0, 0)
         self.buttons_widget.layout.setSpacing(0)
         self.info_symbol = QLabel(self)
-        self.info_symbol.setPixmap(QPixmap(".\\app\\graphics\\info.png").scaled(28, 28))
+        self.info_symbol.setPixmap(QPixmap(".\\app\\graphics\\info.png").scaled(21, 21))
         self.info_symbol.setToolTip(class_.extended_description)
         QToolTip.setFont(QFont(DEFAULT_FONT, 13))
         self.info_symbol.setStyleSheet(GENERAL_TOOLTIP_CSS)
         self.buttons_widget.layout.addSpacing(10)
         self.buttons_widget.layout.addWidget(self.info_symbol, 1)
-        self.buttons_widget.layout.addSpacing(20)
+        self.buttons_widget.layout.addSpacing(10)
         self.add_symbol = QPushButton("", self)
         self.add_symbol.setStyleSheet(
             """
@@ -1706,6 +1710,7 @@ class GeneralOptionsForm(QFrame):
         source.contents = self.__source_form_reference.toPlainText()
         if self.__source_form_reference.modified_from_read:
             source.update_t_unit()
+        source.fpath = self.__obfuscated_form_reference.source.fpath
         obfuscated = pipeline.process(source)
         self.__obfuscated_form_reference.add_source(obfuscated)
 
@@ -1814,18 +1819,79 @@ class MiscForm(QWidget):
         self.setLayout(self.layout)
 
 
+class NameLabel(QWidget):
+    
+    def __init__(self, icon: QIcon, icon_size: QSize, filename: str, parent: QWidget = None) -> None:
+        super(NameLabel, self).__init__(parent)
+        self.layout = QHBoxLayout(parent)
+        self.layout.setContentsMargins(8, 0, 0, 0)
+        self.layout.setSpacing(5)
+        self.setLayout(self.layout)
+        self.icon = icon
+        self.icon_label = QLabel()
+        self.icon_label.setPixmap(icon.pixmap(icon_size))
+        self.icon_label.setFixedSize(icon_size)
+        self.layout.addWidget(self.icon_label)
+        self.file_label = QLabel(filename, self)
+        self.file_label.setFont(QFont(CODE_FONT, 10))
+        self.file_label.setStyleSheet("QLabel{color: #FFFFFF;}")
+        self.layout.addWidget(self.file_label)
+        self.layout.addStretch()
+    
+    def label_width(self):
+        return self.icon_label.width() + self.file_label.width() + 8
+
+
 class ObfuscateWidget(QWidget):
     def __init__(self, parent: QWidget = None) -> None:
         super(ObfuscateWidget, self).__init__(parent)
-        self.layout = QHBoxLayout(self)
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)
+        # Define the icons/filename elements for source editors
+        self.top_widget = QWidget(self)
+        self.top_layout = QHBoxLayout(self.top_widget)
+        self.top_layout.setSpacing(0)
+        margins = self.top_layout.contentsMargins()
+        margins.setTop(3)
+        margins.setBottom(0)
+        # TODO every since I added namelabel code am getting print msg!? Why?
+        self.top_layout.setContentsMargins(margins)
+        self.top_layout.addStretch(0)
+        self.top_widget.setLayout(self.top_layout)
+        self.source_namelabel = NameLabel(
+            QIcon(".\\app\\graphics\\C.png"),
+            QSize(14, 14),
+            "/source.c",
+            self.top_widget
+        )
+        self.obfuscated_namelabel = NameLabel(
+            QIcon(".\\app\\graphics\\lock.png"),
+            QSize(14, 14),
+            "/obfuscated.c",
+            self.top_widget
+        )
+        self.top_layout.addWidget(self.source_namelabel, 3)
+        self.top_layout.addWidget(self.obfuscated_namelabel, 3)
+        self.top_layout.addStretch(4)
+        self.layout.addWidget(self.top_widget)
+        # Define the main body of the obfuscate widget
+        self.main_widget = QWidget(self)
+        self.main_layout = QHBoxLayout(self.main_widget)
+        margins = self.main_layout.contentsMargins()
+        margins.setTop(1)
+        self.main_layout.setContentsMargins(margins)
+        self.main_widget.setLayout(self.main_layout)
+        self.layout.addWidget(self.main_widget)
         # Define a splitter and both source editors
-        self.source_editor = SourceEditor(self)
-        self.obfuscated_editor = SourceEditor(self)
+        self.source_editor = SourceEditor(self.source_namelabel.file_label, self)
+        self.obfuscated_editor = SourceEditor(self.obfuscated_namelabel.file_label, self)
         self.splitter = QSplitter(Qt.Orientation.Horizontal, self)
         self.splitter.addWidget(self.source_editor)
         self.splitter.addWidget(self.obfuscated_editor)
         self.splitter.setStretchFactor(0, 1)
         self.splitter.setStretchFactor(1, 1)
+        self.splitter.splitterMoved.connect(self.update_namelabels)
         # Define column widgets for transform selection and miscallaneous options
         self.selection_form = SelectionForm(self)
         self.misc_form = MiscForm(
@@ -1841,13 +1907,39 @@ class ObfuscateWidget(QWidget):
             self.misc_form.transform_options
         )
         # Provide 60% of the screen to the source editors, 20% to selection, and 20% to misc options
-        self.layout.addWidget(self.splitter, 6)
-        self.layout.addWidget(self.selection_form, 2)
-        self.layout.addWidget(self.misc_form, 2)
+        self.main_layout.addWidget(self.splitter, 6)
+        self.main_layout.addWidget(self.selection_form, 2)
+        self.main_layout.addWidget(self.misc_form, 2)
         self.setLayout(self.layout)
+        self.top_layout.setStretch(1, self.source_editor.width())
+        self.top_layout.setStretch(2, self.obfuscated_editor.width())
+        self.top_layout.setStretch(3, self.selection_form.width() + self.misc_form.width())
+
+    def update_namelabels(self) -> None:
+        source_size = self.source_editor.width()
+        obfuscated_size = self.obfuscated_editor.width()
+        other_size = self.selection_form.width() + self.misc_form.width()
+        source_width = self.source_namelabel.label_width() + 16
+        if not self.source_namelabel.isHidden() and source_size < source_width:
+            self.source_namelabel.hide()
+        elif self.source_namelabel.isHidden() and source_size >= source_width:
+            self.source_namelabel.show()
+        obfuscated_width = self.obfuscated_namelabel.label_width() + 16
+        if not self.obfuscated_namelabel.isHidden() and obfuscated_size < obfuscated_width:
+            self.obfuscated_namelabel.hide()
+        elif self.obfuscated_namelabel.isHidden() and obfuscated_size >= obfuscated_width:
+            self.obfuscated_namelabel.show()
+        self.top_layout.setStretch(0, source_size if self.source_namelabel.isHidden() else 0)
+        self.top_layout.setStretch(1, source_size)
+        self.top_layout.setStretch(2, obfuscated_size)
+        self.top_layout.setStretch(3, other_size)
+    
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        val = super(ObfuscateWidget, self).resizeEvent(event)
+        self.update_namelabels()
+        return val
 
     def add_source(self, source: CSource) -> None:
-        self.textChanged = False
         self.source_editor.add_source(source)
 
 
@@ -1868,6 +1960,10 @@ class MainWindow(QMainWindow):
 
     def add_source(self, source: CSource) -> None:
         self.obfuscate_widget.add_source(source)
+    
+    def show(self, *args, **kwargs) -> None:
+        super(MainWindow, self).show(*args, **kwargs)
+        self.obfuscate_widget.update_namelabels()
 
 
 def handle_gui() -> bool:
@@ -1900,6 +1996,9 @@ def handle_gui() -> bool:
         if source.contents is None or not source.valid_parse:
             return False
         window.add_source(source)
+    if len(args) >= 2:
+        source = CSource(args[1], "") # TODO check this works
+        window.obfuscate_widget.obfuscated_editor.add_source(source)
     if config.COMPOSITION is not None:
         contents = load_composition_file(config.COMPOSITION)
         if contents is None:
