@@ -1,5 +1,6 @@
 from typing import Iterable, Optional, Callable
 from .interaction import CSource
+from .debug import *
 from pycparser.c_ast import *
 from pycparser.c_lexer import CLexer
 from string import ascii_letters
@@ -1150,3 +1151,348 @@ class VariableUseAnalyzer(NodeVisitor):
             "currentStmt"
         ]
         NodeVisitor.generic_visit(self, node)
+
+
+class ExpressionTypeAnalyzer(NodeVisitor):
+    
+    class SimpleType(Enum):
+        INT = 0
+        REAL = 1
+        OTHER = 2
+    
+    class Ptr:
+        def __init__(self, val):
+            self.val = val
+        
+        def __eq__(self, other):
+            return type(self) == type(other) and self.val == other.val
+    
+    class Array:
+        def __init__(self, val):
+            self.val = val
+        
+        def __eq__(self, other):
+            return type(self) == type(other) and self.val == other.val
+    
+    # TODO centralise these and combine with the opaque predicate types to reduce repetition
+    VALID_INT_TYPES = [
+        "int8_t",
+        "uint8_t",
+        "int16_t",
+        "uint16_t",
+        "int32_t",
+        "uint32_t",
+        "int64_t",
+        "uint64_t",
+        "char",
+        "unsigned char",
+        "signed char",
+        "unsigned int",
+        "signed int",
+        "int",
+        "unsigned short",
+        "unsigned short int",
+        "signed short",
+        "signed short int",
+        "short",
+        "short int",
+        "unsigned long",
+        "unsigned long int",
+        "signed long",
+        "signed long int",
+        "long",
+        "long int",
+        "unsigned long long",
+        "unsigned long long int",
+        "signed long long",
+        "signed long long int",
+        "long long",
+        "long long int",
+        "size_t",
+        "_Bool",
+    ]
+    VALID_REAL_TYPES = ["float", "double", "long double"]
+    
+    def __init__(self, t_unit: Node) -> None:
+        super(ExpressionTypeAnalyzer, self).__init__()
+        self.t_unit = t_unit
+        self.reset()
+    
+    def reset(self):
+        self.type_aliases = [] # Stack of scopes of defined type aliases
+        self.structs = [] # Stack of scopes of defined structs/union
+        self.defined = [] # Stack of scopes of defined variables
+        self.functions = {}
+        self.params = {}
+        self.in_param_list = False
+        self.types = {None: self.SimpleType.OTHER}
+        self.processed = False
+
+    def load(self, t_unit: CSource) -> None:
+        self.t_unit = t_unit
+        self.processed = False
+
+    def process(self) -> None:
+        self.visit(self.t_unit)
+        self.processed = True
+        
+    def is_type(self, expr: Node, type_) -> bool:
+        if expr not in self.types:
+            return type_ is None
+        return self.types[expr] == type_
+        
+    def get_type_alias(self, name):
+        for scope in self.type_aliases[::-1]:
+            if name in scope:
+                return scope[name]
+        return None
+    
+    def get_var_type(self, name):
+        for scope in self.defined[::-1]:
+            if name in scope:
+                return scope[name]
+        return None
+
+    def get_struct_type(self, name):
+        for scope in self.structs[::-1]:
+            if name in scope:
+                return scope[name]
+        return None
+    
+    def get_struct_field_type(self, struct, field):
+        for decl in struct.decls:
+            if decl.name is not None and decl.name == field and decl.type is not None:
+                return self.convert_type(decl.type)
+        return None
+    
+    def standard_coalesce_types(self, types):
+        if any([t == self.SimpleType.OTHER for t in types]):
+            return self.SimpleType.OTHER
+        elif any([t == self.SimpleType.REAL for t in types]):
+            return self.SimpleType.REAL
+        elif all([isinstance(t, self.Array) for t in types]):
+            # TODO not right but idk what it should be
+            return self.Array(self.standard_coalesce_types([t.val for t in types]))
+        elif any([isinstance(t, self.Ptr) for t in types]):
+            # TODO also not 100% sure if this is correct - seems to be?
+            vals = [t.val if isinstance(t, self.Ptr) else t for t in types]
+            return self.Ptr(self.standard_coalesce_types(vals))
+        else:
+            return self.SimpleType.INT
+            
+    def get_func_type(self, name):
+        if name in self.functions:
+            return self.functions[name]
+        return self.SimpleType.OTHER
+        
+    def visit_FileAST(self, node):
+        self.type_aliases.append({})
+        self.structs.append({})
+        self.defined.append({})
+        self.generic_visit(node)
+        self.defined = self.defined[:-1]
+        self.structs = self.structs[:-1]
+        self.type_aliases = self.type_aliases[:-1]
+
+    def visit_Compound(self, node):
+        self.type_aliases.append({})
+        self.structs.append({})
+        if self.in_param_list:
+            self.defined.append(self.params)
+            self.in_param_list = False
+        else:
+            self.defined.append({})
+        self.generic_visit(node)
+        self.defined = self.defined[:-1]
+        self.structs = self.structs[:-1]
+        self.type_aliases = self.type_aliases[:-1]
+    
+    def visit_ParamList(self, node):
+        self.params = {}
+        self.in_param_list = True
+        self.generic_visit(node)
+        
+    def convert_type(self, node):
+        if isinstance(node, PtrDecl):
+            return self.Ptr(self.convert_type(node.type))
+        elif isinstance(node, ArrayDecl):
+            return self.Array(self.convert_type(node.type))
+        elif isinstance(node, TypeDecl):
+            return self.convert_type(node.type)
+        elif isinstance(node, (IdentifierType, str)):
+            # TODO whill names (plural) cause a problem here?
+            if isinstance(node, IdentifierType):
+                if node.names is None or len(node.names) == 0:
+                    return self.SimpleType.OTHER
+                name = "".join(node.names)
+            else:
+                name = node
+            if name in self.VALID_INT_TYPES:
+                return self.SimpleType.INT
+            elif name in self.VALID_REAL_TYPES:
+                return self.SimpleType.REAL
+            alias = self.get_type_alias(name)
+            if alias is not None:
+                return alias
+            return self.SimpleType.OTHER
+        elif isinstance(node, (Struct, Union)):
+            if node.name is None:
+                return self.SimpleType.OTHER
+            struct = self.get_struct_type(node.name)
+            if struct is not None:
+                return struct
+            return self.SimpleType.OTHER
+        else:
+            return self.SimpleType.OTHER
+        
+    def visit_FuncDef(self, node):
+        if node.decl is not None and node.decl.name is not None and node.decl.type is not None and node.decl.type.type is not None:
+            self.functions[node.decl.name] = self.convert_type(node.decl.type.type)
+        self.generic_visit(node)
+    
+    def visit_Typedef(self, node):
+        if node.name is not None and node.type is not None:
+            self.type_aliases[-1][node.name] = self.convert_type(node.type)
+        self.generic_visit(node)
+    
+    def visit_Decl(self, node):
+        if node.name is not None and node.type is not None:
+            if self.in_param_list:
+                self.params[node.name] = self.convert_type(node.type)
+            else:
+                self.defined[-1][node.name] = self.convert_type(node.type)
+        self.generic_visit(node)
+            
+    def visit_UnaryOp(self, node):
+        self.generic_visit(node)
+        if node.expr is None or node.op is None:
+            return
+        if node.op in ["-", "+", "--", "p--", "++", "p++", "~"]:
+            self.types[node] = self.types[node.expr]
+        elif node.op in ["!", "sizeof"]:
+            self.types[node] = self.SimpleType.INT
+        elif node.op == "&":
+            self.types[node] = self.Ptr(self.types[node.expr])
+        elif node.op == "*":
+            expr_type = self.types[node.expr]
+            if isinstance(expr_type, (self.Array, self.Ptr)):
+                self.types[node] = expr_type.val
+            else:
+                self.types[node] = expr_type
+        else:
+            log(f"Unknown unary operator {node.op} encountered.")
+            self.types[node] = self.SimpleType.OTHER
+        
+    def visit_BinaryOp(self, node):
+        self.generic_visit(node)
+        if node.left is None or node.right is None or node.op is None:
+            return
+        if node.op in ["+", "-", "*", "/"]:
+            left_type = self.types[node.left]
+            right_type = self.types[node.right]
+            self.types[node] = self.standard_coalesce_types([left_type, right_type])
+        elif node.op == ["%", "<<", ">>"]: # TODO condense this down?
+            # Modulo and shift operands (and hence results) must be integers
+            self.types[node] = self.SimpleType.INT
+        elif node.op in ["<", "<=", ">", ">="]:
+            self.types[node] = self.SimpleType.INT
+        elif node.op in ["==", "!="]:
+            self.types[node] = self.SimpleType.INT
+        elif node.op in ["&", "|", "^"]:
+            # TODO (double check) from what I can tell, again must be integers?
+            self.types[node] = self.SimpleType.INT
+        elif node.op in ["&&", "||"]:
+            self.types[node] = self.SimpleType.INT
+        else:
+            log(f"Unknown binary operator {node.op} encountered.")
+            self.types[node] = self.SimpleType.OTHER
+    
+    def visit_TernaryOp(self, node):
+        self.generic_visit(node)
+        if node.iftrue is not None:
+            self.types[node] = self.types[node.iftrue]
+        elif node.iffalse is not None:
+            self.types[node] = self.types[node.iffalse]
+    
+    def visit_Typename(self, node):
+        self.generic_visit(node)
+        if node.type is not None:
+            # TODO patchwork change from self.types[node.type]
+            # <- Is this correct?
+            self.types[node] = self.convert_type(node.type)
+    
+    def visit_Cast(self, node):
+        self.generic_visit(node)
+        if node.to_type is not None:
+            self.types[node] = self.types[node.to_type]
+    
+    def visit_ArrayRef(self, node):
+        self.generic_visit(node)
+        if node.name is not None:
+            arr_type = self.types[node.name]
+            if isinstance(arr_type, (self.Array, self.Ptr)):
+                self.types[node] = arr_type.val
+            else:
+                self.types[node] = arr_type
+    
+    def visit_Assignment(self, node):
+        self.generic_visit(node)
+        if node.rvalue is not None:
+            self.types[node] = self.types[node.rvalue]
+        
+    def visit_Enum(self, node):
+        self.generic_visit(node)
+        if node.name is not None:
+            # TODO double check: Enum's are always integer (integral) type I think?
+            self.types[node] = self.SimpleType.INT
+    
+    def visit_FuncCall(self, node):
+        self.generic_visit(node)
+        if node.name is not None:
+            self.types[node] = self.get_func_type(node.name)
+    
+    def visit_Struct(self, node):
+        if node.name is None:
+            return
+        if node.decls is not None:
+            self.structs[-1][node.name] = node
+        else:
+            self.types[node] = self.get_struct_type(node.name)
+    
+    def visit_Union(self, node):
+        if node.name is None:
+            return
+        if node.decls is not None:
+            self.structs[-1][node.name] = node
+        else:
+            self.types[node] = self.get_struct_type(node.name)
+    
+    def visit_StructRef(self, node):
+        self.generic_visit(node)
+        if node.type is not None and node.name is not None and node.field is not None and node.field.name is not None:
+            if node.type == ".":
+                struct_type = self.types[node.name]
+                if isinstance(struct_type, (Struct, Union)):
+                    self.types[node] = self.get_struct_field_type(struct_type, node.field.name)
+                else:
+                    self.types[node] = self.SimpleType.OTHER
+            elif node.type == "->":
+                struct_type = self.types[node.name]
+                if isinstance(struct_type, (self.Ptr, self.Array)):
+                    struct_type = struct_type.val
+                if isinstance(struct_type, (Struct, Union)):
+                    self.types[node] = self.get_struct_field_type(struct_type, node.field.name)
+                else:
+                    self.types[node] = self.SimpleType.OTHER
+        
+    def visit_Constant(self, node):
+        self.generic_visit(node)
+        if node.type is not None:
+            self.types[node] = self.convert_type(node.type)
+    
+    def visit_ID(self, node):
+        self.generic_visit(node)
+        if node.name is not None:
+            self.types[node] = self.get_var_type(node.name)
+    
+    # TODO what is a CompoundLiteral? Do I need to account for it?

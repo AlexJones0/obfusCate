@@ -5,6 +5,7 @@ from .utils import (
     VariableUseAnalyzer,
     NewVariableUseAnalyzer,
     TypeKinds,
+    ExpressionTypeAnalyzer,
     is_initialised,
 )  # TODO remove if not used
 from .debug import *
@@ -718,7 +719,6 @@ class IdentityUnit(ObfuscationUnit):
 class FuncArgRandomiserTraverser(NodeVisitor):
     """TODO"""
 
-    # TODO currently doesn't work for function pointers - need to account for this special case.
     # TODO add signed types in the future as well
     # TODO get types defined in scope also? Like enums/structs/unions etc.
     types = {
@@ -757,7 +757,8 @@ class FuncArgRandomiserTraverser(NodeVisitor):
     def reset(self):
         self.func_args = dict()
         self.walk_num = 1
-        self.analyzer = VariableUseAnalyzer()
+        self.current_func = None
+        self.analyzer = NewVariableUseAnalyzer()
 
     def get_extra_args(self, idents):
         extra_args = []
@@ -782,16 +783,20 @@ class FuncArgRandomiserTraverser(NodeVisitor):
         return extra_args
 
     def visit_FuncDef(self, node):
+        old_func = self.current_func
+        self.current_func = node
+        self.generic_visit(node)
+        self.current_func = old_func
+
+    def visit_FuncDecl(self, node):
+        # TODO this code could use some major cleaning up!
         if self.walk_num != 1:
             return NodeVisitor.generic_visit(self, node)
-        defined_idents = self.analyzer.get_definitions_at_stmt(
-            node
-        )  # TODO - definitions at or used from? Which is correct?
-        defined_idents = [ident[0] for ident in defined_idents]
-        fname = node.decl.name
+        defined_idents = self.analyzer.idents
+        fdecl = node
+        fname = fdecl.type.declname
         if fname == "main":
             return NodeVisitor.generic_visit(self, node)
-        fdecl = node.decl.type
         if fname not in self.func_args:
             if (
                 fdecl.args is None
@@ -816,7 +821,7 @@ class FuncArgRandomiserTraverser(NodeVisitor):
                     for arg in fdecl.args.params
                     if not isinstance(arg, EllipsisParam)
                 ]
-                extra_args = self.get_extra_args(defined_idents + args)
+                extra_args = self.get_extra_args(defined_idents.union(set(args)))
                 before_change = fdecl.args.params.copy()
                 if isinstance(fdecl.args.params[-1], EllipsisParam):
                     # TODO this is wrong - all arguments need to be
@@ -873,7 +878,7 @@ class FuncArgRandomiserTraverser(NodeVisitor):
         NodeVisitor.generic_visit(self, node)
 
     def visit_FileAST(self, node):
-        self.analyzer.input(node)
+        self.analyzer.load(node)
         self.analyzer.process()
         NodeVisitor.generic_visit(self, node)
         self.walk_num += 1
@@ -1600,8 +1605,9 @@ class IdentifierRenamer:
             for info in idents:
                 attr, kind, structure, is_definition = info
                 name = getattr(ASTnode, attr)
-                if isinstance(name, list):  # TODO - is this correct?
-                    name = ".".join(name)
+                if isinstance(name, list):  # TODO - is this correct? <--- NO
+                    name = ".".join(name) 
+                    # TODO - breaks on ptrs etc. if expected str but found ID
                 if is_definition:
                     if name == "main":
                         continue
@@ -1895,6 +1901,8 @@ class IdentifierTraverser(NodeVisitor):
         exit()
 
 
+# TODO this transformation still breaks sometimes, even without minimisation
+# e.g. try linpack_nodefs.c with most other options first, it will break. Why?
 class IdentifierRenameUnit(ObfuscationUnit):
     """Implements an identifier rename (IRN) obfuscation transformation, which takes the input
     source code and renames all identifiers (function names, parameter names, variable names, etc.)
@@ -2077,52 +2085,8 @@ class ArithmeticEncodeTraverser(NodeVisitor):
         self.reset()
 
     def reset(self):
-        self.var_types = []
-        self.func_types = dict()
-        self.type_cache = dict()
         self.ignore_list = set()
-
-    def get_var_type(self, ident):
-        for scope in self.var_types[::-1]:
-            if ident in scope:
-                return scope[ident]
-        return None
-
-    def get_func_type(self, ident):
-        if ident in self.func_types:
-            return self.func_types[ident]
-        return None
-
-    def is_int_type(self, node):
-        if isinstance(node, (UnaryOp, BinaryOp)) and node in self.type_cache:
-            return self.type_cache[node]
-        if isinstance(node, Constant) and node.type == "int":
-            return True
-        elif isinstance(node, ID) and self.get_var_type(node.name) == "int":
-            return True
-        elif (
-            isinstance(node, StructRef) and node.type == "int"
-        ):  # TODO check this one - is this attr set?
-            return True
-        elif (
-            isinstance(node, Cast) and node.to_type.type.type == "int"
-        ):  # TODO check this one
-            return True
-        elif isinstance(node, FuncCall) and self.get_func_type(node.name) == "int":
-            return True
-        elif isinstance(node, ArrayRef) and self.get_var_type(node.name) == "int":
-            return True
-        elif isinstance(node, UnaryOp):
-            self.type_cache[node] = self.is_int_type(node.expr) or node.op == "!"
-            return self.type_cache[node]
-        elif isinstance(node, BinaryOp):
-            self.type_cache[node] = (
-                self.is_int_type(node.left)
-                and self.is_int_type(node.right)
-                or node.op in ["<", "<=", ">", ">=", "==", "!=", "&&", "||", "%", "//"]
-            )
-            return self.type_cache[node]
-        return False
+        self.analyzer = None
 
     unary_subs = {
         "-": [
@@ -2205,15 +2169,17 @@ class ArithmeticEncodeTraverser(NodeVisitor):
         ],
     }
 
-    def generic_visit(
-        self, node
-    ):  # TODO broken - we just assume only integer operations for now!
+    def generic_visit(self, node):  
+        # TODO broken - we just assume only integer operations for now!
         if node in self.ignore_list:
             return
         for child in node.children():
             if isinstance(child[1], (UnaryOp, BinaryOp)):
                 current = child[1]
+                if not self.analyzer.is_type(current, ExpressionTypeAnalyzer.SimpleType.INT):
+                    continue
                 applied_count = 0
+                # TODO check how transform depth works here - is it OK?
                 while applied_count < self.transform_depth:
                     if (
                         isinstance(current, UnaryOp)
@@ -2232,7 +2198,8 @@ class ArithmeticEncodeTraverser(NodeVisitor):
                     parts = [p[:-1] if p[-1] == "]" else p for p in child[0].split("[")]
                     if (
                         len(parts) == 1
-                    ):  # TODO this will be broke wherever else I did this also
+                    ):  
+                        # TODO use this to fix similar issues in other code areas
                         setattr(node, child[0], current)
                     else:
                         getattr(node, parts[0])[int(parts[1])] = current
@@ -2241,6 +2208,8 @@ class ArithmeticEncodeTraverser(NodeVisitor):
         NodeVisitor.generic_visit(self, node)
 
     def visit_FileAST(self, node):
+        self.analyzer = ExpressionTypeAnalyzer(node)
+        self.analyzer.process()
         NodeVisitor.generic_visit(self, node)
         self.reset()
 
@@ -2266,6 +2235,7 @@ class ArithmeticEncodeUnit(ObfuscationUnit):
     type = TransformType.ENCODING
 
     def __init__(self, level):
+        # TODO could give this a probability as well (defaults 1.0)?
         self.level = level
         self.traverser = ArithmeticEncodeTraverser(level)
 
@@ -2480,8 +2450,8 @@ class OpaqueAugmenter(NodeVisitor):
         return self.generic_visit(node)
 
     def visit_ParamList(self, node):
-        if node.params is None:
-            return
+        if node.params is None or self.parameters is None:
+            return # No parameters or just parsing a signature.
         for node in node.params:
             if isinstance(node, Decl) and node.name is not None:
                 if (
@@ -2730,13 +2700,13 @@ class BugGenerator(NodeVisitor):
                 self.changed = True
         self.generic_visit(node)
 
-    op_map = {
+    op_map = { # TODO check these over - can get weird with pointer math sometimes
         ">": ("<", "<=", "!=", "=="),
         ">=": ("<", "<=", "!=", "=="),
         "<": (">", ">=", "!=", "=="),
         "<=": (">", ">=", "!=", "=="),
-        "+": ("-", "*"),
-        "-": ("+", "*"),
+        "+": ("-"),
+        "-": ("+"),
         "*": ("+", "-"),
         "==": ("!=", "<", ">"),
         "!=": ("==", "<", ">"),
@@ -3082,8 +3052,8 @@ class OpaqueInserter(NodeVisitor):
                 self.add_procedural_predicate(node)
 
     def visit_ParamList(self, node):
-        if node.params is None:
-            return
+        if node.params is None or self.parameters is None:
+            return # No parameters or just parsing a signature.
         for node in node.params:
             if isinstance(node, Decl) and node.name is not None:
                 if (
