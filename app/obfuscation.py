@@ -169,7 +169,7 @@ class Pipeline:
             next_str = ""
         print(f"{time_passed} - [{status}/{max_transforms}] {prog_percent} {next_str}")
 
-    def process(self, source: CSource) -> Optional[CSource]:
+    def process(self, source: CSource, progress_func: Optional[Callable] = None) -> Optional[CSource]:
         """Processes some C source code, applying all the pipeline's transformations in sequence
         to produce some output obfuscated C code.
 
@@ -191,6 +191,8 @@ class Pipeline:
                 break
             if cfg.DISPLAY_PROGRESS:
                 self.print_progress(i, start_time)
+            if progress_func is not None:
+                progress_func(i+1)
         # TODO remove - this is temporary
         analyzer = NewVariableUseAnalyzer(source.t_unit)
         analyzer.process()
@@ -2118,11 +2120,12 @@ class ArithmeticEncodeTraverser(NodeVisitor):
     }
 
     # TODO can llvm detect and optimise some of these (see O-MVLL). If so, how can we stop this?
-    binary_subs = {  # TODO correctness - what if one argument changes some value? Then not correct - HOW!?!?!?
+    binary_subs = {
         "+": [
             lambda n: BinaryOp(  # x + y = x - ¬y - 1
                 "-", BinaryOp("-", n.left, UnaryOp("~", n.right)), Constant("int", "1")
             ),
+            # TODO for these left shifts, is it correct if an argument is negative as well?
             lambda n: BinaryOp(  # x + y = (x ^ y) + 2 * (x & y)
                 "+",
                 BinaryOp("^", n.left, n.right),
@@ -2191,6 +2194,8 @@ class ArithmeticEncodeTraverser(NodeVisitor):
                 current = child[1]
                 # TODO is this correct, or should I check .expr and .left/.right instead?
                 if not self.analyzer.is_type(current, ExpressionTypeAnalyzer.SimpleType.INT):
+                    continue
+                if self.analyzer.is_mutating(current):
                     continue
                 applied_count = 0
                 # TODO check how transform depth works here - is it OK?
@@ -4267,7 +4272,6 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
     """Implements simple source-level whitespace cluttering, breaking down the high-level abstraction of
     indentation and program structure by altering whitespace in the file."""
 
-    # TODO WARNING ORDERING - SHOULD COME LAST (BUT BEFORE DiTriGraphEncodeUnit)
     name = "Clutter Whitespace"
     description = "Clutters program whitespace, making it difficult to read"
     extended_description = (

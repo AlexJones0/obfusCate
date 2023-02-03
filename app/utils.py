@@ -1227,6 +1227,7 @@ class ExpressionTypeAnalyzer(NodeVisitor):
         self.params = {}
         self.in_param_list = False
         self.types = {None: self.SimpleType.OTHER}
+        self.mutating = {None: False}
         self.processed = False
 
     def load(self, t_unit: CSource) -> None:
@@ -1241,6 +1242,11 @@ class ExpressionTypeAnalyzer(NodeVisitor):
         if expr not in self.types:
             return type_ is None
         return self.types[expr] == type_
+
+    def is_mutating(self, expr: Node) -> bool:
+        if expr not in self.mutating:
+            return False
+        return self.mutating[expr]
         
     def get_type_alias(self, name):
         for scope in self.type_aliases[::-1]:
@@ -1368,21 +1374,29 @@ class ExpressionTypeAnalyzer(NodeVisitor):
         self.generic_visit(node)
         if node.expr is None or node.op is None:
             return
-        if node.op in ["-", "+", "--", "p--", "++", "p++", "~"]:
+        if node.op in ["--", "p--", "++", "p++"]:
             self.types[node] = self.types[node.expr]
+            self.mutating[node] = True
+        elif node.op in ["-", "+", "~"]:
+            self.types[node] = self.types[node.expr]
+            self.mutating[node] = self.mutating[node.expr]
         elif node.op in ["!", "sizeof"]:
             self.types[node] = self.SimpleType.INT
+            self.mutating[node] = self.mutating[node.expr]
         elif node.op == "&":
             self.types[node] = self.Ptr(self.types[node.expr])
+            self.mutating[node] = self.mutating[node.expr]
         elif node.op == "*":
             expr_type = self.types[node.expr]
             if isinstance(expr_type, (self.Array, self.Ptr)):
                 self.types[node] = expr_type.val
             else:
                 self.types[node] = expr_type
+            self.mutating[node] = self.mutating[node.expr] 
         else:
             log(f"Unknown unary operator {node.op} encountered.")
             self.types[node] = self.SimpleType.OTHER
+            self.mutating[node] = True  # Pessimistic Assumption
         
     def visit_BinaryOp(self, node):
         self.generic_visit(node)
@@ -1392,21 +1406,18 @@ class ExpressionTypeAnalyzer(NodeVisitor):
             left_type = self.types[node.left]
             right_type = self.types[node.right]
             self.types[node] = self.standard_coalesce_types([left_type, right_type])
-        elif node.op == ["%", "<<", ">>"]: # TODO condense this down?
-            # Modulo and shift operands (and hence results) must be integers
+            self.mutating[node] = self.mutating[node.left] or self.mutating[node.right]
+        elif node.op == ["%", "<<", ">>", "<", "<=", ">", ">=", "==", "!=", "&&", "||"]: 
             self.types[node] = self.SimpleType.INT
-        elif node.op in ["<", "<=", ">", ">="]:
-            self.types[node] = self.SimpleType.INT
-        elif node.op in ["==", "!="]:
-            self.types[node] = self.SimpleType.INT
+            self.mutating[node] = self.mutating[node.left] or self.mutating[node.right]
         elif node.op in ["&", "|", "^"]:
-            # TODO (double check) from what I can tell, again must be integers?
+            # TODO (double check) from what I can tell, must be integers?
             self.types[node] = self.SimpleType.INT
-        elif node.op in ["&&", "||"]:
-            self.types[node] = self.SimpleType.INT
+            self.mutating[node] = self.mutating[node.left] or self.mutating[node.right]
         else:
             log(f"Unknown binary operator {node.op} encountered.")
             self.types[node] = self.SimpleType.OTHER
+            self.mutating[node] = True  # Pessimistic assumption
     
     def visit_TernaryOp(self, node):
         self.generic_visit(node)
@@ -1414,6 +1425,7 @@ class ExpressionTypeAnalyzer(NodeVisitor):
             self.types[node] = self.types[node.iftrue]
         elif node.iffalse is not None:
             self.types[node] = self.types[node.iffalse]
+        self.mutating[node] = self.mutating[node.iftrue] or self.mutating[node.iffalse]
     
     def visit_Typename(self, node):
         self.generic_visit(node)
@@ -1421,52 +1433,69 @@ class ExpressionTypeAnalyzer(NodeVisitor):
             # TODO patchwork change from self.types[node.type]
             # <- Is this correct?
             self.types[node] = self.convert_type(node.type)
+        self.mutating[node] = False
     
     def visit_Cast(self, node):
         self.generic_visit(node)
         if node.to_type is not None:
             self.types[node] = self.types[node.to_type]
+        if node.expr is not None:
+            self.mutating[node] = self.mutating[node.expr]
+        else:
+            self.mutating[node] = False
     
     def visit_ArrayRef(self, node):
         self.generic_visit(node)
+        mutating = False
         if node.name is not None:
             arr_type = self.types[node.name]
             if isinstance(arr_type, (self.Array, self.Ptr)):
                 self.types[node] = arr_type.val
             else:
                 self.types[node] = arr_type
+            mutating = mutating or self.mutating[node.name]
+        if node.subscript is not None:
+            mutating = mutating or self.mutating[node.subscript]
+        self.mutating[node] = mutating
     
     def visit_Assignment(self, node):
         self.generic_visit(node)
         if node.rvalue is not None:
             self.types[node] = self.types[node.rvalue]
+        self.mutating[node] = True
         
     def visit_Enum(self, node):
         self.generic_visit(node)
         if node.name is not None:
             # TODO double check: Enum's are always integer (integral) type I think?
             self.types[node] = self.SimpleType.INT
+        self.mutating[node] = False
     
     def visit_FuncCall(self, node):
         self.generic_visit(node)
         if node.name is not None:
             self.types[node] = self.get_func_type(node.name)
+        self.mutating[node] = True # Pessimistic assumption (e.g. globals)
     
     def visit_Struct(self, node):
         if node.name is None:
             return
         if node.decls is not None:
             self.structs[-1][node.name] = node
+            self.mutating[node] = True
         else:
             self.types[node] = self.get_struct_type(node.name)
+            self.mutating[node] = False
     
     def visit_Union(self, node):
         if node.name is None:
             return
         if node.decls is not None:
             self.structs[-1][node.name] = node
+            self.mutating[node] = True
         else:
             self.types[node] = self.get_struct_type(node.name)
+            self.mutating[node] = False
     
     def visit_StructRef(self, node):
         self.generic_visit(node)
@@ -1485,16 +1514,24 @@ class ExpressionTypeAnalyzer(NodeVisitor):
                     self.types[node] = self.get_struct_field_type(struct_type, node.field.name)
                 else:
                     self.types[node] = self.SimpleType.OTHER
+        mutating = False
+        if node.name is not None:
+            mutating = mutating or self.mutating[node.name]
+        if node.field is not None: # TODO can this be an expr? I don't think so?
+            mutating = mutating or self.mutating[node.field]
+        self.mutating[node] = mutating
         
     def visit_Constant(self, node):
         self.generic_visit(node)
         if node.type is not None:
             self.types[node] = self.convert_type(node.type)
+        self.mutating[node] = False
     
     def visit_ID(self, node):
         self.generic_visit(node)
         if node.name is not None:
             self.types[node] = self.get_var_type(node.name)
+        self.mutating[node] = False
     
     # TODO what is a CompoundLiteral? Do I need to account for it?
 
