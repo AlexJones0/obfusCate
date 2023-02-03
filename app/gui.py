@@ -42,8 +42,8 @@ MINIMAL_SCROLL_BAR_CSS = """
     QScrollBar:vertical{
         border: none;
         background: transparent;
-        width:10px;
-        margin: 0px 0px 0px 0px;
+        width: 10px;
+        margin: 1.5px 3px 0px 0px;
     }
     QScrollBar::sub-page:vertical{
         background: transparent;
@@ -53,13 +53,36 @@ MINIMAL_SCROLL_BAR_CSS = """
     }
     QScrollBar::handle:vertical{
         background: white;
-        border-radius: 5px;
+        border-radius: 3px;
         border-style: solid;
     }
     QScrollBar::add-line:vertical{
         background: transparent;
     }
     QScrollBar::sub-line:vertical{
+        background: transparent;
+    }
+    QScrollBar:horizontal{
+        border: none;
+        background: transparent;
+        height: 10px;
+        margin: 0px 0px 3px 2.5px;
+    }
+    QScrollBar::sub-page:horizontal{
+        background: transparent;
+    }
+    QScrollBar::add-page:horizontal{
+        background: transparent;
+    }
+    QScrollBar::handle:horizontal{
+        background: white;
+        border-radius: 3px;
+        border-style: solid;
+    }
+    QScrollBar::add-line:horizontal{
+        background: transparent;
+    }
+    QScrollBar::sub-line:horizontal{
         background: transparent;
     }
 """
@@ -158,13 +181,14 @@ def set_no_options_widget(parent: QWidget) -> None:
 def generate_integer_widget(label_msg: str, tooltip_msg: str, init_val: int, min_val: int, max_val: int, parent: QWidget) -> Tuple[QWidget, QLineEdit]:
     integer_widget = QWidget(parent)
     layout = QHBoxLayout(integer_widget)
+    layout.setContentsMargins(0, 0, 0, 0)
     label = QLabel(label_msg, integer_widget)
     label.setFont(QFont(DEFAULT_FONT, 12))
     label.setToolTip(tooltip_msg)
     QToolTip.setFont(QFont(DEFAULT_FONT, 13))
     label.setStyleSheet("QLabel{color: #727463;}\n" + GENERAL_TOOLTIP_CSS)
     layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignLeft) 
-    layout.addSpacing(5)
+    layout.addStretch()
     entry = QLineEdit(str(init_val), integer_widget)
     entry.setFont(QFont(DEFAULT_FONT, 12))
     entry.setValidator(QIntValidator(min_val, max_val, entry))
@@ -185,13 +209,14 @@ def generate_integer_widget(label_msg: str, tooltip_msg: str, init_val: int, min
 def generate_float_widget(label_msg: str, tooltip_msg: str, init_val: float, min_val: float, max_val: float, parent: QWidget) -> Tuple[QWidget, QLineEdit]:
     float_widget = QWidget(parent)
     layout = QHBoxLayout(float_widget)
+    layout.setContentsMargins(0, 0, 0, 0)
     label = QLabel(label_msg, float_widget)
     label.setFont(QFont(DEFAULT_FONT, 12))
     label.setToolTip(tooltip_msg)
     QToolTip.setFont(QFont(DEFAULT_FONT, 13))
     label.setStyleSheet("QLabel{color: #727463;}\n" + GENERAL_TOOLTIP_CSS)
     layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignLeft) 
-    layout.addSpacing(5)
+    layout.addStretch()
     entry = QLineEdit(str(init_val), float_widget)
     entry.setFont(QFont(DEFAULT_FONT, 12))
     entry.setValidator(QDoubleValidator(min_val, max_val, 1000, entry))
@@ -267,7 +292,7 @@ def generate_checkbox_widget(label_msg: str, tooltip_msg: str, init: bool, paren
     label.setToolTip(tooltip_msg)
     QToolTip.setFont(QFont(DEFAULT_FONT, 13))
     label.setStyleSheet("QLabel{color: #727463;}\n" + GENERAL_TOOLTIP_CSS)
-    layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignLeft)
+    layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignCenter)
     checkbox = QCheckBox(checkbox_widget)
     checkbox.setFont(QFont(DEFAULT_FONT, 12))
     checkbox.setStyleSheet("""
@@ -276,8 +301,7 @@ def generate_checkbox_widget(label_msg: str, tooltip_msg: str, init: bool, paren
         }"""
     )
     checkbox.setChecked(init)
-    layout.addWidget(checkbox, alignment=Qt.AlignmentFlag.AlignLeft)
-    layout.addStretch()
+    layout.addWidget(checkbox, alignment=Qt.AlignmentFlag.AlignCenter)
     checkbox_widget.setLayout(layout)
     return (checkbox_widget, checkbox)
 
@@ -639,7 +663,7 @@ class GuiInsertOpaqueUnit(InsertOpaqueUnit):
     
     def edit_gui(self, parent: QWidget) -> None:
         layout = QVBoxLayout(parent)
-        layout.setContentsMargins(0, 0, 0, 20)
+        layout.setContentsMargins(0, 10, 0, 30)
         scroll_widget = QScrollArea(parent)
         scroll_widget.setStyleSheet(
             """
@@ -656,6 +680,7 @@ class GuiInsertOpaqueUnit(InsertOpaqueUnit):
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
         scroll_widget.setWidgetResizable(True)
+        scroll_widget.ensureVisible()
         scroll_content = QWidget(scroll_widget)
         scroll_content.setObjectName("ScrollWidget")
         scroll_content.setStyleSheet(
@@ -666,10 +691,9 @@ class GuiInsertOpaqueUnit(InsertOpaqueUnit):
             }"""
         )
         scroll_content.layout = QVBoxLayout(scroll_content)
-        scroll_content.setContentsMargins(0, 0, 0, 0)
-        scroll_content.layout.setContentsMargins(0, 0, 0, 0)
+        scroll_content.layout.setContentsMargins(0, 0, 7, 0)
         scroll_content.setSizePolicy(
-            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
         )
         scroll_widget.setWidget(scroll_content)
         layout.addWidget(scroll_widget)
@@ -934,14 +958,16 @@ class GuiClutterWhitespaceUnit(ClutterWhitespaceUnit):
             parent
         )
         layout.addWidget(target_length, alignment=Qt.AlignmentFlag.AlignTop)
+        layout.addSpacing(4)
         pad_lines, self.pad_lines_checkbox = generate_checkbox_widget(
-            "Pad Lines?",
+            "Add Line Padding?",
             "Where possible, this pads lines by inserting extra spaces between tokens, such that all\n"
             "lines (except those with pre-processor directives) are padded to the set target length.",
             self.pad_lines,
             parent
         )
         layout.addWidget(pad_lines, alignment=Qt.AlignmentFlag.AlignTop)
+        layout.addStretch()
         parent.setLayout(layout)
     
     def load_gui_values(self) -> None:
@@ -1075,7 +1101,7 @@ class SourceEditor(QPlainTextEdit):
                 border-radius: 10px;
                 border-color: #848484;
                 background-color: #1D1E1A;    
-            }"""
+            }""" + MINIMAL_SCROLL_BAR_CSS
         )
         self.setAutoFillBackground(True)
         palette = self.palette()
@@ -1085,8 +1111,6 @@ class SourceEditor(QPlainTextEdit):
         highlighter = CHighlighter(self.document())
         # TODO proper syntax highlighting
         # TODO line numbers
-        # TODO icons above files
-        # TODO file names above files
 
     def add_source(self, source: CSource) -> None:
         self.source = source
