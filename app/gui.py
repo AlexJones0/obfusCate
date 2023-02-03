@@ -1351,6 +1351,8 @@ class TransformOptionsForm(QFrame):
         # TODO seems to be an issue - if you click on the label text the button doesn't work
         # but if you click on any other part of the back it does? Need to troubleshoot this
         # TODO above *may* (or may not) have something to do with having source editor text highlighted?
+        # TODO also maybe it is getting _covered_ by some other widget which is taking the click?
+        # TODO ^^ seems to be relatively consistent on removing ControlFlow?
         self.remove_button = QPushButton("Remove Transform", self)
         self.remove_button.setFont(QFont(DEFAULT_FONT, 12))
         self.remove_button.setStyleSheet(
@@ -1735,7 +1737,11 @@ class GeneralOptionsForm(QFrame):
         if self.__source_form_reference.modified_from_read:
             source.update_t_unit()
         source.fpath = self.__obfuscated_form_reference.source.fpath
-        obfuscated = pipeline.process(source)
+        if len(pipeline.transforms) != 0:
+            self.parent().progress_bar.setRange(0, len(pipeline.transforms))
+            self.parent().update_progress(0)
+        obfuscated = pipeline.process(source, self.parent().update_progress)
+        self.parent().update_progress(-1)
         self.__obfuscated_form_reference.add_source(obfuscated)
 
     def load_source(self) -> None:
@@ -1784,7 +1790,6 @@ class GeneralOptionsForm(QFrame):
             return
         with open(file, "w+") as f:
             f.write(self.__obfuscated_form_reference.toPlainText())
-        
     
     def save_composition(self) -> None:
         compositions_path = os.path.join(os.getcwd(), "compositions\\")
@@ -1841,6 +1846,34 @@ class MiscForm(QWidget):
         )  # TODO temp alignment
         self.metrics_form = MetricsForm(self)
         self.layout.addWidget(self.metrics_form, 1)
+        self.progress_bar = QProgressBar(self)
+        self.progress_bar.setRange(0, 13)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.progress_bar.setFont(QFont(DEFAULT_FONT, 10, 1000))
+        self.base_format = "%v/%m (%p%)"
+        self.progress_palette = QPalette()
+        self.progress_palette.setColor(QPalette.ColorRole.Text, QColor("#727463"))
+        self.progress_bar.setPalette(self.progress_palette)
+        self.progress_bar.setFormat("Not currently obfuscating...")
+        self.setStyleSheet("""
+            QProgressBar{
+                border-style: solid;
+                border-color: #848484;
+                border-radius: 7px;
+                border-width: 2px;
+                background-color: #272822;
+                margin: 0px 0px 0px 0px;
+            }
+            QProgressBar::chunk{
+                background-color: #2ed573;
+                border-style: solid;
+                border-color: none;
+                border-radius: 7px;
+                border-width: 2px;
+            }"""
+        )
+        self.layout.addWidget(self.progress_bar, 1, alignment=Qt.AlignmentFlag.AlignBottom)
         self.general_options = GeneralOptionsForm(
             transforms_func, set_transforms_func, load_gui_vals_func, source_form, obfuscated_form, self
         )
@@ -1848,6 +1881,17 @@ class MiscForm(QWidget):
             self.general_options, 1, alignment=Qt.AlignmentFlag.AlignBottom
         )  # TODO temp alignment
         self.setLayout(self.layout)
+    
+    def update_progress(self, i: int):
+        self.progress_bar.setValue(max(i,0))
+        if i == -1 or i == self.progress_bar.maximum():
+            self.progress_bar.setFormat("Not currently obfuscating...")
+            self.progress_palette.setColor(QPalette.ColorRole.Text, QColor("#727463"))
+            self.progress_bar.setPalette(self.progress_palette)
+        else:
+            self.progress_bar.setFormat(self.base_format)
+            self.progress_palette.setColor(QPalette.ColorRole.Text, QColorConstants.White)
+            self.progress_bar.setPalette(self.progress_palette)
     
     def resizeEvent(self, event) -> None:
         super(MiscForm, self).resizeEvent(event)
