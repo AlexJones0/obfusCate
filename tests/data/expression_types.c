@@ -34,6 +34,17 @@ int main() {
     x&x;
     x&&x;
     x^x;
+	x + x;
+	++x + x;
+	x-- + x;
+	x + --x;
+	x + x++;
+	++x++ + ++x++;
+	x + main();
+	main() + x;
+	x + (x = 5);
+	x + (x += 5);
+	x + (x /= 2);
     struct abc {int a; float b;};
     struct abc my_struct = {.a = 2, .b = 3};
     my_struct.a + my_struct.a;
