@@ -680,7 +680,6 @@ class GuiInsertOpaqueUnit(InsertOpaqueUnit):
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
         scroll_widget.setWidgetResizable(True)
-        scroll_widget.ensureVisible()
         scroll_content = QWidget(scroll_widget)
         scroll_content.setObjectName("ScrollWidget")
         scroll_content.setStyleSheet(

@@ -1460,8 +1460,8 @@ class ExpressionTypeAnalyzer(NodeVisitor):
     
     def visit_Assignment(self, node):
         self.generic_visit(node)
-        if node.rvalue is not None:
-            self.types[node] = self.types[node.rvalue]
+        if node.lvalue is not None:
+            self.types[node] = self.types[node.lvalue]
         self.mutating[node] = True
         
     def visit_Enum(self, node):
