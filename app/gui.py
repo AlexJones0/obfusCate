@@ -509,7 +509,13 @@ class GuiIdentifierRenameUnit(IdentifierRenameUnit):
                 IdentifierTraverser.Style.MINIMAL_LENGTH.value: \
                     "Generate new identifiers that occupy the minimum space possible as a whole, by\n"
                     "iterating through available symbols sequentially.\n"
-                    "  e.g. a, b, c, d, e, ..."
+                    "  e.g. a, b, c, d, e, ...",
+                IdentifierTraverser.Style.I_AND_L.value: \
+                    "Generate new identifiers that each comprise of the exact same amount of characters,\n"
+                    "using random combinations of only the characters 'I' and 'l'. This makes it hard to\n"
+                    "determine separate identifiers via. differences in length, as in e.g. underscore\n"
+                    "renaming.\n"
+                    "  e.g. IllIIlIIlIlIIlll, llIIlIlIlllllIlI, lIIlllIllIIIIIII.",
             }
         )
         layout.addWidget(style, 1, alignment=Qt.AlignmentFlag.AlignTop)
@@ -1659,7 +1665,6 @@ class MetricsForm(QFrame):
         self.layout.addWidget(
             self.title_label, 1, alignment=Qt.AlignmentFlag.AlignHCenter
         )
-
         self.scroll_widget = QScrollArea(self)
         self.scroll_widget.setStyleSheet(
             """
@@ -1698,6 +1703,7 @@ class MetricsForm(QFrame):
             self.load_metrics(None, None)
     
     def load_metrics(self, source: CSource, obfuscated: CSource) -> None:
+        QToolTip.setFont(QFont(DEFAULT_FONT, 13))
         for i in reversed(range(self.metric_widget.layout.count())):
             widget = self.metric_widget.layout.itemAt(i).widget()
             self.metric_widget.layout.removeWidget(widget)
@@ -1716,13 +1722,16 @@ class MetricsForm(QFrame):
             else:
                 name_label = QLabel(metric_unit.name)
             name_label.setFont(QFont(DEFAULT_FONT, 12))
-            name_label.setStyleSheet("QLabel{color: white;}")
+            name_label.setStyleSheet("QLabel{color: white;}" + GENERAL_TOOLTIP_CSS)
+            if hasattr(metric_unit, 'name_tooltip'):
+                name_label.setToolTip(metric_unit.name_tooltip)
             unit_layout.addWidget(name_label)
             unit_layout.addSpacing(2)
             unit_widget.setLayout(unit_layout)
             if metric_vals is not None:
                 for i, value_pair in enumerate(metric_vals):
                     metric_widget = QWidget(unit_widget)
+                    metric_widget.setStyleSheet(GENERAL_TOOLTIP_CSS)
                     metric_layout = QHBoxLayout(metric_widget)
                     metric_layout.setContentsMargins(0, 0, 0, 0)
                     metric_layout.setSpacing(0)
@@ -1736,6 +1745,8 @@ class MetricsForm(QFrame):
                         value_label = QLabel(m_val)
                     value_label.setFont(QFont(DEFAULT_FONT, 10, 200))
                     value_label.setStyleSheet("QLabel{color: #878787;}")
+                    if name in metric_unit.tooltips:
+                        metric_widget.setToolTip(metric_unit.tooltips[name])
                     metric_layout.addWidget(metric_label)
                     metric_layout.addStretch()
                     metric_layout.addWidget(value_label)

@@ -801,8 +801,6 @@ class FuncArgRandomiserTraverser(NodeVisitor):
     def visit_FuncDecl(self, node):
         # TODO this code could use some major cleaning up!
         if self.walk_num != 1 or node.type is None:
-            if self.walk_num == 1: # TODO remove testing
-                print(node) 
             return NodeVisitor.generic_visit(self, node)
         defined_idents = self.analyzer.idents
         fdecl = node
@@ -1578,6 +1576,14 @@ class IdentifierRenamer:
                     new_ident = bin(hash_val)[2:]
                     new_ident = "0" * (num_chars - len(new_ident)) + new_ident
                     new_ident = new_ident.replace("1", "l").replace("0", "I")
+            # TODO figure out if salvageable or scrap
+            """elif self.style == IdentifierTraverser.Style.REALISTIC:
+                chosen_ident = random.choice(REALISTIC_VAR_NAMES)
+                cur_num = 1
+                new_ident = chosen_ident
+                while new_ident in self.new_idents_set:
+                    cur_num += 1
+                    new_ident = chosen_ident + str(cur_num)"""
         self.new_idents_set.add(new_ident)
         self.new_idents.append(new_ident)
         return new_ident
@@ -1752,6 +1758,7 @@ class IdentifierTraverser(NodeVisitor):
         ONLY_UNDERSCORES = "Only underscores"  # TODO will this break anything?
         MINIMAL_LENGTH = "Minimal length"
         I_AND_L = "Blocks of l's and I's"
+        #REALISTIC = "Realistic Names" # TODO salvage or scrap
 
     def __init__(self, style: Style, minimiseIdents: bool):
         self.style = style
@@ -1819,6 +1826,14 @@ class IdentifierTraverser(NodeVisitor):
                     new_ident = bin(hash_val)[2:]
                     new_ident = "0" * (num_chars - len(new_ident)) + new_ident
                     new_ident = new_ident.replace("1", "l").replace("0", "I")
+            # TODO salvage or remove
+            """elif self.style == self.Style.REALISTIC:
+                chosen_ident = random.choice(REALISTIC_VAR_NAMES)
+                cur_num = 1
+                new_ident = chosen_ident
+                while new_ident in self._new_idents:
+                    cur_num += 1
+                    new_ident = chosen_ident + str(cur_num)"""
         self._new_idents.add(new_ident)
         self.idents[ident] = new_ident
         return new_ident
@@ -3689,6 +3704,7 @@ class ControlFlowFlattener(NodeVisitor):
         goto_labels = []
         goto_label = None
         # TODO the code below is quite messy and probably has some incorrect logic, need to check it
+        # TODO can I make this dropdown _without_ using labels to flatten better?
         for stmt in switch_stmt.stmt.block_items:
             if isinstance(stmt, Label):
                 labelled_stmt, stmt_label = self.get_labels(stmt)

@@ -7,6 +7,13 @@ from pycparser.c_generator import CGenerator
 from string import ascii_letters
 import enum
 
+# TODO Salvage or Scrap
+"""REALISTIC_VAR_NAMES = []
+with open(".\\app\\var_names.txt", "r") as f:
+    for line in f.read().splitlines():
+        line = line.strip()
+        if not line.startswith("#") and len(line) != 0:
+            REALISTIC_VAR_NAMES.append(line)"""
 
 def is_initialised(source: CSource, libraries: Iterable[str]) -> Iterable[bool]:
     """Checks if each of the given libraries are initialised in the provided
@@ -1415,7 +1422,6 @@ class ExpressionTypeAnalyzer(NodeVisitor):
             self.types[node] = self.SimpleType.INT
             self.mutating[node] = self.mutating[node.left] or self.mutating[node.right]
         else:
-            print(node.op)
             log(f"Unknown binary operator {node.op} encountered.")
             self.types[node] = self.SimpleType.OTHER
             self.mutating[node] = True  # Pessimistic assumption

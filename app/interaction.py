@@ -74,6 +74,7 @@ class CSource:
                 cpp_args=["-E", r"-Iutils/fake_libc_include"],
             )
             fname = cfg.TEMP_FILE_PATH.split("\\")[-1]
+            # TODO keep linked libraries to get functions etc.? # TODO TODO TODO
             t_unit.ext = [x for x in t_unit.ext if fname in x.coord.file]
             self.t_unit = t_unit
             os.remove(cfg.TEMP_FILE_PATH)

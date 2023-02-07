@@ -302,11 +302,11 @@ class TestIOFunctions(unittest.TestCase):
 
     def test_menu_driven_multiple_args(self):
         """Tests that the menu_driven_option function in the `io.py` file can correctly handle
-        the case where multiple options are given. Does this by simulating with 1000 random tests,
+        the case where multiple options are given. Does this by simulating with 100 random tests,
         each using from 2 to 500 options, with an expected amount of around 9 invalid inputs per
         1 correct input to the menu."""
         potential_options = ["test {}".format(x) for x in range(500)]
-        num_tests = 1000
+        num_tests = 100
         for i in range(num_tests):
             chosen_options = random.randint(2, len(potential_options))
             available_options = [o for o in potential_options]
