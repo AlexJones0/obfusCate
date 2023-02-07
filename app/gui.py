@@ -3,6 +3,7 @@ Implements functions to implement the graphical user interface of the program,
 such that it can be more accessibly used without text interaction in a terminal
 window. """
 from .obfuscation import *
+from .complexity import *
 from .interaction import (
     handle_arguments,
     disable_logging,
@@ -87,6 +88,10 @@ MINIMAL_SCROLL_BAR_CSS = """
     }
 """
 
+def disable_metrics():
+    cfg.CALCULATE_COMPLEXITY = False
+    log("Set option to disable complexity calculations during execution.")
+
 options = [
     (
         None,  # Function to call if argument supplied
@@ -130,7 +135,13 @@ options = [
         ["-l", "--load-comp"],
         "Loads a given JSON file containing the composition of obfuscation transformations to use.",
         ["file"],
-    ),
+    ), 
+    (
+        disable_metrics,
+        ["-m", "--no-metrics"],
+        "Disables calculation of code complexity metrics for the obfuscated programs.",
+        [],
+    )
 ]
 
 
@@ -1624,6 +1635,7 @@ class CurrentForm(QFrame):
 
 
 class MetricsForm(QFrame):
+    
     def __init__(self, parent: QWidget = None) -> None:
         super(MetricsForm, self).__init__(parent)
         self.setStyleSheet(
@@ -1637,7 +1649,7 @@ class MetricsForm(QFrame):
                 padding: 6px; 
             }"""
         )
-        self.setMinimumHeight(200)
+        self.setMinimumSize(250, 250)
         self.layout = QVBoxLayout(self)
         self.layout.setSpacing(0)
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -1647,13 +1659,96 @@ class MetricsForm(QFrame):
         self.layout.addWidget(
             self.title_label, 1, alignment=Qt.AlignmentFlag.AlignHCenter
         )
-        self.metrics = QFrame(self)
-        self.metrics.layout = QVBoxLayout(self.metrics)
-        self.metrics.layout.setSpacing(5)
-        self.metrics.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.addWidget(self.metrics, 9)
-        self.setLayout(self.layout)
 
+        self.scroll_widget = QScrollArea(self)
+        self.scroll_widget.setStyleSheet(
+            """
+            QScrollArea{
+                background-color: transparent;
+                border: none;
+            }"""
+            + MINIMAL_SCROLL_BAR_CSS
+        )
+        self.scroll_widget.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self.scroll_widget.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.scroll_widget.setWidgetResizable(True)
+        self.metric_widget = QWidget(self.scroll_widget)
+        self.metric_widget.setObjectName("MetricWidget")
+        self.metric_widget.setStyleSheet(
+            """
+            QWidget#MetricWidget{
+                background-color: transparent;
+                border: none;
+            }"""
+        )
+        self.metric_widget.layout = QVBoxLayout(self.metric_widget)
+        self.metric_widget.layout.setContentsMargins(5, 5, 8, 5)
+        self.metric_widget.layout.setSpacing(12)
+        #self.metric_widget.setSizePolicy(
+        #    QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+        #) # TODO keep or remove this?
+        self.scroll_widget.setWidget(self.metric_widget)
+        self.layout.addWidget(self.scroll_widget, 9)
+        self.setLayout(self.layout)
+        if cfg.CALCULATE_COMPLEXITY:
+            self.load_metrics(None, None)
+    
+    def load_metrics(self, source: CSource, obfuscated: CSource) -> None:
+        for i in reversed(range(self.metric_widget.layout.count())):
+            widget = self.metric_widget.layout.itemAt(i).widget()
+            self.metric_widget.layout.removeWidget(widget)
+            widget.setParent(None)
+        for metric in CodeMetricUnit.__subclasses__():
+            metric_unit = metric()
+            if source is not None and obfuscated is not None:
+                metric_unit.calculate_metrics(source, obfuscated)
+            metric_vals = metric_unit.get_metrics()
+            unit_widget = QWidget(self.metric_widget)
+            unit_layout = QVBoxLayout(unit_widget)
+            unit_layout.setContentsMargins(0, 0, 0, 0)
+            unit_layout.setSpacing(0)
+            if hasattr(metric_unit, 'gui_name'):
+                name_label = QLabel(metric_unit.gui_name)
+            else:
+                name_label = QLabel(metric_unit.name)
+            name_label.setFont(QFont(DEFAULT_FONT, 12))
+            name_label.setStyleSheet("QLabel{color: white;}")
+            unit_layout.addWidget(name_label)
+            unit_layout.addSpacing(2)
+            unit_widget.setLayout(unit_layout)
+            if metric_vals is not None:
+                for i, value_pair in enumerate(metric_vals):
+                    metric_widget = QWidget(unit_widget)
+                    metric_layout = QHBoxLayout(metric_widget)
+                    metric_layout.setContentsMargins(0, 0, 0, 0)
+                    metric_layout.setSpacing(0)
+                    name, m_val = value_pair
+                    metric_label = QLabel(" " + name)
+                    metric_label.setFont(QFont(DEFAULT_FONT, 10))
+                    metric_label.setStyleSheet("QLabel{color: white;}")
+                    if isinstance(m_val, Tuple):
+                        value_label = QLabel(m_val[0] + " ({})".format(",".join(m_val[1:])))
+                    else:
+                        value_label = QLabel(m_val)
+                    value_label.setFont(QFont(DEFAULT_FONT, 10, 200))
+                    value_label.setStyleSheet("QLabel{color: #878787;}")
+                    metric_layout.addWidget(metric_label)
+                    metric_layout.addStretch()
+                    metric_layout.addWidget(value_label)
+                    metric_widget.setLayout(metric_layout)
+                    unit_layout.addWidget(metric_widget)
+            else:
+                na_label = QLabel("N/A")
+                na_label.setFont(QFont(DEFAULT_FONT, 10))
+                na_label.setStyleSheet("QLabel{color: white;}")
+                unit_layout.addWidget(na_label)
+            self.metric_widget.layout.addWidget(unit_widget, alignment=Qt.AlignmentFlag.AlignTop)
+                    
+    
 
 class GeneralOptionsForm(QFrame):
 
@@ -1736,12 +1831,16 @@ class GeneralOptionsForm(QFrame):
         if self.__source_form_reference.modified_from_read:
             source.update_t_unit()
         source.fpath = self.__obfuscated_form_reference.source.fpath
+        if cfg.CALCULATE_COMPLEXITY:
+            original_source = deepcopy(source)
         if len(pipeline.transforms) != 0:
             self.parent().progress_bar.setRange(0, len(pipeline.transforms))
             self.parent().update_progress(0)
         obfuscated = pipeline.process(source, self.parent().update_progress)
         self.parent().update_progress(-1)
         self.__obfuscated_form_reference.add_source(obfuscated)
+        if cfg.CALCULATE_COMPLEXITY:
+            self.parent().metrics_form.load_metrics(original_source, obfuscated)
 
     def load_source(self) -> None:
         dialog = QFileDialog(self)
@@ -1841,10 +1940,10 @@ class MiscForm(QWidget):
         self.resize_func = resize_func
         self.transform_options = TransformOptionsForm(remove_func, self)
         self.layout.addWidget(
-            self.transform_options, 1, alignment=Qt.AlignmentFlag.AlignTop
+            self.transform_options, alignment=Qt.AlignmentFlag.AlignTop
         )  # TODO temp alignment
         self.metrics_form = MetricsForm(self)
-        self.layout.addWidget(self.metrics_form, 1)
+        self.layout.addWidget(self.metrics_form)
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setRange(0, 13)
         self.progress_bar.setValue(0)
@@ -1872,12 +1971,12 @@ class MiscForm(QWidget):
                 border-width: 2px;
             }"""
         )
-        self.layout.addWidget(self.progress_bar, 1, alignment=Qt.AlignmentFlag.AlignBottom)
+        self.layout.addWidget(self.progress_bar, alignment=Qt.AlignmentFlag.AlignBottom)
         self.general_options = GeneralOptionsForm(
             transforms_func, set_transforms_func, load_gui_vals_func, source_form, obfuscated_form, self
         )
         self.layout.addWidget(
-            self.general_options, 1, alignment=Qt.AlignmentFlag.AlignBottom
+            self.general_options, alignment=Qt.AlignmentFlag.AlignBottom
         )  # TODO temp alignment
         self.setLayout(self.layout)
     
@@ -2027,7 +2126,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(parent)
         # Set window title and icon information
         self.setWindowTitle(config.NAME + " " + config.VERSION)
-        self.setWindowIcon(QIcon(".\\app\\graphics\\logo5.png"))
+        self.setWindowIcon(QIcon(".\\app\\graphics\\logo.png"))
         self.setAutoFillBackground(True)
         # Set default palette colour information
         palette = self.palette()

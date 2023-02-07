@@ -6,7 +6,6 @@ from .utils import (
     NewVariableUseAnalyzer,
     TypeKinds,
     ExpressionTypeAnalyzer,
-    FormattedCGenerator,
     is_initialised,
 )  # TODO remove if not used
 from .debug import *
