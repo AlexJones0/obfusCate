@@ -25,7 +25,7 @@ import sys
 import ctypes
 
 
-# TODO not sure how GUI currently handles parsing of invalid programs, need to look into it
+# TODO not sure how GUI currently handles parsing of invalid programs, need to look into it 
 
 
 DEFAULT_FONT = ["Consolas", "Fira Code", "Jetbrains Mono", "Courier New", "monospace"]
