@@ -1407,7 +1407,7 @@ class ExpressionTypeAnalyzer(NodeVisitor):
             right_type = self.types[node.right]
             self.types[node] = self.standard_coalesce_types([left_type, right_type])
             self.mutating[node] = self.mutating[node.left] or self.mutating[node.right]
-        elif node.op == ["%", "<<", ">>", "<", "<=", ">", ">=", "==", "!=", "&&", "||"]: 
+        elif node.op in ["%", "<<", ">>", "<", "<=", ">", ">=", "==", "!=", "&&", "||"]: 
             self.types[node] = self.SimpleType.INT
             self.mutating[node] = self.mutating[node.left] or self.mutating[node.right]
         elif node.op in ["&", "|", "^"]:
@@ -1415,6 +1415,7 @@ class ExpressionTypeAnalyzer(NodeVisitor):
             self.types[node] = self.SimpleType.INT
             self.mutating[node] = self.mutating[node.left] or self.mutating[node.right]
         else:
+            print(node.op)
             log(f"Unknown binary operator {node.op} encountered.")
             self.types[node] = self.SimpleType.OTHER
             self.mutating[node] = True  # Pessimistic assumption
