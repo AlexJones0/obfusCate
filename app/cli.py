@@ -2,13 +2,33 @@
 Implements functions to implement the command-line interface of the program,
 such that it can be used through text interaction in a terminal window."""
 import sys
+import unicodedata
 from typing import Optional
 from .debug import print_error, create_log_file, log
-from .interaction import CSource, menu_driven_option, handle_arguments, \
-    disable_logging, set_seed, suppress_errors, display_progress, save_composition, load_composition, \
-    save_composition_file, load_composition_file
+from .interaction import (
+    CSource,
+    menu_driven_option,
+    handle_arguments,
+    disable_logging,
+    set_seed,
+    suppress_errors,
+    display_progress,
+    save_composition,
+    load_composition,
+    save_composition_file,
+    load_composition_file,
+    disable_metrics,
+    display_version,
+)
 from .obfuscation import *
+from .complexity import *
 from app import settings as config
+from unidecode import unidecode
+
+
+def skip_menus():
+    config.SKIP_MENUS = True
+    log("Set option to skip menus in the CLI and obfuscate instantly.")
 
 
 # The list of command line arguments/options supported by the command line interface.
@@ -18,6 +38,12 @@ options = [
         ["-h", "--help"],  # Arguments that can be provided for this function
         "Displays this help menu.",  # A help menu description for this argument
         [],  # Names of proceeding values used by the function
+    ),
+    (
+        display_version,
+        ["-v", "--version"],
+        "Displays the program's name and current version.",
+        [],
     ),
     (
         disable_logging,
@@ -55,6 +81,18 @@ options = [
         "Loads a given JSON file containing the composition of obfuscation transformations to use.",
         ["file"],
     ),
+    (
+        disable_metrics,
+        ["-m", "--no-metrics"],
+        "Disables calculation of code complexity metrics for the obfuscated programs.",
+        [],
+    ),
+    (
+        skip_menus,
+        ["-s", "--skip"],
+        "Skips the menus, immediately executing using any loaded composition file.",
+        [],
+    ),
 ]
 
 
@@ -80,9 +118,14 @@ Options:\n""".format(
             + opt_str
             + (max_len - len(opt_str) + 1) * " "
             + "| "
-            + option[2].split("\n")[0] 
+            + option[2].split("\n")[0]
             + ("\n" if "\n" in option[2] else "")
-            + "\n".join([(5 + max_len) * " " + "| " + line for line in option[2].split("\n")[1:]])
+            + "\n".join(
+                [
+                    (5 + max_len) * " " + "| " + line
+                    for line in option[2].split("\n")[1:]
+                ]
+            )
             + "\n"
         )
     print(help_str)
@@ -91,6 +134,61 @@ Options:\n""".format(
 
 
 options[0] = (help_menu, *options[0][1:])
+
+
+def display_complexity_metrics(source: CSource, obfuscated: CSource) -> None:
+    if source is None or obfuscated is None:
+        return
+    metrics = CodeMetricUnit.__subclasses__()
+    print("\n===Obfuscation Metrics===")
+    while len(metrics) != 0:
+        processed = []
+        vals_to_print = []
+        max_global = 0
+        for metric in metrics:
+            missing_preds = [
+                req
+                for req in metric.predecessors
+                if req in metrics and req not in processed
+            ]
+            if len(missing_preds) > 0:
+                continue
+            processed.append(metric)
+            metric_unit = metric()
+            metric_unit.calculate_metrics(source, obfuscated)
+            metric_vals = metric_unit.get_metrics()
+            max_local = max(
+                [
+                    len(unidecode(m[0]))
+                    + (
+                        len(m[1])
+                        if not isinstance(m[1], tuple)
+                        else len(m[1][0]) + len(m[1][1]) + 3
+                    )
+                    for m in metric_vals
+                ]
+            )
+            max_global = max(max_local, max_global)
+            vals_to_print.append((metric.name, metric_vals))
+        for metric_name, metric_vals in vals_to_print:
+            print(f"\n{metric_name}:")
+            for name, m_val in metric_vals:
+                if isinstance(m_val, tuple):
+                    values = f"{m_val[0]} ({m_val[1]})"
+                else:
+                    values = m_val
+                padding = " " * (max_global - len(unidecode(name)) - len(values))
+                print(f"  {name}:        {padding}{values}")
+        if len(processed) == 0:
+            log(
+                "Metrics {} have unsatisfiable predecessor dependencies!".format(
+                    metrics
+                )
+            )
+            return
+        for metric in processed:
+            metrics.remove(metric)
+    print("")
 
 
 def get_transformations(
@@ -114,13 +212,19 @@ def get_transformations(
     else:
         contents = load_composition_file(config.COMPOSITION)
         if contents is None:
-            log("Error loading saved transformations - please provide a valid compositions file", print_err=True)
+            log(
+                "Error loading saved transformations - please provide a valid compositions file",
+                print_err=True,
+            )
             return None
         saved_pipeline = Pipeline.from_json(contents, use_gui=False)
         if saved_pipeline is None:
-            log("Error loading saved transformations - please provide a valid compositions file", print_err=True)
+            log(
+                "Error loading saved transformations - please provide a valid compositions file",
+                print_err=True,
+            )
             return None
-        if config.SEED is None: # Only use saved seed if no seed was provided
+        if config.SEED is None:  # Only use saved seed if no seed was provided
             config.SEED = saved_pipeline.seed
         selected = saved_pipeline.transforms
         cursor_index = len(selected)
@@ -138,7 +242,7 @@ def get_transformations(
     ]
 
     # Iteratively get transform information until user selects to continue/quit.
-    done_selecting = False
+    done_selecting = config.SKIP_MENUS
     while not done_selecting:
         # Format current transforms with cursor location for printing
         prompt = "\nCurrent transforms: {} >>> {}\n".format(
@@ -176,7 +280,13 @@ def get_transformations(
     pipeline = Pipeline(seed, *selected)
     if config.SAVE_COMPOSITION:
         save_composition_file(pipeline.to_json())
+    original = deepcopy(source)
     obfuscated = pipeline.process(source)
+
+    # Calculate and display complexity metrics
+    if config.CALCULATE_COMPLEXITY:
+        display_complexity_metrics(original, obfuscated)
+
     return obfuscated
 
 
@@ -223,6 +333,7 @@ def handle_CLI() -> bool:
     if len(args) == 1:  # 1 argument - take as input source file, and print output
         if obfuscated is not None:
             log("Displaying obfuscation output.")
+            print("\n===Obfuscated Output===\n")
             print(obfuscated.contents)
         log("Execution finished normally.")
         return True
@@ -231,7 +342,7 @@ def handle_CLI() -> bool:
             log("Writing obfuscation output")
             with open(args[1], "w+") as write_file:
                 write_file.write(obfuscated.contents)
-            print("Obfuscation finished successfully.")
+            print("Obfuscation written successfully.")
             log("Obfuscation written successfully.")
             log("Execution finished normally.")
             return True

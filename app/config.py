@@ -16,6 +16,7 @@ class Config(object):
     DISPLAY_ERRORS = False
     SUPPRESS_ERRORS = False
     DISPLAY_PROGRESS = False
+    SKIP_MENUS = False
     SAVE_COMPOSITION = False
     COMPOSITION = None
     SEED = None

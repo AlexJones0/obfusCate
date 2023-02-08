@@ -352,6 +352,17 @@ def save_composition() -> None:
     log("Set option to save the final obfuscation transformation sequence.")
 
 
+def disable_metrics() -> None:
+    cfg.CALCULATE_COMPLEXITY = False
+    log("Set option to disable complexity calculations during execution.")
+
+
+def display_version() -> bool:
+    print(cfg.NAME, cfg.VERSION)
+    log("Retrieved and displayed name and version information for the software.")
+    return False
+
+
 def load_composition(supplied_args: Iterable[str]) -> bool:
     """Sets the file to load initial obfuscation transformation information from.
 
