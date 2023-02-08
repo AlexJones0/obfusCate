@@ -7,18 +7,8 @@ import random
 from app import settings as cfg
 from app.debug import *
 from app.interaction import *
+from tests import *
 from pycparser.c_ast import FuncDef, Decl
-
-
-def clean_dir():
-    """A small utility to clean the testing directory, such that it can be reused."""
-    test_path = os.getcwd() + "/tests/testing"
-    if not os.path.isdir(test_path):
-        return
-    log_files = os.listdir(test_path)
-    for file_ in log_files:
-        if file_.endswith(".txt"):
-            os.remove(os.path.join(test_path, file_))
 
 
 class TestDebugFunctions(unittest.TestCase):
@@ -214,49 +204,19 @@ class TestIOFunctions(unittest.TestCase):
         self.assertTrue(source.valid_parse)
         del source
 
-    """def test_parse_errors_single_case(self):
-        Tests that the CSource.parse_errors property correctly returns single errors
-        for an invalid C program.
+    def test_parse_errors_single_case(self):
+        """Tests that the CSource.valid_parse property correctly detects single errors
+        for an invalid C program."""
         source = CSource(os.getcwd() + "/tests/data/invalid.c")
-        self.assertEqual(len(source.parse_errors), 1)
-        self.assertTrue(
-            source.parse_errors[0].endswith(
-                "/tests/data/invalid.c:2:8: error: expected '(' after 'if'"
-            )
-        )
+        self.assertFalse(source.valid_parse)
         del source
 
     def test_parse_errors_multiple_case(self):
-        Tests that the CSource.parse_errors property correctly returns multiple errors
-        found by clang for an invalid C program.
+        """Tests that the CSource.valid_parse property correctly detects multiple errors
+        found by clang for an invalid C program."""
         source = CSource(os.getcwd() + "/tests/data/five_invalid.c")
-        self.assertTrue(len(source.parse_errors) == 5)
-        self.assertTrue(
-            source.parse_errors[0].endswith(
-                "/tests/data/five_invalid.c:2:14: error: expected ';' at end of declaration"
-            )
-        )
-        self.assertTrue(
-            source.parse_errors[1].endswith(
-                "/tests/data/five_invalid.c:3:14: error: expected ';' at end of declaration"
-            )
-        )
-        self.assertTrue(
-            source.parse_errors[2].endswith(
-                "/tests/data/five_invalid.c:4:14: error: expected ';' at end of declaration"
-            )
-        )
-        self.assertTrue(
-            source.parse_errors[3].endswith(
-                "/tests/data/five_invalid.c:5:14: error: expected ';' at end of declaration"
-            )
-        )
-        self.assertTrue(
-            source.parse_errors[4].endswith(
-                "/tests/data/five_invalid.c:6:14: error: expected ';' at end of declaration"
-            )
-        )
-        del source"""
+        self.assertFalse(source.valid_parse)
+        del source
 
     def test_source_file_copy(self):
         """Tests that the Csource.copy function correclty returns a copy with a separate
@@ -515,82 +475,12 @@ class TestIOFunctions(unittest.TestCase):
 
 class TestMainCLIFunctions(unittest.TestCase):
     """Implements unit tests for the cli.py functions"""
-
     pass
 
 
 class TestObfuscationCLIFunctions(unittest.TestCase):
     """Implements unit test for the obfuscation edit_cli and get_cli methods in obfuscation.py"""
-    
-    def test_random_testing_to_delete(self):
-        source = CSource("./tests/data/fibonacci_recursive.c")
-        
-        from pycparser.c_ast import NodeVisitor
-        from pycparser import c_generator
-        from random import choices as randchoice
-        from string import ascii_lowercase
-        
-        class IdentifierTraverser(NodeVisitor):
-            def __init__(self):
-                self.idents = dict()
-                self.new_idents = set()
-                self.functions = set()
-            
-            def get_new_ident(self, ident):
-                new_ident = ""
-                while len(new_ident) == 0 or new_ident in self.new_idents:
-                    new_ident = str(randchoice(ascii_lowercase))
-                self.new_idents.add(new_ident)
-                self.idents[ident] = new_ident
-                return new_ident
-                
-            def scramble_ident(self, node):
-                if hasattr(node, 'name') and node.name is not None:
-                    if node.name not in self.idents:
-                        self.get_new_ident(node.name)
-                    node.name = self.idents[node.name]
-            
-            def visit_Decl(self, node):
-                self.scramble_ident(node)
-                for c in node:
-                    self.visit(c)
-            
-            def visit_TypeDecl(self, node):
-                self.scramble_ident(node)
-                for c in node:
-                    self.visit(c)
-            
-            def visit_FuncDef(self, node):
-                self.functions.add(node.decl.name)
-                self.scramble_ident(node.decl)
-                for c in node:
-                    self.visit(c)
-            
-            def visit_ID(self, node):
-                self.scramble_ident(node)
-                for c in node:
-                    self.visit(c)
-            
-            def visit_FuncCall(self, node):
-                if node.name in self.functions:
-                    self.scramble_ident(node)
-                for c in node:
-                    self.visit(c)
-            
-            # TODO: ArrayRef, Enum, Enumerator, FuncCall, Goto, Label, NamedInitializer, Struct, StructRef
-                
-        
-        v = IdentifierTraverser()
-        v.visit(source.t_unit)
-        new_contents = ""
-        generator = c_generator.CGenerator()
-        for line in open(source.fpath, "r"):
-            if line.strip().startswith("#"):
-                new_contents += line + "\n"
-        new_contents += generator.visit(source.t_unit)
-        newSource = CSource(source.fpath, new_contents, source.t_unit)
-        print("NEW CONTENTS:")
-        print(newSource.contents)
+    pass
         
 
 

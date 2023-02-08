@@ -21,6 +21,7 @@ from PyQt6.QtGui import *
 from PyQt6.QtCore import Qt, QSize, QMimeData, QDir, QCoreApplication, QPoint
 from typing import Type, Tuple, Mapping, Any
 from copy import deepcopy
+import functools
 import sys
 import ctypes
 
@@ -1702,62 +1703,139 @@ class MetricsForm(QFrame):
         if cfg.CALCULATE_COMPLEXITY:
             self.load_metrics(None, None)
     
+    def toggle_checkbox(self, metric):
+        # Retrieve relevant checbox information
+        if metric not in self.checkbox_map:
+            return
+        checkbox = self.checkbox_map[metric]
+        if checkbox is None:
+            return
+        # Change the metric name label formatting depending on the checkbox status
+        name_label = checkbox.parent().layout().itemAt(0).widget()
+        if checkbox.isChecked(): # TODO unmodularised code with the stuff below
+            name_colour = "white"
+            name_font = QFont(DEFAULT_FONT, 12)
+        else:
+            name_colour = "#727463"
+            name_font = QFont(DEFAULT_FONT, 12)
+            name_font.setStrikeOut(True)
+            name_font.setItalic(True)
+        name_label.setFont(name_font)
+        name_label.setStyleSheet("QLabel{color: " + name_colour + ";}" + GENERAL_TOOLTIP_CSS)
+        # Hide/show the metrics themselves depending on the checkbox status
+        unit_widget = checkbox.parent().parent()
+        for i in range(1, unit_widget.layout().count()):
+            widget = unit_widget.layout().itemAt(i).widget()
+            if widget is None:
+                continue
+            if checkbox.isChecked():
+                widget.show()
+            else:
+                widget.hide()
+    
     def load_metrics(self, source: CSource, obfuscated: CSource) -> None:
+        if not hasattr(self, 'checkbox_map'):
+            self.checkbox_map = {}
+        else:
+            for key in self.checkbox_map.keys():
+                self.checkbox_map[key] = self.checkbox_map[key].isChecked()
         QToolTip.setFont(QFont(DEFAULT_FONT, 13))
         for i in reversed(range(self.metric_widget.layout.count())):
             widget = self.metric_widget.layout.itemAt(i).widget()
             self.metric_widget.layout.removeWidget(widget)
             widget.setParent(None)
-        for metric in CodeMetricUnit.__subclasses__():
-            metric_unit = metric()
-            if source is not None and obfuscated is not None:
-                metric_unit.calculate_metrics(source, obfuscated)
-            metric_vals = metric_unit.get_metrics()
-            unit_widget = QWidget(self.metric_widget)
-            unit_layout = QVBoxLayout(unit_widget)
-            unit_layout.setContentsMargins(0, 0, 0, 0)
-            unit_layout.setSpacing(0)
-            if hasattr(metric_unit, 'gui_name'):
-                name_label = QLabel(metric_unit.gui_name)
-            else:
-                name_label = QLabel(metric_unit.name)
-            name_label.setFont(QFont(DEFAULT_FONT, 12))
-            name_label.setStyleSheet("QLabel{color: white;}" + GENERAL_TOOLTIP_CSS)
-            if hasattr(metric_unit, 'name_tooltip'):
-                name_label.setToolTip(metric_unit.name_tooltip)
-            unit_layout.addWidget(name_label)
-            unit_layout.addSpacing(2)
-            unit_widget.setLayout(unit_layout)
-            if metric_vals is not None:
-                for i, value_pair in enumerate(metric_vals):
-                    metric_widget = QWidget(unit_widget)
-                    metric_widget.setStyleSheet(GENERAL_TOOLTIP_CSS)
-                    metric_layout = QHBoxLayout(metric_widget)
-                    metric_layout.setContentsMargins(0, 0, 0, 0)
-                    metric_layout.setSpacing(0)
-                    name, m_val = value_pair
-                    metric_label = QLabel(" " + name)
-                    metric_label.setFont(QFont(DEFAULT_FONT, 10))
-                    metric_label.setStyleSheet("QLabel{color: white;}")
-                    if isinstance(m_val, Tuple):
-                        value_label = QLabel(m_val[0] + " ({})".format(",".join(m_val[1:])))
-                    else:
-                        value_label = QLabel(m_val)
-                    value_label.setFont(QFont(DEFAULT_FONT, 10, 200))
-                    value_label.setStyleSheet("QLabel{color: #878787;}")
-                    if name in metric_unit.tooltips:
-                        metric_widget.setToolTip(metric_unit.tooltips[name])
-                    metric_layout.addWidget(metric_label)
-                    metric_layout.addStretch()
-                    metric_layout.addWidget(value_label)
-                    metric_widget.setLayout(metric_layout)
-                    unit_layout.addWidget(metric_widget)
-            else:
-                na_label = QLabel("N/A")
-                na_label.setFont(QFont(DEFAULT_FONT, 10))
-                na_label.setStyleSheet("QLabel{color: white;}")
-                unit_layout.addWidget(na_label)
-            self.metric_widget.layout.addWidget(unit_widget, alignment=Qt.AlignmentFlag.AlignTop)
+        metrics = CodeMetricUnit.__subclasses__()
+        while len(metrics) != 0:
+            processed = []
+            for metric in metrics:
+                missing_preds = [req for req in metric.predecessors 
+                                 if req in metrics and req not in processed]
+                if len(missing_preds) > 0:
+                    continue
+                processed.append(metric) 
+                metric_unit = metric()
+                unit_widget = QWidget(self.metric_widget)
+                unit_layout = QVBoxLayout(unit_widget)
+                unit_layout.setContentsMargins(0, 0, 0, 0)
+                unit_layout.setSpacing(0)
+                name_widget = QWidget(unit_widget)
+                name_layout = QHBoxLayout(name_widget)
+                name_layout.setContentsMargins(0, 0, 5, 0)
+                name_layout.setSpacing(0)
+                if hasattr(metric_unit, 'gui_name'):
+                    name_label = QLabel(metric_unit.gui_name)
+                else:
+                    name_label = QLabel(metric_unit.name)
+                if metric not in self.checkbox_map or self.checkbox_map[metric]:
+                    name_colour = "white"
+                    name_font = QFont(DEFAULT_FONT, 12)
+                else:
+                    name_colour = "#727463"
+                    name_font = QFont(DEFAULT_FONT, 12)
+                    name_font.setStrikeOut(True)
+                    name_font.setItalic(True)
+                name_label.setFont(name_font)
+                name_label.setStyleSheet("QLabel{color: " + name_colour + ";}" + GENERAL_TOOLTIP_CSS)
+                if hasattr(metric_unit, 'name_tooltip'):
+                    name_label.setToolTip(metric_unit.name_tooltip)
+                name_layout.addWidget(name_label)
+                name_layout.addStretch()
+                metric_checkbox = QCheckBox(name_widget)
+                metric_checkbox.setStyleSheet("QCheckBox{color: #727463;}" + GENERAL_TOOLTIP_CSS)
+                metric_checkbox.setToolTip("Enable/disable calculation. Disabling will improve performance.")
+                if metric in self.checkbox_map:
+                    checked = self.checkbox_map[metric]
+                    metric_checkbox.setChecked(checked)
+                else:
+                    metric_checkbox.setChecked(True)
+                self.checkbox_map[metric] = metric_checkbox
+                metric_checkbox.stateChanged.connect(
+                    functools.partial(self.toggle_checkbox, metric)
+                )
+                name_layout.addWidget(metric_checkbox)
+                unit_layout.addWidget(name_widget)
+                unit_layout.addSpacing(2)
+                unit_widget.setLayout(unit_layout)
+                self.metric_widget.layout.addWidget(unit_widget, alignment=Qt.AlignmentFlag.AlignTop)
+                if not metric_checkbox.isChecked():
+                    continue
+                if source is not None and obfuscated is not None:
+                    metric_unit.calculate_metrics(source, obfuscated)
+                metric_vals = metric_unit.get_metrics()
+                if metric_vals is not None:
+                    for i, value_pair in enumerate(metric_vals):
+                        metric_widget = QWidget(unit_widget)
+                        metric_widget.setStyleSheet(GENERAL_TOOLTIP_CSS)
+                        metric_layout = QHBoxLayout(metric_widget)
+                        metric_layout.setContentsMargins(0, 0, 0, 0)
+                        metric_layout.setSpacing(0)
+                        name, m_val = value_pair
+                        metric_label = QLabel(" " + name)
+                        metric_label.setFont(QFont(DEFAULT_FONT, 10))
+                        metric_label.setStyleSheet("QLabel{color: white;}")
+                        if isinstance(m_val, Tuple):
+                            value_label = QLabel(m_val[0] + " ({})".format(",".join(m_val[1:])))
+                        else:
+                            value_label = QLabel(m_val)
+                        value_label.setFont(QFont(DEFAULT_FONT, 10, 200))
+                        value_label.setStyleSheet("QLabel{color: #878787;}")
+                        if name in metric_unit.tooltips:
+                            metric_widget.setToolTip(metric_unit.tooltips[name])
+                        metric_layout.addWidget(metric_label)
+                        metric_layout.addStretch()
+                        metric_layout.addWidget(value_label)
+                        metric_widget.setLayout(metric_layout)
+                        unit_layout.addWidget(metric_widget)
+                else:
+                    na_label = QLabel("N/A")
+                    na_label.setFont(QFont(DEFAULT_FONT, 10))
+                    na_label.setStyleSheet("QLabel{color: white;}")
+                    unit_layout.addWidget(na_label)
+            if len(processed) == 0:
+                log("Metrics {} have unsatisfiable predecessor dependencies!".format(metrics))
+                return
+            for metric in processed:
+                metrics.remove(metric)
                     
     
 
