@@ -344,7 +344,7 @@ def handle_CLI() -> bool:
                 write_file.write(obfuscated.contents)
             print("Obfuscation written successfully.")
             log("Obfuscation written successfully.")
-            log("Execution finished normally.")
+            log("Execution finished normally; file was written to successfuly.")
             return True
         except Exception as e:
             print_error(f"Error creating output file '{args[1]}'")

@@ -8,6 +8,7 @@ on:
       - '**.py'
       - 'app/**'
       - 'tests/**'
+      - 'requirements.txt'
   pull_request:
     branches: 
       - main
@@ -15,6 +16,7 @@ on:
       - '**.py'
       - 'app/**'
       - 'tests/**'
+      - 'requirements.txt'
 
 jobs:
   backend:
