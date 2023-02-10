@@ -1877,7 +1877,7 @@ class MetricsForm(QFrame):
                         metric_layout.setSpacing(0)
                         name, m_val = value_pair
                         metric_label = QLabel(" " + name)
-                        metric_label.setFont(QFont(DEFAULT_FONT, 10))
+                        metric_label.setFont(QFont(DEFAULT_FONT, 9))
                         metric_label.setStyleSheet("QLabel{color: white;}")
                         if isinstance(m_val, Tuple):
                             value_label = QLabel(
@@ -1885,7 +1885,7 @@ class MetricsForm(QFrame):
                             )
                         else:
                             value_label = QLabel(m_val)
-                        value_label.setFont(QFont(DEFAULT_FONT, 10, 200))
+                        value_label.setFont(QFont(DEFAULT_FONT, 9, 200))
                         value_label.setStyleSheet("QLabel{color: #878787;}")
                         if name in metric_unit.tooltips:
                             metric_widget.setToolTip(metric_unit.tooltips[name])
@@ -1994,6 +1994,7 @@ class GeneralOptionsForm(QFrame):
         if cfg.CALCULATE_COMPLEXITY:
             original_source = deepcopy(source)
         if len(pipeline.transforms) != 0:
+            # TODO add complexity metric calculations to progress bar? Seems hard
             self.parent().progress_bar.setRange(0, len(pipeline.transforms))
             self.parent().update_progress(0)
         obfuscated = pipeline.process(source, self.parent().update_progress)

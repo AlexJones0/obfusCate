@@ -486,3 +486,21 @@ class TestObfuscationCLIFunctions(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# TODO
+# TESTING TODO
+# Utils/Interaction unit tests
+# General CLI unit tests
+# Obfuscation CLI unit tests
+# Code Complexity CLI unit tests
+# CLI integration tests
+# General GUI unit tests
+# Obfuscation GUI unit tests
+# Code Complexity GUI unit tests
+# GUI integration tests
+# Obfuscation unit tests (per method, per construct)
+# Obfucation construct integration tests (per method)
+# Obfuscation transformation integration tests (combinations of methods)
+# Code Complexity metric unit tests
+# Whole system tests

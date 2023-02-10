@@ -71,7 +71,7 @@ class CSource:
                 cfg.TEMP_FILE_PATH,
                 use_cpp=True,
                 cpp_path="clang",
-                cpp_args=["-E", r"-Iutils/fake_libc_include"],
+                cpp_args=["-E", r"-Iutils/fake_libc_include"], # TODO add trigraph support?
             )
             fname = cfg.TEMP_FILE_PATH.split("\\")[-1]
             # TODO keep linked libraries to get functions etc.? # TODO TODO TODO
@@ -99,7 +99,7 @@ class CSource:
                 self.fpath,
                 use_cpp=True,
                 cpp_path="clang",
-                cpp_args=["-E", r"-Iutils/fake_libc_include"],
+                cpp_args=["-E", r"-Iutils/fake_libc_include"], # TODO add trigraph support
             )  # TODO check cpp stuff here? + with github actions
             fname = self.fpath.split("\\")[-1]
             t_unit.ext = [x for x in t_unit.ext if fname in x.coord.file]
