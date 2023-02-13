@@ -6,7 +6,7 @@ from .debug import print_error, log, delete_log_file, logprint
 from app import settings as cfg
 from pycparser import parse_file as pycparse_file
 from pycparser.c_ast import FileAST
-from typing import Iterable, Optional, Tuple, Union, Callable
+from typing import Iterable, Tuple, Callable
 import os, time
 
 
@@ -36,6 +36,7 @@ class CSource:
             return
         if t_unit is None:
             log(f"Parsing AST for file {self.fpath}")
+            self.t_unit = None
             self.__parse_file(self.fpath)
         else:
             self.t_unit = t_unit
@@ -85,6 +86,8 @@ class CSource:
         reading from a file path (used when the contents no longer match up
         with the file). Does this by writing to a temporary file for
         preprocessing via clang, and then removing this aftwards."""
+        if cfg.TEMP_FILE_PATH is None or cfg.TEMP_FILE_PATH == "":
+            return None
         try:
             with open(cfg.TEMP_FILE_PATH, "w+") as f:
                 f.write(self.contents)
@@ -187,6 +190,7 @@ def menu_driven_option(
     print(prompt + "\n >", end="")
 
     # Loop until valid input received
+    choice = ""
     valid_input = False
     while not valid_input:
         try:
@@ -242,14 +246,16 @@ def get_float(
             print("Invalid input for a decimal number. Please try again...")
             continue
         if lower_bound is not None and user_input < lower_bound:
-            logprint(
+            print(
                 f"Input {user_input} is too small. The value must be at least {lower_bound}."
             )
+            log(f"User input {user_input} smaller than lower bound {lower_bound}.")
             continue
         if upper_bound is not None and user_input > upper_bound:
-            logprint(
+            print(
                 f"Input {user_input} is too large. The value must be at most {upper_bound}."
             )
+            log(f"User input {user_input} larger than upper bound {lower_bound}.")
             continue
         return user_input
 
@@ -277,14 +283,16 @@ def get_int(
             print("Invalid input for an integer. Please try again...")
             continue
         if lower_bound is not None and user_input < lower_bound:
-            logprint(
+            print(
                 f"Input {user_input} is too small. The value must be at least {lower_bound}."
             )
+            log(f"User input {user_input} smaller than lower bound {lower_bound}.")
             continue
         if upper_bound is not None and user_input > upper_bound:
-            logprint(
+            print(
                 f"Input {user_input} is too large. The value must be at most {upper_bound}."
             )
+            log(f"User input {user_input} larger than upper bound {lower_bound}.")
             continue
         return user_input
 
@@ -340,10 +348,10 @@ def load_composition_file(filepath: str | None = None) -> str | None:
         if filepath is None:
             return None
     try:
-        with open(filepath, "r") as comp_file:
+        with open(os.path.join(os.getcwd(), filepath), "r") as comp_file:
             contents = comp_file.read()
         return contents
-    except OSError:
+    except OSError as e:
         print_error("Unable to open composition file to load the composition.")
         log(
             f"Failed to load composition file {filepath} due to errors in accessing and reading from the file."
@@ -374,6 +382,7 @@ def set_seed(supplied_args: Iterable[str]) -> bool:
     try:
         cfg.SEED = int(supplied_args[0])
         log(f"Set option to use random seed {cfg.SEED}")
+        return True
     except:
         print_error(
             "Some integer seed must be supplied with the -s and --seed options. Use the -h or --help options to see usage information."

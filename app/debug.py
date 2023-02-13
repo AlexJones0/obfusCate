@@ -52,6 +52,8 @@ def delete_log_file() -> bool:
     Returns:
         bool: Whether deletion was successful or not.
     """
+    if cfg.LOG_FILE is None or cfg.LOG_FILE == "":
+        return False
     try:
         os.remove(cfg.LOG_FILE)
         return True

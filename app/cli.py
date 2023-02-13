@@ -8,7 +8,7 @@ as CLI system arguments and options."""
 from . import interaction, complexity, obfuscation as obfs
 from .debug import print_error, create_log_file, log, logprint
 from app import settings as config
-from typing import Iterable, Type, Tuple, Union
+from typing import Iterable, Type, Tuple
 import sys, copy, unidecode
 
 
@@ -58,12 +58,12 @@ def help_menu() -> bool:
 interaction.set_help_menu(help_menu)
 
 
-def get_metric_length(metric_val: Tuple[str, Union[str, Tuple[str, str]]]) -> int:
+def get_metric_length(metric_val: Tuple[str, str | Tuple[str, str]]) -> int:
     """Calculates the formatted string length of an output calculated
     metric value.
 
     Args:
-        metric_val (Tuple[str,Union[str,Tuple[str,str]]]): The given metric
+        metric_val (Tuple[str | [str,Tuple[str,str]]): The given metric
         value - the first string is the metric name, the second is the
         value string, and the optional third string is the delta value.
 
@@ -115,10 +115,9 @@ def process_metrics(
                 metric_unit = metric()
                 metric_unit.calculate_metrics(source, obfuscated)
                 metric_values = metric_unit.get_metrics()
+                processed_values[metric.name] = metric_values
             except Exception as e:
                 log(f"Unknown error when processing metrics: {e}")
-                continue
-            processed_values[metric.name] = metric_values
             just_processed.append(metric)
         if len(just_processed) == 0:
             log(f"Unsatisfiable metric predecessor dependencies: {metrics}")
@@ -166,16 +165,20 @@ def load_composition() -> obfs.Pipeline | None:
 
 
     Returns:
-        obfs.Pipeline | None: The loaded pipeline corresponding to the 
+        obfs.Pipeline | None: The loaded pipeline corresponding to the
         information in the composition file. None if an error ocurred.
     """
     file_contents = interaction.load_composition_file(config.COMPOSITION)
     if file_contents is None:
-        logprint("Error loading saved transformations - invalid composition file supplied.")
+        logprint(
+            "Error loading saved transformations - invalid composition file supplied."
+        )
         return None
     saved_pipeline = obfs.Pipeline.from_json(file_contents, use_gui=False)
     if saved_pipeline is None:
-        logprint("Error loading saved transformations - please provide a valid compositions file")
+        logprint(
+            "Error loading saved transformations - please provide a valid compositions file"
+        )
         return None
     if config.SEED is None:  # Only use the saved seed if no seed was provided
         config.SEED = saved_pipeline.seed
@@ -199,13 +202,13 @@ def cli_obfuscation(
     # Load starting selections from the composition file if provided
     if config.COMPOSITION is not None:
         composition_pipeline = load_composition()
-        if composition_pipeline is None: 
+        if composition_pipeline is None:
             return None
         selected = composition_pipeline.transforms
     else:
         selected = []
     cursor_index = len(selected)
-    
+
     # Generate available transforms from implemented classes
     available_transforms = obfs.ObfuscationUnit.__subclasses__()
     num_transforms = len(available_transforms)
@@ -229,7 +232,7 @@ def cli_obfuscation(
         if choice == -1:  # Choice to quit
             log("Selected to exit the transformation selection menu.")
             return None
-        elif choice < num_transforms:  # Choice a specific transform
+        elif choice < num_transforms:  # Choice to load a specific transform
             new_t = available_transforms[choice].get_cli()
             selected = selected[:cursor_index] + [new_t] + selected[cursor_index:]
             log(
@@ -244,11 +247,15 @@ def cli_obfuscation(
             cursor_index = min(cursor_index + 1, len(selected))
         elif choice == num_transforms + 2:  # Choice to delete transform after cursor
             if cursor_index < len(selected):
-                log(f"Deleted selected transform {selected[cursor_index]} at index {cursor_index}")
+                log(
+                    f"Deleted selected transform {selected[cursor_index]} at index {cursor_index}"
+                )
             selected = selected[:cursor_index] + selected[(cursor_index + 1) :]
         elif choice == num_transforms + 3:  # Choice to edit transform after cursor
             if cursor_index < len(selected):
-                log(f"Began editing transform {selected[cursor_index]} at index {cursor_index}")
+                log(
+                    f"Began editing transform {selected[cursor_index]} at index {cursor_index}"
+                )
                 selected[cursor_index].edit_cli()
         else:  # Choice to finish selecting
             done_selecting = True
@@ -295,6 +302,13 @@ def handle_CLI() -> bool:
             "No source file supplied. Use the -h or --help options to see usage information."
         )
         log("Aborting executions because no arguments were supplied.")
+        return False
+    elif len(args) > 2:
+        print_error(
+            "Unrecognised number of arguments. At most 2 arguments must be supplied.\n"
+            "Use the -h or --help options to see usage information."
+        )
+        log(f"Aborting execution because too many arguments ({len(args)}) were given.")
         return False
     source = interaction.CSource(args[0])
     if source.contents is None or not source.valid_parse:
