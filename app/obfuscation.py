@@ -3120,7 +3120,7 @@ class InsertOpaqueUnit(ObfuscationUnit):
     name = "Opaque Predicate Insertion"
     description = "Inserts new conditionals with invariant opaque predicates"
     extended_description = (
-        """<html>This transformation inserts new conditional statements that check opaque predicates to the code.\n"""
+        """This transformation inserts new conditional statements that check opaque predicates to the code.\n"""
         """Opaque predicates are an expression whose value is always known to be true/false or either, where\n"""
         """this cannot be quickly determined by an attacker attempting to reverse engineer the code. Opaque\n"""
         """predicates cannot generally be optimised out by the compiler and will remain in compiled code.<br><br>\n\n"""
@@ -3136,8 +3136,8 @@ class InsertOpaqueUnit(ObfuscationUnit):
         """ > EITHER:      if (any predicate) { YOUR CODE } else { YOUR CODE } <br>\n"""
         """ > WHILE_FALSE: while (false predicate) { buggy code } <br><br>\n"""
         """The final input is the number of opaque predicates to insert in your function.<br><br>\n\n"""
-        """<b>Warning</b>: "buggy code" generation currently just replicates the real code;\n"""
-        """complexity is still increased but note this behaviour when choosing options.<\html>"""
+        """Warning: "buggy code" generation currently just replicates the real code;\n"""
+        """complexity is still increased but note this behaviour when choosing options."""
     )
     type = TransformType.STRUCTURAL
 

@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch
-from contextlib import redirect_stdout, redirect_stderr
+from contextlib import redirect_stdout
 from app import settings as cfg
 from app.cli import *
 from app.interaction import CSource
@@ -576,7 +576,7 @@ if __name__ == "__main__":
 # TESTING TODO
 ###Done### Debug unit tests
 ###Done### Interaction unit tests
-# General CLI unit tests
+###Done### General CLI unit tests
 # Utils unit tests
 # Obfuscation CLI unit tests
 # Code Complexity CLI unit tests
