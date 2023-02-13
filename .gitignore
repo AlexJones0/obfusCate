@@ -133,6 +133,5 @@ logs/
 
 # Output locations
 out/
-tests/testing/*
 examples/
 compositions/
