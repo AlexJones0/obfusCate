@@ -311,7 +311,7 @@ class TestMainCLIFunctions(unittest.TestCase):
         cfg.COMPOSITION = "./tests/testing/comp.cobf"
         with open(os.path.join(os.getcwd(), "./tests/data/compositions/seed.cobf"), "r") as f:
             composition = f.read()
-        new_contents = composition.replace("v0.17.0", cfg.VERSION)
+        new_contents = composition.replace("v0.17.4", cfg.VERSION)
         with open(os.path.join(os.getcwd(), cfg.COMPOSITION), "w+") as f:
             f.write(new_contents)
         result = load_composition()
@@ -341,7 +341,7 @@ class TestMainCLIFunctions(unittest.TestCase):
         self.assertIsNone(config.SEED)
         with open(os.getcwd() + "./tests/data/compositions/bad_json.cobf", "r") as f:
             composition = f.read()
-        new_contents = composition.replace("v0.17.0", cfg.VERSION)
+        new_contents = composition.replace("v0.17.4", cfg.VERSION)
         with open(os.getcwd() + cfg.COMPOSITION, "w+") as f:
             f.write(new_contents)
         result = load_composition()
@@ -455,6 +455,7 @@ class TestMainCLIFunctions(unittest.TestCase):
         the correct argument (i.e. the correct option is set). """
         cfg.SEED = None
         cfg.COMPOSITION = "./tests/data/compositions/seed.cobf"
+        # TODO make non-version dependent
         source = CSource(os.path.join(os.getcwd(), "./tests/data/minimal.c"))
         inputs = ["quit"]
         with patch("builtins.input", side_effect=inputs):

@@ -32,11 +32,11 @@ class CSource:
             self.contents = self.__read_file()
         else:
             self.contents = contents
+        self.t_unit = None
         if self.contents is None:
             return
         if t_unit is None:
             log(f"Parsing AST for file {self.fpath}")
-            self.t_unit = None
             self.__parse_file(self.fpath)
         else:
             self.t_unit = t_unit
