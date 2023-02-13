@@ -327,6 +327,7 @@ class TestMainCLIFunctions(unittest.TestCase):
         self.assertEqual(result.transforms, [])
         self.assertEqual(result.seed, 123457)
         self.assertEqual(config.SEED, 123456)
+        cfg.COMPOSITION = None
 
     def test_load_composition_invalid(self) -> None:
         """ Tests that the `load_composition` function can handle
@@ -347,6 +348,7 @@ class TestMainCLIFunctions(unittest.TestCase):
         result = load_composition()
         self.assertIsNone(result)
         self.assertIsNone(config.SEED)
+        cfg.COMPOSITION = None
 
     def test_cli_quit(self) -> None:
         """ Tests that the CLI obfuscation selection menu correctly propagates
@@ -461,6 +463,7 @@ class TestMainCLIFunctions(unittest.TestCase):
         with patch("builtins.input", side_effect=inputs):
             cli_obfuscation(source)
         self.assertEqual(cfg.SEED, 123456)
+        cfg.COMPOSITION = None
 
     def test_cli_save_composition_option(self) -> None:
         """ Tests that the CLI will successfully save a composition if supplied with
