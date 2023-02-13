@@ -2,7 +2,7 @@ import os
 
 def clean_dir():
     """A small utility to clean the testing directory, such that it can be reused."""
-    test_path = os.getcwd() + "/tests/testing"
+    test_path = os.path.join(os.getcwd(), "./tests/testing")
     if not os.path.isdir(test_path):
         return
     files = os.listdir(test_path)
