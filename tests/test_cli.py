@@ -336,14 +336,14 @@ class TestMainCLIFunctions(unittest.TestCase):
         clean_dir()
         config.SEED = None
         cfg.COMPOSITION = "./tests/testing/comp.cobf"
-        self.assertFalse(os.path.exists(os.getcwd() + cfg.COMPOSITION))
+        self.assertFalse(os.path.exists(os.path.join(os.getcwd(),  cfg.COMPOSITION)))
         result = load_composition()
         self.assertIsNone(result)
         self.assertIsNone(config.SEED)
-        with open(os.getcwd() + "./tests/data/compositions/bad_json.cobf", "r") as f:
+        with open(os.path.join(os.getcwd(),  "./tests/data/compositions/bad_json.cobf"), "r") as f:
             composition = f.read()
         new_contents = composition.replace("v0.17.4", cfg.VERSION)
-        with open(os.getcwd() + cfg.COMPOSITION, "w+") as f:
+        with open(os.path.join(os.getcwd(),  cfg.COMPOSITION), "w+") as f:
             f.write(new_contents)
         result = load_composition()
         self.assertIsNone(result)
@@ -353,7 +353,7 @@ class TestMainCLIFunctions(unittest.TestCase):
     def test_cli_quit(self) -> None:
         """ Tests that the CLI obfuscation selection menu correctly propagates
         quitting the program, so that it can be exit at any point. """
-        source = CSource(os.getcwd() + "./tests/data/minimal.c")
+        source = CSource(os.path.join(os.getcwd(),  "./tests/data/minimal.c"))
         quit_inputs = ["Q", "qUIt", "eXit    ", "  LEAVE    ", " X  "]
         with patch("builtins.input", side_effect=quit_inputs):
             for _ in quit_inputs:
@@ -362,7 +362,7 @@ class TestMainCLIFunctions(unittest.TestCase):
     def test_cli_transform_display(self) -> None:
         """ Tests that the transform selection CLI displays the available transforms
         and the cursor correctly."""
-        source = CSource(os.getcwd() + "./tests/data/minimal.c")
+        source = CSource(os.path.join(os.getcwd(),  "./tests/data/minimal.c"))
         CountUnit.count = 0
         inp = str(len(obfs.ObfuscationUnit.__subclasses__()))
         inputs = [inp, inp, inp, inp, inp, "quit"]
@@ -375,7 +375,7 @@ class TestMainCLIFunctions(unittest.TestCase):
     def test_cli_create_transform(self) -> None:
         """ Tests that the option to create a transform in the CLI correctly
         calls the `get_cli` function and adds the created transform to the list. """
-        source = CSource(os.getcwd() + "./tests/data/minimal.c")
+        source = CSource(os.path.join(os.getcwd(),  "./tests/data/minimal.c"))
         CountUnit.count = 0
         inp = str(len(obfs.ObfuscationUnit.__subclasses__()))
         inputs = [inp, "quit"]
@@ -388,7 +388,7 @@ class TestMainCLIFunctions(unittest.TestCase):
     def test_cli_move_cursor(self) -> None:
         """ Tests that the cursor can be properly moved left and right within the
         current composition of selected transforms in the CLI. """
-        source = CSource(os.getcwd() + "./tests/data/minimal.c")
+        source = CSource(os.path.join(os.getcwd(),  "./tests/data/minimal.c"))
         CountUnit.count = 0
         inp = len(obfs.ObfuscationUnit.__subclasses__())
         left = str(inp + 1)
@@ -405,7 +405,7 @@ class TestMainCLIFunctions(unittest.TestCase):
     def test_cli_delete_transform(self) -> None:
         """ Tests that transforms can be deleted from the selection menu
         within the CLI, deleting the transform after the cursor only if one exists. """
-        source = CSource(os.getcwd() + "./tests/data/minimal.c")
+        source = CSource(os.path.join(os.getcwd(),  "./tests/data/minimal.c"))
         CountUnit.count = 0
         inp = len(obfs.ObfuscationUnit.__subclasses__())
         left = str(inp + 1)
@@ -421,7 +421,7 @@ class TestMainCLIFunctions(unittest.TestCase):
     def test_cli_edit_transform(self) -> None:
         """ Tests that the user can select to edit the transform after the cursor
         in the CLI, if such a transform exists. """
-        source = CSource(os.getcwd() + "./tests/data/minimal.c")
+        source = CSource(os.path.join(os.getcwd(),  "./tests/data/minimal.c"))
         CountUnit.count = 0
         inp = len(obfs.ObfuscationUnit.__subclasses__())
         left = str(inp + 1)
@@ -441,7 +441,7 @@ class TestMainCLIFunctions(unittest.TestCase):
     def test_cli_valid_selection(self) -> None:
         """ Tests that the user can make a valid selection of transformations and
         obfuscate their code with the GUI selection menu. """
-        source = CSource(os.getcwd() + "./tests/data/minimal.c")
+        source = CSource(os.path.join(os.getcwd(),  "./tests/data/minimal.c"))
         original_contents = source.contents
         CountUnit.count = 0
         inp = len(obfs.ObfuscationUnit.__subclasses__())
@@ -473,19 +473,19 @@ class TestMainCLIFunctions(unittest.TestCase):
         cfg.SEED = 123
         cfg.SAVE_COMPOSITION = True
         cfg.COMP_PATH = "./tests/testing/"
-        source = CSource(os.getcwd() + "./tests/data/minimal.c")
+        source = CSource(os.path.join(os.getcwd(),  "./tests/data/minimal.c"))
         inp = len(obfs.ObfuscationUnit.__subclasses__())
         finish = str(inp + 5)
         inputs = [finish]
         with patch("builtins.input", side_effect=inputs):
             cli_obfuscation(source)
         cfg.SAVE_COMPOSITION = False
-        self.assertEqual(len(os.listdir(os.getcwd() + cfg.COMP_PATH)), 1)
+        self.assertEqual(len(os.listdir(os.path.join(os.getcwd(),  cfg.COMP_PATH))), 1)
 
     def test_cli_skip_menus_option(self) -> None:
         """ Tests that the CLI will successfully skip menus if the correct option is set. """
         cfg.SKIP_MENUS = True
-        source = CSource(os.getcwd() + "./tests/data/minimal.c")
+        source = CSource(os.path.join(os.getcwd(),  "./tests/data/minimal.c"))
         self.assertIsNotNone(cli_obfuscation(source))
         cfg.SKIP_MENUS = False
 
@@ -494,7 +494,7 @@ class TestMainCLIFunctions(unittest.TestCase):
         option is set (i.e. if not supplied with the disabling argument), and that
         it can be disabled."""
         cfg.CALCULATE_COMPLEXITY = True
-        source = CSource(os.getcwd() + "./tests/data/minimal.c")
+        source = CSource(os.path.join(os.getcwd(),  "./tests/data/minimal.c"))
         inp = len(obfs.ObfuscationUnit.__subclasses__())
         finish = str(inp + 5)
         inputs = [finish]
@@ -516,14 +516,14 @@ class TestMainCLIFunctions(unittest.TestCase):
         """ Tests that the CLI correctly handles the case where one command line
         argument is supplied, where it should print the obfuscated output to the
         standard output stream upon completion. """
-        sys.argv = [os.getcwd() + "./tests/data/minimal.c"]
+        sys.argv = [os.path.join(os.getcwd(),  "./tests/data/minimal.c")]
         cfg.SKIP_MENUS = True
         out = io.StringIO()
         with redirect_stdout(out):
             self.assertTrue(handle_CLI())
         out = out.getvalue()
         self.assertTrue(out.endswith("===Obfuscated Output===\nint main() {}\n"))
-        sys.argv = ["script.py", os.getcwd() + "./tests/data/minimal.c"]
+        sys.argv = ["script.py", os.path.join(os.getcwd(),  "./tests/data/minimal.c")]
         out = io.StringIO()
         with redirect_stdout(out):
             self.assertTrue(handle_CLI())
@@ -536,24 +536,24 @@ class TestMainCLIFunctions(unittest.TestCase):
         supplied, where it should write the obfuscated output to the output
         file specified by the second argument upon completion."""
         clean_dir()
-        sys.argv = [os.getcwd() + "./tests/data/minimal.c", 
-                    os.getcwd() + "./tests/testing/out.c"]
+        sys.argv = [os.path.join(os.getcwd(),  "./tests/data/minimal.c"), 
+                    os.path.join(os.getcwd(),  "./tests/testing/out.c")]
         cfg.SKIP_MENUS = True
         out = io.StringIO()
         with redirect_stdout(out):
             self.assertTrue(handle_CLI())
         out = out.getvalue()
         self.assertTrue(out.endswith("Obfuscation written successfully.\n"))
-        self.assertEqual(len(os.listdir(os.getcwd() + "./tests/testing/")), 1)
+        self.assertEqual(len(os.listdir(os.path.join(os.getcwd(),  "./tests/testing/"))), 1)
         sys.argv = ["script.py",
-                    os.getcwd() + "./tests/data/minimal.c", 
-                    os.getcwd() + "./tests/testing/out2.c"]
+                    os.path.join(os.getcwd(),  "./tests/data/minimal.c"), 
+                    os.path.join(os.getcwd(),  "./tests/testing/out2.c")]
         out = io.StringIO()
         with redirect_stdout(out):
             self.assertTrue(handle_CLI())
         out = out.getvalue()
         self.assertTrue(out.endswith("Obfuscation written successfully.\n"))
-        self.assertEqual(len(os.listdir(os.getcwd() + "./tests/testing/")), 2)
+        self.assertEqual(len(os.listdir(os.path.join(os.getcwd(),  "./tests/testing/"))), 2)
         cfg.SKIP_MENUS = False
     
     def test_cli_more_args(self) -> None:
