@@ -9,9 +9,6 @@ from .utils import (
     is_initialised,
 )  # TODO remove if not used
 from .debug import *
-from PyQt6.QtWidgets import *
-from PyQt6.QtGui import *
-from PyQt6.QtCore import Qt, QSize, QMimeData
 from typing import Iterable, Optional, Tuple
 from abc import ABC, abstractmethod
 from pycparser.c_ast import *

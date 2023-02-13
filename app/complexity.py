@@ -3,7 +3,7 @@ Implements classes and functions for handling input and output. """
 from app import settings as config
 from .interaction import CSource
 from abc import ABC, abstractmethod
-from typing import Iterable, Optional, Tuple, Callable, Any
+from typing import Iterable, Optional, Tuple, Any
 from pycparser.c_ast import *
 from pycparser import c_generator, c_lexer
 import statistics
