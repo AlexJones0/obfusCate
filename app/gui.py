@@ -2369,16 +2369,14 @@ def handle_gui() -> bool:
     if config.COMPOSITION is not None:
         contents = load_composition_file(config.COMPOSITION)
         if contents is None:
-            log(
+            logprint(
                 "Error loading saved transformations - please provide a valid compositions file",
-                print_err=True,
             )
             return False
         saved_pipeline = Pipeline.from_json(contents, use_gui=True)
         if saved_pipeline is None:
-            log(
+            logprint(
                 "Error loading saved transformations - please provide a valid compositions file",
-                print_err=True,
             )
             return False
         if config.SEED is None:  # Only use saved seed if no seed was provided

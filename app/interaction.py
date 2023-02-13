@@ -1,60 +1,54 @@
 """ File: interaction.py
-Implements classes and functions for handling input and output. """
-from typing import Iterable, Optional, Tuple, Union
-from .debug import print_error, log, delete_log_file
-from pycparser import parse_file, preprocess_file
-from pycparser.c_ast import FileAST
-from pycparser.c_parser import CParser
+Implements classes and functions for handling input and output, including
+processing and writing of C source files as well as utilities for handling
+system options (command-line arguments)."""
+from .debug import print_error, log, delete_log_file, logprint
 from app import settings as cfg
-import os
-from time import localtime
-
+from pycparser import parse_file as pycparse_file
+from pycparser.c_ast import FileAST
+from typing import Iterable, Optional, Tuple, Union, Callable
+import os, time
 
 
 class CSource:
-    """A class representing a C source code program, storing its contents in both
-    string form and as a Clang-parsed translation unit."""
+    """A class representing a C source code program, storing its file path,
+    contents in string form, and contents as a Clang-parsed translation
+    unit (in Abstract Syntax Tree format)."""
 
     def __init__(
-        self,
-        filepath: str,
-        contents: Optional[str] = None,
-        t_unit: Optional[FileAST] = None,
-    ):
-        """A constructor for a CSource object.
+        self, filepath: str, contents: str | None = None, t_unit: FileAST | None = None
+    ) -> None:
+        """Constructor for a CSource object.
 
         Args:
             filepath (str): The path to the C file.
-            contents (Optional[str], optional): The contents of the file. Defaults to
+            contents (str | None, optional): The contents of the file. Defaults to
             None, in which case the file path is opened and read to retrieve contents.
-            t_unit (Optional[TranslationUnit], optional): The translation unit of the file
-            after it is parsed by clang. Defaults to None, in which case it is retrieved
-            by parsing the file.
-        """
+            t_unit (FileAST | None, optional): The translation unit of the file
+            after it is preprocessed by clang and parsed by pycparser. Defaults to None,
+            in which case it is retrieved by parsing the loaded contents."""
         self.fpath = filepath
         if contents is None:
-            log(f"Started loading source file with path {filepath}")
             self.contents = self.__read_file()
         else:
             self.contents = contents
         if self.contents is None:
             return
         if t_unit is None:
-            self.t_unit = self.parse()
+            log(f"Parsing AST for file {self.fpath}")
+            self.__parse_file(self.fpath)
         else:
             self.t_unit = t_unit
 
-    def __read_file(self) -> Optional[str]:
-        """Reads the file contents from the stored file path, raising errors and logging
-        as appropriate.
+    def __read_file(self) -> str | None:
+        """Reads the file contents from the stored C file path.
 
         Returns:
-            Optional[str]: The string contents of the file, or None if some error occurs.
-        """
+            Optional[str]: The string contents of the file, or None if some error occurs."""
         if not self.fpath.endswith(".c"):
             print_error(f"Supplied file {self.fpath} is not a .c file!")
             return None
-        log("Started reading contents from source file.")
+        log(f"Started reading contents from source file with path {self.fpath}")
         try:
             with open(self.fpath, "r") as source_file:
                 contents = source_file.read()
@@ -63,60 +57,49 @@ class CSource:
             log(f"Error in opening source file: {str(e)}.")
         return None
 
-    def update_t_unit(self):
-        with open(cfg.TEMP_FILE_PATH, "w+") as f:
-            f.write(self.contents)
+    def __parse_file(self, filepath: str) -> None:
+        """Preprocesses and parses the file at the provided filepath, updating
+        the CSource's translation unit with the result.
+
+        Args:
+            filepath (str): The filepath of the file to be parsed.
+        """
         try:
-            t_unit = parse_file(
-                cfg.TEMP_FILE_PATH,
+            t_unit = pycparse_file(
+                filepath,
                 use_cpp=True,
                 cpp_path="clang",
-                cpp_args=["-E", r"-Iutils/fake_libc_include"], # TODO add trigraph support?
+                cpp_args=["-E", r"-Iutils/fake_libc_include"]
+                # TODO add trigraph support?
             )
-            fname = cfg.TEMP_FILE_PATH.split("\\")[-1]
-            # TODO keep linked libraries to get functions etc.? # TODO TODO TODO
+            fname = filepath.split("\\")[-1]
+            # TODO keep linked libraries to get functions etc.? Could do this?
             t_unit.ext = [x for x in t_unit.ext if fname in x.coord.file]
             self.t_unit = t_unit
-            os.remove(cfg.TEMP_FILE_PATH)
         except Exception as e:
             log(f"Unexpected error whilst parsing the program: {str(e)}.")
-            print_error(
-                f"An unknown error occurred whilst trying to parse {self.fpath}."
-            )
-            return None
+            print_error(f"An unknown error occurred whilst parsing {self.fpath}.")
 
-    def parse(self) -> Optional[FileAST]:
-        """Parses the file using the clang parser to produce a translation unit, raising
-        errors and logging as appropriate.
-
-        Returns:
-            Optional[TranslationUnit]: The clang translation unit of the parsed file, or
-            None if some error occurs.
-        """
-        log("Attempting to parse program.")
+    def update_t_unit(self) -> None:
+        """Updates the translation unit (parsed AST) of the CSource without
+        reading from a file path (used when the contents no longer match up
+        with the file). Does this by writing to a temporary file for
+        preprocessing via clang, and then removing this aftwards."""
         try:
-            t_unit = parse_file(
-                self.fpath,
-                use_cpp=True,
-                cpp_path="clang",
-                cpp_args=["-E", r"-Iutils/fake_libc_include"], # TODO add trigraph support
-            )  # TODO check cpp stuff here? + with github actions
-            fname = self.fpath.split("\\")[-1]
-            t_unit.ext = [x for x in t_unit.ext if fname in x.coord.file]
-            # TODO could also modify contents to cut off directives?
-            return t_unit
-        except Exception as e:
-            log(f"Unexpected error whilst parsing the program: {str(e)}.")
-            print_error(
-                f"An unknown error occurred whilst trying to parse {self.fpath}."
-            )
+            with open(cfg.TEMP_FILE_PATH, "w+") as f:
+                f.write(self.contents)
+            self.__parse_file(cfg.TEMP_FILE_PATH)
+            os.remove(cfg.TEMP_FILE_PATH)
+        except OSError as e:
+            log(f"Unexpected OS error whilst interacting with temp file: {str(e)}.")
+            print_error(f"An unknown error occurred whilst updating the AST.")
             return None
 
     def copy(self) -> "CSource":
-        """Creates a copy of the code record, producing a separate translation unit.
+        """Creates a copy of the code CSource, producing a separate translation unit.
 
         Returns:
-            CSource: A copy of the file with the same path, contents and parsed contents.
+            CSource: A copy of the CSource with a distinct, identical translation unit.
         """
         log(f"Creating copy of source: {self.fpath}.")
         return CSource(self.fpath, self.contents)
@@ -127,39 +110,72 @@ class CSource:
         the C source file or not."""
         return self.t_unit is not None
 
-    """@property
-    def parse_errors(self) -> Iterable[str]:
-        #Retrieves a list of string error/warning messages generated during the parse of
-        #the C source file by clang.
-        #
-        #Returns:
-        #    Iterable[str]: A list of strings, where each string is an individual parse error.
-        # 
-        return [] # TODO FIX THIS
-        if self.t_unit is None:
-            return []
-        return [str(d) for d in self.t_unit.diagnostics]"""
+
+class SystemOpt:
+    """A class that encapsulates information about an available system option (provided
+    as a command-line argument when calling the script)."""
+
+    def __init__(
+        self,
+        func: Callable,
+        names: Iterable[str],
+        desc: str,
+        param_names: Iterable[str],
+    ) -> None:
+        """Constructor for the SystemOpt object.
+
+        Args:
+            func (Callable): The function that will be called if the option is present.
+            names (Iterable[str]): The names (synonyms) that can be provided as the option.
+            desc (str): The help menu description for the option, describing its behaviour.
+            param_names (Iterable[str]): The names of any parameters that must be supplied
+            alongside the option, which will be passed to the called function."""
+        self.func = func
+        self.names = names
+        self.desc = desc
+        self.param_names = param_names
+
+    def get_desc_str(self, padding: int) -> str:
+        """Retrieve a formatted description for the object for display in the help menu,
+        appropriately padded for clean formatting.
+
+        Args:
+            padding (int): The amount of space padding to add before the line separator
+            on new lines.
+
+        Returns:
+            str: The formatted help menu description string for the option."""
+        if "\n" not in self.desc:
+            return self.desc
+        lines = self.desc.split("\n")
+        padded_lines = [padding * " " + "| " + l for l in lines[1:]]
+        return "\n".join([lines[0]] + padded_lines)
+
+    def __str__(self) -> str:
+        """Gets the string representation of the option, combining its names and
+        any parameter names.
+
+        Returns:
+            str: The string representing the option usage "name param1 param2" etc."""
+        return " ".join(self.names + self.param_names)
 
 
 def menu_driven_option(
-    options: Iterable[Union[str, Tuple[str, Iterable[str]]]], prompt: str = None
+    options: Iterable[str | Tuple[str, Iterable[str]]], prompt: str | None = None
 ) -> int:
-    """Performs command-line interface input handling for a generalized menu-driven
-    system in which a restricted integer input must be made to select one of many
-    options. Returns the chosen option.
+    """Performs command-line interface input handling for a generic menu where a
+    restricted integer input must be made to select one of many options.
 
     Args:
-        options (Iterable[Union[str, Tuple[str, Iterable[str]]]]): The list of
-        options to provide. Each option can either be a string, or a tuple like
+        options (Iterable[str | Tuple[str, Iterable[str]]]): The list of options to
+        select from. Each option can either be a string, or a tuple like
         (string, [str1, str2, str3, ...]) where string is the option text and
-        [str1, str2, str3, ...] are optional strings that the CLI should understand
-        as a selction of that choice.
-        prompt (str, optional): Additional prompt text to display to the user after
-        the printing of options but before requesting input. Defaults to None.
+        [str1, str2, str3, ...] are optional strings that the CLI should understand.
+        prompt (str | None, optional): An additional prompt text to display to the
+        user after the printing of options but before requesting input. Defaults to None.
 
     Returns:
-        int: The integer index of the selected choice. -1 if it was selected to quit.
-    """
+        int: The integer index of the selected choice. -1 if it was selected to quit."""
     if len(options) == 0:
         return 0
     prompt = "" if prompt is None else prompt
@@ -189,11 +205,13 @@ def menu_driven_option(
             if choice > 0 and choice <= len(options):
                 valid_input = True
             else:
+                log(f"Invalid choice {choice} in menu with {options} and {prompt}.")
                 print(
                     "Invalid option choice. Please select a number corresponding to your choice, or type 'quit' to exit.\n >",
                     end="",
                 )
         except:  # Handle non-integer (and non-keyword) inputs
+            log(f"Invalid choice {choice} in menu with {options} and {prompt}.")
             print(
                 "Invalid option choice. Please select a number corresponding to your choice, or type 'quit' to exit.\n >",
                 end="",
@@ -201,74 +219,92 @@ def menu_driven_option(
     return choice - 1
 
 
-def get_float(lower_bound: float = None, upper_bound: float = None) -> float:
-    """Gets an input float from the user, applying appropriate boundary checks if either bound
-    is specified. Returns NaN if the user quits the input selection, and a valid float otherwise."""
+def get_float(
+    lower_bound: float | None = None, upper_bound: float | None = None
+) -> float:
+    """Gets an input float from the user, applying appropriate boundary
+    checks if either bound is specified. Returns NaN if the user quits the
+    input selection, and a valid float otherwise.
+
+    Args:
+        lower_bound (float | None, optional): The lower bound. Defaults to None.
+        upper_bound (float | None, optional): The upper bound. Defaults to None.
+
+    Returns:
+        float: The user input float. NaN if the user chose to quit."""
     while True:
         user_input = input("\n>").lower().strip()
-        # Check for quit inputs
         if user_input in ["q", "quit", "exit", "leave", "x"]:
-            return float("nan")
+            return float("nan")  # Check for quit inputs
         try:
             user_input = float(user_input)
         except:
             print("Invalid input for a decimal number. Please try again...")
             continue
         if lower_bound is not None and user_input < lower_bound:
-            print(
+            logprint(
                 f"Input {user_input} is too small. The value must be at least {lower_bound}."
             )
             continue
         if upper_bound is not None and user_input > upper_bound:
-            print(
+            logprint(
                 f"Input {user_input} is too large. The value must be at most {upper_bound}."
             )
             continue
         return user_input
 
 
-def get_int(lower_bound: int = None, upper_bound: int = None) -> Optional[int]:
-    """Gets an input integer from the user, applying appropriate boundary checks if either bound
-    is specified. Returns None if the user quits the input selecion, and a valid integer otherwise."""
+def get_int(
+    lower_bound: int | None = None, upper_bound: int | None = None
+) -> int | None:
+    """Gets an input integer from the user, applying appropriate
+    boundary checks if either bound is specified.
+
+    Args:
+        lower_bound (int | None, optional): The lower bound. Defaults to None.
+        upper_bound (int | None, optional): The upper bound. Defaults to None.
+
+    Returns:
+        int | None: None if the user quits the selection, or a valid
+        integer in the specified range otherwise."""
     while True:
         user_input = input("\n>").lower().strip()
-        # Check for quit inputs
         if user_input in ["q", "quit", "exit", "leave", "x"]:
-            return None
+            return None  # Check for quit inputs
         try:
             user_input = int(user_input)
         except:
             print("Invalid input for an integer. Please try again...")
             continue
         if lower_bound is not None and user_input < lower_bound:
-            print(
+            logprint(
                 f"Input {user_input} is too small. The value must be at least {lower_bound}."
             )
             continue
         if upper_bound is not None and user_input > upper_bound:
-            print(
+            logprint(
                 f"Input {user_input} is too large. The value must be at most {upper_bound}."
             )
             continue
         return user_input
 
 
-def save_composition_file(json: str, filepath: str = None) -> bool:
+def save_composition_file(json: str, filepath: str | None = None) -> bool:
     """Creates a composition file and saves the JSON string representing the
     composition to it.
 
     Args:
         json (str): The JSON string to save to the composition file.
-        filepath (str, optional): The path to the directory that the composition file
-        should be created in. Defaults to the COMP_PATH location stored in the config.
+        filepath (str | None, optional): The path to the directory that the
+        composition file should be created in. Defaults to the COMP_PATH
+        location stored in the config.
 
     Returns:
-        bool: Whether execution was successful or not.
-    """
+        bool: Whether execution was successful or not."""
     if filepath is None:
         filepath = cfg.COMP_PATH
     filepath = os.getcwd() + filepath
-    t = localtime()
+    t = time.localtime()
     fname = "{}-{:02d}-{:02d}--{:02d}.{:02d}.{:02d}.txt".format(
         t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec
     )
@@ -281,14 +317,24 @@ def save_composition_file(json: str, filepath: str = None) -> bool:
         log(f"Saved composition in file {full_path}.")
         return True
     except OSError:
-        print_error("Unable to open composition file to save the composition.")
-        log(
-            "Failed to save composition file due to errors in accessing and writing to the file."
-        )
+        logprint("Unable to open composition file to save the composition.")
     return False
 
 
-def load_composition_file(filepath: str = None) -> str:
+def load_composition_file(filepath: str | None = None) -> str | None:
+    """Attempts to load the composition file from the specified
+    composition file path.
+
+    Args:
+        filepath (str | None, optional): The filepath to read the
+        composition file from. Defaults to None, in which case the
+        the filepath saved in config is used.
+
+    Returns:
+        str | None: The composition file path contents, or None if
+        an error ocurred, or if both the input filepath and config's
+        composition file path are None.
+    """
     if filepath is None:
         filepath = cfg.COMPOSITION
         if filepath is None:
@@ -299,7 +345,9 @@ def load_composition_file(filepath: str = None) -> str:
         return contents
     except OSError:
         print_error("Unable to open composition file to load the composition.")
-        log("Failed to load composition file {} due to errors in accessing and reading from the file.".format(filepath))
+        log(
+            f"Failed to load composition file {filepath} due to errors in accessing and reading from the file."
+        )
     return None
 
 
@@ -316,7 +364,7 @@ def set_seed(supplied_args: Iterable[str]) -> bool:
         supplied_args (Iterable[str]): The list of arguments following this argument.
 
     Returns:
-        (bool) Whether the supplied arguments were valid or not."""
+        bool: Whether the supplied arguments were valid or not."""
     if len(supplied_args) <= 0:
         print_error(
             "Some integer seed must be supplied with the -s and --seed options. Use the -h or --help options to see usage information."
@@ -331,7 +379,7 @@ def set_seed(supplied_args: Iterable[str]) -> bool:
             "Some integer seed must be supplied with the -s and --seed options. Use the -h or --help options to see usage information."
         )
         log("Failed to supply a valid integer seed alongside seed option.")
-        return False
+    return False
 
 
 def suppress_errors() -> None:
@@ -347,17 +395,25 @@ def display_progress() -> None:
 
 
 def save_composition() -> None:
-    """Sets the config to save the selected transformation composition to a JSON file when done."""
+    """Sets the config to save the selected transformation composition
+    to a JSON file when done."""
     cfg.SAVE_COMPOSITION = True
     log("Set option to save the final obfuscation transformation sequence.")
 
 
 def disable_metrics() -> None:
+    """Sets the config to disable calculation, processing and displaying
+    of code complexity metrics for the obfuscation."""
     cfg.CALCULATE_COMPLEXITY = False
     log("Set option to disable complexity calculations during execution.")
 
 
 def display_version() -> bool:
+    """Prints the program name and version to standard output, halting execution.
+
+    Returns:
+        bool: Returns False, to signal that execution should stop.
+    """
     print(cfg.NAME, cfg.VERSION)
     log("Retrieved and displayed name and version information for the software.")
     return False
@@ -383,38 +439,43 @@ def load_composition(supplied_args: Iterable[str]) -> bool:
     )
     return True
 
-def handle_arguments(supplied_args: Iterable[str], options) -> Iterable[str] | bool: 
-    # TODO options input + documentation
+
+def handle_arguments(
+    supplied_args: Iterable[str], options: Iterable[SystemOpt]
+) -> Iterable[str] | bool:
     """This function iteratively handles a list of supplied arguments, filtering
     out actual arguments and handling the execution of different options supplied
-    to the program, most of which are just changing some config setting to alter
-    later program behaviour.
+    to the program.
 
     Args:
-        supplied_args (Iterable[str]): The list of args/options supplied to the program.
+        supplied_args (Iterable[str]): The list of args supplied to the program.
+        options (Iterable[SystemOpt]): The list of supported options.
 
     Returns:
-        Union[Iterable[str], bool]: The list of (just) arguments supplied to the program.
-        If execution is to be stopped, instead just returns True or False to indicate
-        a valid or failed execution respectively.
+        Iterable[str] | bool: The list of arguments supplied to the program. If
+        execution is to be stopped, instead just returns False to indicate that
+        execution should stop.
     """
     args = []
-    skip_next = False
+    skip_num = 0
     for i, arg in enumerate(supplied_args):
-        # Handle skipping for giving values with options
-        if skip_next:
-            skip_next = False
+        if skip_num > 0:
+            skip_num -= 1
             continue
-        matched = False
+        # Find matching option (if one exists)
+        found_match = False
         for opt in options:
-            if arg in opt[1]:
-                res = opt[0]() if len(opt[3]) == 0 else opt[0](supplied_args[(i + 1) :])
+            if arg in opt.names:
+                if len(opt.param_names) == 0:
+                    res = opt.func()
+                else:
+                    res = opt.func(supplied_args[(i + 1) :])
                 if res is not None and not res:
                     return False
-                skip_next = len(opt[3]) != 0
-                matched = True
+                skip_num = len(opt.param_names)
+                found_match = True
                 break
-        if matched:
+        if found_match:
             continue
         if arg.startswith("-"):  # Handle unknown options
             print_error(
@@ -425,3 +486,60 @@ def handle_arguments(supplied_args: Iterable[str], options) -> Iterable[str] | b
         else:  # Store valid arguments
             args.append(arg)
     return args
+
+
+# Defines a list of common shared system options used by both the CLI and GUI
+shared_options = [
+    SystemOpt(None, ["-h", "--help"], "Displays this help menu.", []),
+    SystemOpt(
+        display_version,
+        ["-v", "--version"],
+        "Displays the program's name and current version.",
+        [],
+    ),
+    SystemOpt(
+        disable_logging,
+        ["-l", "--noLogs"],
+        "Stops a log file being created for this execution.",
+        [],
+    ),
+    SystemOpt(
+        set_seed,
+        ["-s", "--seed"],
+        "Initialises the program with the random seed x (some integer).",
+        ["x"],
+    ),
+    SystemOpt(
+        display_progress,
+        ["-p", "--progress"],
+        "Outputs obfuscation pipleline progress (transformation completion) during obfuscation.",
+        [],
+    ),
+    SystemOpt(
+        save_composition,
+        ["-c", "--save-comp"],
+        "Saves the selected composition of obfuscation transformations as a JSON file to be reused.",
+        [],
+    ),
+    SystemOpt(
+        load_composition,
+        ["-l", "--load-comp"],
+        "Loads a given JSON file containing the composition of obfuscation transformations to use.",
+        ["file"],
+    ),
+    SystemOpt(
+        disable_metrics,
+        ["-m", "--no-metrics"],
+        "Disables calculation of code complexity metrics for the obfuscated programs.",
+        [],
+    ),
+]
+
+
+def set_help_menu(func: Callable) -> None:
+    """Sets the help menu system option ('-h', '--help') function.
+
+    Args:
+        func (Callable): The no-argument function that prints the help menu.
+    """
+    shared_options[0].func = func

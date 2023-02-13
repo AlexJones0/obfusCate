@@ -46,7 +46,12 @@ def create_log_file(filepath: str = None) -> bool:
     return False
 
 
-def delete_log_file():
+def delete_log_file() -> bool:
+    """Deletes the log file currently loaded into settings.
+
+    Returns:
+        bool: Whether deletion was successful or not.
+    """
     try:
         os.remove(cfg.LOG_FILE)
         return True
@@ -61,12 +66,11 @@ def log(log_str: str, print_err: bool = False) -> bool:
 
     Args:
         log_str (str): The message to log.
-        print_err (bool): Whether to display the log message as an error to the user.
 
     Returns:
         bool: Whether execution was successful or not.
     """
-    if print_err:
+    if print_err:  # TODO remove this when replaced all instances with logprint
         print_error(log_str)
     if not cfg.LOGS_ENABLED:
         return True
@@ -84,8 +88,15 @@ def log(log_str: str, print_err: bool = False) -> bool:
     return False
 
 
+def logprint(log_str: str) -> bool:
+    """ Prints an error message to stdout, whilst also logging that error
+    message at the same time. """
+    print_error(log_str)
+    return log(log_str)
+
+
 def time_function(func: Callable) -> Callable:
-    """A decorator that the execution of a function and logs it. Uses locacl time."""
+    """A decorator that the execution of a function and logs it. Uses local time."""
     from time import time as current_time
 
     def wrapper(*args, **kwargs):

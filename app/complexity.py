@@ -3,7 +3,7 @@ Implements classes and functions for handling input and output. """
 from app import settings as config
 from .interaction import CSource
 from abc import ABC, abstractmethod
-from typing import Iterable, Optional, Tuple, Any
+from typing import Iterable, Optional, Tuple, Callable, Any
 from pycparser.c_ast import *
 from pycparser import c_generator, c_lexer
 import statistics
@@ -49,7 +49,7 @@ class CodeMetricUnit(ABC):
 def int_delta(new: int, prev: int) -> str:
     if new == "N/A" or prev == "N/A":
         return "N/A"
-    delta = new - prev
+    delta = int(new - prev)
     return ("+" + str(delta)) if delta >= 0 else str(delta)
 
 
@@ -59,6 +59,21 @@ def float_delta(new: float, prev: float) -> str:
     delta = new - prev
     f_str = "{:.1f}".format(delta)
     return ("+" + f_str) if delta >= 0.0 else f_str
+
+def format_time(time: int) -> str:
+    fstring = "{}s".format(time % 60)
+    time = time // 60
+    if time == 0:
+        return fstring
+    fstring = "{}m ".format(time % 60) + fstring
+    time = time // 60
+    if time == 0:
+        return fstring
+    fstring = "{}h ".format(time % 24) + fstring
+    time = time // 24
+    if time == 0:
+        return fstring
+    return "{}d ".format(time) + fstring
 
 
 def file_size(byte_size: int, binary_suffix: bool = False, signed: bool = True) -> str:
@@ -241,6 +256,10 @@ class CountUnit(CodeMetricUnit):
         "the number of identifiers in the obfuscated result that were not in the original.",
     }
     predecessors = []
+    cached = {}
+    
+    def __cache_metrics(self, metrics) -> None:
+        CountUnit.cached = metrics
 
     def add_AST_metrics(self, old_source: CSource, new_source: CSource) -> None:
         old_counter = CountVisitor()
@@ -296,6 +315,7 @@ class CountUnit(CodeMetricUnit):
         new_contents = new_source.contents
         old_lines, new_lines = old_contents.count("\n"), new_contents.count("\n")
         self.add_metric("Lines", str(new_lines), int_delta(new_lines, old_lines))
+        self.__cache_metrics({"Lines": (new_lines, old_lines)})
         # Preprocess contents and lex to get token counts
         old_contents = self.preprocess_contents(old_source)
         new_contents = self.preprocess_contents(new_source)
@@ -374,7 +394,7 @@ class CFGGenerator(NodeVisitor):
         self.entry_stack[-1] = entry
         self.exit_stack[-1] = exit
         
-    def __visit(self, node: Any, entry: int, exit: int, modify: bool = False, escape_link: bool = True) -> None:
+    def __visit(self, node: Node, entry: int, exit: int, modify: bool = False, escape_link: bool = True) -> None:
         if modify:
             self.__modify_entry_exit(entry, exit)
             if isinstance(node, list):
@@ -646,7 +666,7 @@ class CFGGenerator(NodeVisitor):
         self.in_function = was_in_function
 
 
-class CyclomatricComplexityUnit(CodeMetricUnit):
+class CyclomaticComplexityUnit(CodeMetricUnit):
 
     name = "McCabe's Cyclomatic Complexity"
     gui_name = '<p style="line-height:80%">McCabe\'s Cyclomatic<br>Complexity</p>'
@@ -678,7 +698,7 @@ class CyclomatricComplexityUnit(CodeMetricUnit):
         "its difficulty to understand. Roughly measures the number of possible\n"
         "paths through the code, and so is often used to determine code paths\n"
         "for maintainability (how easy it is to test a function). This comprises\n"
-        "the original McCabe's Cyclomatric Complexity metric for structured programs,\n"
+        "the original McCabe's cyclomatic Complexity metric for structured programs,\n"
         "my interpretation of the metric for non-structured programs, Myers' extension\n"
         "to the original metric and some of its constituent parts.\n"
         "\nThis metric primarily helps to measure obfuscation potency (complexity)."
@@ -740,6 +760,10 @@ class CyclomatricComplexityUnit(CodeMetricUnit):
         "minus lazy operations and not including unreachable code.",
     }
     predecessors = []
+    cached = {}
+    
+    def __cache_metrics(self, metrics) -> None:
+        CyclomaticComplexityUnit.cached = metrics
 
     def get_edges(self, graph: dict[int,Iterable[int]]) -> int:
         return sum([len(vals) for _, vals in graph.items()])
@@ -859,6 +883,7 @@ class CyclomatricComplexityUnit(CodeMetricUnit):
         self.add_metric("Total Myers' Interval", str(total_new_myers), "{}".format(
             int_delta(total_new_myers, total_old_myers)
         ))
+        self.__cache_metrics({"Cyclomatic Complexity": (avg_new_orig_values, avg_old_orig_values)})
 
 
 class CognitiveAnalyzer(NodeVisitor):
@@ -987,8 +1012,8 @@ class CognitiveComplexityUnit(CodeMetricUnit):
         ]
     )
     name_tooltip = (
-        "A recent (2017-2022) alternative to the cyclomatric complexity metric.\n"
-        "Where cyclomatric complexity focuses on code paths for e.g. testing and\n"
+        "A recent (2017-2022) alternative to the cyclomatic complexity metric.\n"
+        "Where cyclomatic complexity focuses on code paths for e.g. testing and\n"
         "maintainability, cognitive complexity focuses on the cognitive load of\n"
         "comprehending a method, by taking into account programming structures,\n"
         "nesting, sequential chaining of logical operators, breaks in control flow,\n"
@@ -1070,6 +1095,65 @@ class CognitiveComplexityUnit(CodeMetricUnit):
                         float_delta(sd_new_nesting, sd_old_nesting))
 
 
+class HalsteadAnalyzer(NodeVisitor):
+    
+    def __init__(self) -> None:
+        self.__reset()
+
+    def __reset(self) -> None:
+        self.operands = 0
+        self.unique_operands = set()
+        self.operators = 0
+        self.unique_operators = set()
+    
+    def __add_operand(self, operand: str) -> None:
+        self.operands += 1
+        self.unique_operands.add(operand)
+        
+    def __add_operator(self, operator: str) -> None:
+        self.operators += 1
+        self.unique_operators.add(operator)
+    
+    def visit_FuncDef(self, node: FuncDef) -> None:
+        if node.decl is not None and node.decl.name is not None:
+            self.__add_operator(node.decl.name)
+        if node.param_decls is not None:
+            self.visit(node.param_decls)
+        if node.body is not None:
+            self.visit(node.body)
+    
+    def visit_FuncCall(self, node: FuncCall) -> None:
+        if node.name is not None and node.name.name is not None:
+            self.__add_operator(node.name.name)
+        if node.args is not None:
+            self.visit(node.args)
+    
+    def visit_Decl(self, node: Decl) -> None:
+        if node.name is not None:
+            self.__add_operand(node.name)
+        self.generic_visit(node)
+    
+    def visit_Enum(self, node: Enum) -> None:
+        if node.name is not None:
+            self.__add_operand(node.name)
+        self.generic_visit(node)
+    
+    def visit_Struct(self, node: Struct) -> None:
+        if node.name is not None:
+            self.__add_operand(node.name)
+        self.generic_visit(node)
+    
+    def visit_Union(self, node: Union) -> None:
+        if node.name is not None:
+            self.__add_operand(node.name)
+        self.generic_visit(node)
+    
+    def visit_ID(self, node: ID) -> None:
+        if node.name is not None:
+            self.__add_operand(node.name)
+        self.generic_visit(node)
+
+
 class HalsteadComplexityUnit(CodeMetricUnit):
 
     name = "Halstead Complexity Measures"
@@ -1079,48 +1163,197 @@ class HalsteadComplexityUnit(CodeMetricUnit):
             (x, i)
             for (i, x) in enumerate(
                 [
-                    "Program Vocabulary (\u03B7)",
-                    "Program Length (N)",
+                    "Vocabulary (\u03B7)",
+                    "Length (N)",
                     "Estimated Length (\u004E\u0302)",
                     "Volume (V)",
                     "Difficulty (D)",
                     "Effort (E)",
-                    "Time to Program (T)",
+                    "Estimated Time (T)",
                     "Delivered Bugs (B)",
                 ]
             )
         ]
     )
-
+    name_tooltip = (
+        "Halstead's complexity measures are metrics that aim to determine the complexity\n"
+        "of code based on their range of vocabulary and sizes, identifying measurable\n"
+        "properties of software and their relations in a similar manner to physical matter.\n"
+        "They provide, among other things, estimations of the difficulty/effort required to\n"
+        "code (and hence likely also reverse engineer), the time to program, and the number\n"
+        "of estimated bugs. Importantly note that this will not be fully correct for the given\n"
+        "source code, as the preprocessing phase will naturally alter some of the syntax before\n"
+        "lexing (e.g. \"int a, b, c;\" to \"int a; int b; int c;\").\n"
+        "\nThis metric primarily helps to measure obfuscation resilience and potency (complexity)."
+    )
+    tooltips = {
+        "Vocabulary (\u03B7)": "The total number of distinct (unique) operators and operands\n"
+        "within the entire program body.\n  \u03B7 = \u03B71 + \u03B72",
+        "Length (N)": "The total number of operators and operands within the entire program body.\n"
+        "   N = N1 + N2",
+        "Estimated Length (\u004E\u0302)": "The estimated size of a typical program based on\n"
+        "the program's vocabulary (and not considering the actual length at all).\n"
+        "   \u004E\u0302 = \u03B71 x log_2(\u03B71) + \u03B72 x log_2(\u03B72)",
+        "Volume (V)": "The amount of space, in bits, necessary for storing the program\n"
+        "in a minimal case where a uniform binary encoding of the vocabulary is used.\n"
+        "   V = N x log_2(\u03B7)",
+        "Difficulty (D)": "A quantitative metric representing how difficult the progam\n"
+        "is to understand/maintain/handle based on its size and vocabulary.\n"
+        " D = (\u03B71 / 2) x (N2 / \u03B72)",
+        "Effort (E)": "A quantitative metric measuring the amount of mental effort/activity\n"
+        "required to program this code in this language.\n   E = D x V",
+        "Estimated Time (T)": "The estimated amount of time to program this code in this language, based\n"
+        "on an approximated 18 (the Stoud number) seconds per unit effort.\n"
+        "This Stoud number 18 has been empirically designed via psychological reasoning and\n"
+        "is used as the recommende standard.\n   T = E / 18",
+        "Delivered Bugs (B)": "The estimated amount of bugs (errors) that we would expect to\n"
+        "find in the program based on its size and vocabulary.\n   B = E^(2/3) / 3000",
+    }
     predecessors = []
+    cached = {}
     
-    #__operator_toks = (,)
-    #__operand_toks = (,)
+    __operand_toks = (
+        'CHAR',
+        'CONST',
+        'TYPEID', # TODO check this one
+        'INT_CONST_DEC',
+        'INT_CONST_OCT',
+        'INT_CONST_OCT',
+        'INT_CONST_HEX',
+        'INT_CONST_BIN',
+        'INT_CONST_CHAR',
+        'FLOAT_CONST',
+        'HEX_FLOAT_CONST',
+        'CHAR_CONST',
+        'WCHAR_CONST',
+        'U8CHAR_CONST',
+        'U16CHAR_CONST',
+        'U32CHAR_CONST',
+        'STRING_LITERAL',
+        'WSTRING_LITERAL',
+        'U8STRING_LITERAL',
+        'U16STRING_LITERAL',
+        'U32STRING_LITERAL',
+        'ELLIPSIS', # TODO I have no idea where this one would go actually
+        
+    )
+    __exclude_toks = (
+        'ID',       # IDs are a case by case basis: variables are operands, but
+                    #     function names are operators
+        'RBRACKET', # For indexing, only count once (so only count '[')
+        'RBRACE',   # Same as above - compounds only count once (so only count '{')
+        'RPAREN',   # Same as above - parentheses only count once (so only count '(')
+        'COLON',    # We count labels through identifers, so don't count again via colons 
+        'PPHASH',   # Ignore preprocessor tokens
+        'PPPRAGMA',
+        'PPPRAGMASTR',
+    )
+    
+    def __cache_metrics(self, metrics) -> None:
+        HalsteadComplexityUnit.cached = metrics
 
     def __preprocess_contents(self, source: CSource) -> str:
         generator = c_generator.CGenerator()
         contents = generator.visit(source.t_unit)
         return contents
 
-    def __calc_halstead(self, lexer: c_lexer.CLexer, source: CSource) -> Any:
+    def __calc_halstead(self, lexer: c_lexer.CLexer, source: CSource) -> Tuple[int, int, int, int]:
         contents = self.__preprocess_contents(source)
         lexer.input(contents)
         token = lexer.token()
+        num_operands = 0
+        unique_operands = set() # Distict operand lexemes
+        num_operators = 0
+        unique_operators = set() # Distinct operator lexemes
         while token is not None:
+            if token.type in self.__operand_toks:
+                num_operands += 1
+                unique_operands.add(token.value)
+            elif token.type not in self.__exclude_toks:
+                num_operators += 1
+                unique_operators.add(token.value)
             token = lexer.token()
-        return None
+        context_analyzer = HalsteadAnalyzer()
+        context_analyzer.visit(source.t_unit)
+        num_operands += context_analyzer.operands
+        num_operators += context_analyzer.operators
+        unique_operands.update(context_analyzer.unique_operands)
+        unique_operators.update(context_analyzer.unique_operators)
+        return (num_operands, num_operators, len(unique_operands), len(unique_operators))
 
     def calculate_metrics(self, old_source: CSource, new_source: CSource) -> None:
         lexer = c_lexer.CLexer(
             lambda: None, lambda: None, lambda: None, lambda tok: None
         )
         lexer.build()
-        # Preprocess contents and lex to get tokens
-        old_contents = self.preprocess_contents(old_source)
-        new_contents = self.preprocess_contents(new_source)
-        old_toks = self.get_token_count(lexer, old_contents)
-        new_toks = self.get_token_count(lexer, new_contents)
-        print(c_lexer.CLexer.tokens)
+        result = self.__calc_halstead(lexer, old_source)
+        old_operands, old_operators, old_uq_operands, old_uq_operators = result
+        result = self.__calc_halstead(lexer, new_source)
+        new_operands, new_operators, new_uq_operands, new_uq_operators = result
+        old_vocabulary = old_uq_operators + old_uq_operands
+        new_vocabulary = new_uq_operators + new_uq_operands
+        old_length = old_operators + old_operands
+        new_length = new_operators + new_operands
+        if old_uq_operators != 0:
+            old_estim_len = int(
+                old_uq_operators * math.log2(old_uq_operators)
+                + old_uq_operands * math.log2(old_uq_operands)
+            )
+        else:
+            old_estim_len = 'N/A'
+        if new_uq_operators != 0:
+            new_estim_len = int(
+                new_uq_operators * math.log2(new_uq_operators)
+                + new_uq_operands * math.log2(new_uq_operands)
+            )
+        else:
+            new_estim_len = 'N/A'
+        if old_vocabulary != 0:
+            old_volume = old_length * math.log2(old_vocabulary)
+        else:
+            old_volume = 'N/A'
+        if new_vocabulary != 0:
+            new_volume = new_length * math.log2(new_vocabulary)
+        else:
+            new_volume = 'N/A'
+        if old_uq_operands != 0:
+            old_difficulty = (old_uq_operators / 2) * (old_operands / old_uq_operands)
+        else:
+            old_difficulty = 'N/A'
+        if new_uq_operands != 0:
+            new_difficulty = (new_uq_operators / 2) * (new_operands / new_uq_operands)
+        else:
+            new_difficulty = 'N/A'
+        if old_difficulty != 'N/A' and old_volume != 'N/A':
+            old_effort = int(old_difficulty * old_volume)
+            old_bugs = math.pow(old_effort, (2 / 3)) / 3000
+        else:
+            old_effort = 'N/A'
+            old_bugs = 'N/A'
+        if new_difficulty != 'N/A' and new_volume != 'N/A':
+            new_effort = int(new_difficulty * new_volume)
+            new_timetp = int(new_effort / 18)
+            new_bugs = math.pow(new_effort, (2 / 3)) / 3000
+        else:
+            new_effort = 'N/A'
+            new_timetp = 'N/A'
+            new_bugs = 'N/A'
+        self.add_metric("Vocabulary (\u03B7)", str(new_vocabulary),
+                        int_delta(new_vocabulary, old_vocabulary))
+        self.add_metric("Length (N)", str(new_length),
+                        int_delta(new_length, old_length))
+        self.add_metric("Estimated Length (\u004E\u0302)", str(new_estim_len),
+                        int_delta(new_estim_len, old_estim_len))
+        self.add_metric("Volume (V)", str(int(new_volume)), 
+                        int_delta(int(new_volume), int(old_volume)))
+        self.add_metric("Difficulty (D)", str(int(new_difficulty)),
+                        int_delta(int(new_difficulty), int(old_difficulty)))
+        self.add_metric("Effort (E)", str(int(new_effort)), 
+                        int_delta(new_effort, old_effort))
+        self.add_metric("Estimated Time (T)", format_time(new_timetp))
+        self.add_metric("Delivered Bugs (B)", "{:.1f}".format(new_bugs),
+                        float_delta(new_bugs, old_bugs))
+        self.__cache_metrics({"Volume": (new_volume, old_volume)})
 
 
 class MaintainabilityUnit(CodeMetricUnit):
@@ -1132,47 +1365,99 @@ class MaintainabilityUnit(CodeMetricUnit):
             for (i, x) in enumerate(
                 [
                     "Maintainability Index",
-                    "Index Interpretation",
+                    "Index Rating",
                     "VS Bounded Index",
-                    "Bounded Interpretation",
+                    "VS Index Rating",
                 ]
             )
         ]
     )
-
-    predecessors = [CyclomatricComplexityUnit, HalsteadComplexityUnit]
-
-    def calculate_metrics(self, old_source: CSource, new_source: CSource) -> None:
-        pass  # TODO
-
-
-class StringSimilarityUnit(CodeMetricUnit):
-
-    name = "String Similarity Metrics"
-    gui_name = '<p style="line-height:80%">String Similarity<br>Metrics</p>'
-    positions = dict(
-        [
-            (x, i)
-            for (i, x) in enumerate(
-                [
-                    "LCS",
-                    "Lexeme LCS",
-                    "Token LCS",
-                    "Hamming Distance",
-                    "Lexeme Hamming Distance",
-                    "Token Hamming Distance",
-                    "Edit Distance",
-                    "Lexeme Edit Distance",
-                    "Token Edit Distance",
-                ]
-            )
-        ]
+    name_tooltip = (
+        "The maintainability index is a compound metric which joins together McCabe's Cyclomatic\n"
+        "Complexity, Halstead's Volume and the program's Lines of Code to create a more thorough\n"
+        "outlook of the program maintainability (though it is not comprehensive, e.g. not\n"
+        "considering variable naming, indentation, etc.). Note that the original metric includes\n"
+        "percentage of comments but it has been opted to not include that here as comments will\n"
+        "naturally be removed in obfuscated code. Also included is Microsoft Visual Studio's new\n"
+        "formula and interpretation that is both bounded and more up-to-date.\n"
+        "\nThis metric primarily helps to measure obfuscation resilience and potency (complexity)."
     )
+    tooltips = {
+        "Maintainability Index": "The maintainability index, calculated using regression models on empirical\n"
+        "data. Uses the cyclomatic complexity, Halstead volume and lines of code. Note that\n"
+        "this calculation removes the percentage comments metric in the original formula.\n"
+        "   Maintainability = 171 - 5.2 x ln(Vol) - 0.23 x CC - 16.2 x ln(LOC)",
+        "Index Rating": "A rough guideline/interpretation of the maintainability index, which is either\n"
+        "'Unmaintainable', 'Moderate' or 'Maintainable', corresponding to the originally\n"
+        "proposed classifications of 'Difficult to Maintain', 'Moderately Maintainable'\n"
+        "and 'Highly Maintainable'.",
+        "VS Bounded Index": "The Visual Studio bounded version of the maintainability index, such that\n"
+        "the index value sits between 0 and 100, and using more conservative thresholds.\n"
+        "   Maintainability = MAX(0, (171 - 5.2 x ln(Vol) - 0.23 x CC - 16.2 x ln(LOC)) * 100 / 171)",
+        "VS Index Rating": "A rough guideline/interpretation of the VS bounded maintainability index, which\n"
+        "is either 'Unmaintainable', 'Moderate', or 'Maintainable' corresponding to Visual\n"
+        "Studio's 'Red', 'Yellow' and 'Green' threshold classifications.",
+    }
+    predecessors = [CountUnit, CyclomaticComplexityUnit, HalsteadComplexityUnit]
 
-    predecessors = []
+    def __skip_metrics(self) -> None:
+        for metric in self.positions.keys():
+            self.add_metric(metric, 'N/A', 'N/A')
+
+    def __calc_maintainability_index(self, vol: float, cc: float, loc: int) -> float:
+        return 171 - 5.2 * math.log(vol) - 0.23 * cc - 16.2 * math.log(loc)
+    
+    def __calc_vs_maintainability_index(self, vol: float, cc: float, loc: int) -> float:
+        return max(0, (171 - 5.2 * math.log(vol) - 0.23 * cc - 16.2 * math.log(loc)) * 100 / 171)
+
+    def __interpet_meaning(self, index: float) -> str:
+        if index <= 65:
+            return "Unmaintainable"
+        elif index < 85:
+            return "Moderate"
+        else:
+            return "Maintainable"
+    
+    def __interpet_vs_meaning(self, index: float) -> str:
+        if index < 10:
+            return "Unmaintainable"
+        elif index < 20:
+            return "Moderate"
+        else:
+            return "Maintainable"
+        
 
     def calculate_metrics(self, old_source: CSource, new_source: CSource) -> None:
-        pass  # TODO
+        # Retrieve previous cached metric calculations
+        count_metrics = CountUnit.cached
+        if "Lines" not in count_metrics or count_metrics["Lines"][0] == 'N/A':
+            return self.__skip_metrics()
+        new_loc, old_loc = count_metrics["Lines"]
+        cyclomatic_metrics = CyclomaticComplexityUnit.cached
+        if "Cyclomatic Complexity" not in cyclomatic_metrics or \
+            cyclomatic_metrics["Cyclomatic Complexity"][0] == 'N/A':
+                return self.__skip_metrics()
+        new_cc, old_cc = cyclomatic_metrics["Cyclomatic Complexity"]
+        halstead_metrics = HalsteadComplexityUnit.cached
+        if "Volume" not in halstead_metrics or halstead_metrics["Volume"][0] == 'N/A':
+            return self.__skip_metrics()
+        new_vol, old_vol = halstead_metrics["Volume"]
+        # Calculate new metrics
+        if old_loc == 'N/A' or old_cc == 'N/A' or old_vol == 'N/A' or old_vol <= 0 or old_loc <= 0:
+            old_maintainability = 'N/A'
+            old_vs = 'N/A'
+        else:
+            old_maintainability = self.__calc_maintainability_index(old_vol, old_cc, old_loc)
+            old_vs = self.__calc_vs_maintainability_index(old_vol, old_cc, old_loc)
+        new_maintainability = self.__calc_maintainability_index(new_vol, new_cc, new_loc)
+        new_vs = self.__calc_vs_maintainability_index(new_vol, new_cc, new_loc)
+        # Add (and format) new metrics
+        self.add_metric("Maintainability Index", str(int(new_maintainability)),
+                        int_delta(new_maintainability, old_maintainability))
+        self.add_metric("VS Bounded Index", str(int(new_vs)), int_delta(new_vs, old_vs))
+        self.add_metric("Index Rating", self.__interpet_meaning(new_maintainability))
+        self.add_metric("VS Index Rating", self.__interpet_vs_meaning(new_vs))
+        
 
 
 # TODO one more metric here - probably Gaussian Kernel / K-L divergence / distance between n-grams and context

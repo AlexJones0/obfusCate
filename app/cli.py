@@ -1,236 +1,213 @@
 """ File: cli.py
-Implements functions to implement the command-line interface of the program,
-such that it can be used through text interaction in a terminal window."""
-import sys
-import unicodedata
-from typing import Optional
-from .debug import print_error, create_log_file, log
-from .interaction import (
-    CSource,
-    menu_driven_option,
-    handle_arguments,
-    disable_logging,
-    set_seed,
-    suppress_errors,
-    display_progress,
-    save_composition,
-    load_composition,
-    save_composition_file,
-    load_composition_file,
-    disable_metrics,
-    display_version,
-)
-from .obfuscation import *
-from .complexity import *
+Implements functions and logic for providing the command-line interface of the program,
+such that it can be used through text interaction in a terminal window as either a 
+menu-driven CLI, or as a traditional single command GUI with use of appropriate options
+providing a JSON file. Handles the overall general CLI interaction / control flow, as well
+as CLI system arguments and options."""
+
+from . import interaction, complexity, obfuscation as obfs
+from .debug import print_error, create_log_file, log, logprint
 from app import settings as config
-from unidecode import unidecode
+from typing import Iterable, Type, Tuple, Union
+import sys, copy, unidecode
 
 
-def skip_menus():
+def skip_menus() -> None:
+    """Sets the config option to skip through all menus during execution."""
     config.SKIP_MENUS = True
     log("Set option to skip menus in the CLI and obfuscate instantly.")
 
 
-# The list of command line arguments/options supported by the command line interface.
-options = [
-    (
-        None,  # Function to call if argument supplied
-        ["-h", "--help"],  # Arguments that can be provided for this function
-        "Displays this help menu.",  # A help menu description for this argument
-        [],  # Names of proceeding values used by the function
-    ),
-    (
-        display_version,
-        ["-v", "--version"],
-        "Displays the program's name and current version.",
-        [],
-    ),
-    (
-        disable_logging,
-        ["-l", "--noLogs"],
-        "Stops a log file being created for this execution.",
-        [],
-    ),
-    (
-        set_seed,
-        ["-s", "--seed"],
-        "Initialises the program with the random seed x (some integer).",
-        ["x"],
-    ),
-    (
-        suppress_errors,
-        ["-S", "--supress-errors"],
-        "Attempts to obfsucate in spite of errors (WARNING: MAY CAUSE UNEXPECTED BEHAVIOUR).",
-        [],
-    ),
-    (
-        display_progress,
-        ["-p", "--progress"],
-        "Outputs obfuscation pipleline progress (transformation completion) during obfuscation.",
-        [],
-    ),
-    (
-        save_composition,
-        ["-c", "--save-comp"],
-        "Saves the selected composition of obfuscation transformations as a JSON file to be reused.",
-        [],
-    ),
-    (
-        load_composition,
-        ["-l", "--load-comp"],
-        "Loads a given JSON file containing the composition of obfuscation transformations to use.",
-        ["file"],
-    ),
-    (
-        disable_metrics,
-        ["-m", "--no-metrics"],
-        "Disables calculation of code complexity metrics for the obfuscated programs.",
-        [],
-    ),
-    (
+# Add the command-line specific '--skip' option to the list of system options.
+interaction.shared_options.append(
+    interaction.SystemOpt(
         skip_menus,
         ["-s", "--skip"],
         "Skips the menus, immediately executing using any loaded composition file.",
         [],
-    ),
-]
+    )
+)
 
 
 def help_menu() -> bool:
     """Prints the help menu detailing usage of the CLI command interface.
 
     Returns:
-        (bool) Always returns False, to signal that program execution should stop."""
-    help_str = """################ CLI Help Manual ################
-This program takes as an argument some input C source program file and allows the application of a sequence of obfuscation transformations, resulting in an obfuscated C source file being produced. For more information on usage and options, see below.
-
-Usage: python {} input_c_file [output_file] [options]
-
-Options:\n""".format(
-        __file__.split("\\")[-1]
-    )
-    opt_strings = [" ".join(opt[1] + opt[3]) for opt in options]
-    max_len = max([len(opt_str) for opt_str in opt_strings])
-    for i, option in enumerate(options):
-        opt_str = opt_strings[i]
-        help_str += (
-            "    "
-            + opt_str
-            + (max_len - len(opt_str) + 1) * " "
-            + "| "
-            + option[2].split("\n")[0]
-            + ("\n" if "\n" in option[2] else "")
-            + "\n".join(
-                [
-                    (5 + max_len) * " " + "| " + line
-                    for line in option[2].split("\n")[1:]
-                ]
-            )
-            + "\n"
-        )
+        bool: Always returns False, to signal that execution should stop."""
+    help_str = (
+        "################ CLI Help Manual ################\n"
+        "This program takes as an argument some input C source program file and allows "
+        "the application of a sequence of obfuscation transformations, resulting in an "
+        "obfuscated C source file being produced. For more information on usage and "
+        "options, see below.\n\n"
+        "Usage: python {} input_c_file [output_file] [options]\n\n"
+        "Options:\n"
+    ).format(__file__.split("\\")[-1])
+    max_len = max([len(str(opt)) for opt in interaction.shared_options])
+    for option in interaction.shared_options:
+        option_str = str(option)
+        padding = (max_len - len(option_str) + 1) * " "
+        desc_str = option.get_desc_str(5 + max_len)
+        help_str += f"    {option_str}{padding}| {desc_str}\n"
     print(help_str)
     log("Displayed the help menu.")
     return False
 
 
-options[0] = (help_menu, *options[0][1:])
+# Set the help menu function generated from the CLI options.
+interaction.set_help_menu(help_menu)
 
 
-def display_complexity_metrics(source: CSource, obfuscated: CSource) -> None:
-    if source is None or obfuscated is None:
-        return
-    metrics = CodeMetricUnit.__subclasses__()
-    print("\n===Obfuscation Metrics===")
+def get_metric_length(metric_val: Tuple[str, Union[str, Tuple[str, str]]]) -> int:
+    """Calculates the formatted string length of an output calculated
+    metric value.
+
+    Args:
+        metric_val (Tuple[str,Union[str,Tuple[str,str]]]): The given metric
+        value - the first string is the metric name, the second is the
+        value string, and the optional third string is the delta value.
+
+    Returns:
+        int: The length of the formatted metric string."""
+    if not isinstance(metric_val[1], tuple):
+        value_len = len(metric_val[1])
+    else:
+        value_len = len(metric_val[1][0]) + len(metric_val[1][1]) + 3
+    return len(unidecode.unidecode(metric_val[0])) + value_len
+
+
+def process_metrics(
+    metrics: Iterable[Type[complexity.CodeMetricUnit]],
+    source: interaction.CSource,
+    obfuscated: interaction.CSource,
+) -> dict[str, list[Tuple[str, str]]]:
+    """Processes the list of given metrics if possible, performing multiple
+    passes if necessary to ensure that metrics have their desired constraints
+    (predecessor metrics) satisfied. O(n^2) worst case, but this can be run
+    in O(n) time so long as the provided list of metrics is correctly ordered
+    so that predecessors come before the metrics they are used in.
+
+    Args:
+        metrics (Iterable[Type[complexity.CodeMetricUnit]]): The list of metric
+        classes to use. Should extend the complexity.CodeMetricUnit class.
+        source (interaction.CSource): The original, unobfuscated C source file.
+        obfuscated (interaction.CSource): The final obfuscated C source file.
+
+    Returns:
+        dict[str, list[Tuple[str, str]]]: A dictionary mapping the metric's name to
+        a list of string tuples, where the first string in each tuple is the
+        value's name/meaning and the second is the actual value."""
+    metrics = [m for m in metrics]  # Create a copy to avoid mutation
+    processed_values = {}
     while len(metrics) != 0:
-        processed = []
-        vals_to_print = []
-        max_global = 0
+        just_processed = []
         for metric in metrics:
+            # Check all predecessors have already been calculated.
             missing_preds = [
                 req
                 for req in metric.predecessors
-                if req in metrics and req not in processed
+                if req in metrics and req not in just_processed
             ]
             if len(missing_preds) > 0:
                 continue
-            processed.append(metric)
-            metric_unit = metric()
-            metric_unit.calculate_metrics(source, obfuscated)
-            metric_vals = metric_unit.get_metrics()
-            max_local = max(
-                [
-                    len(unidecode(m[0]))
-                    + (
-                        len(m[1])
-                        if not isinstance(m[1], tuple)
-                        else len(m[1][0]) + len(m[1][1]) + 3
-                    )
-                    for m in metric_vals
-                ]
-            )
-            max_global = max(max_local, max_global)
-            vals_to_print.append((metric.name, metric_vals))
-        for metric_name, metric_vals in vals_to_print:
-            print(f"\n{metric_name}:")
-            for name, m_val in metric_vals:
-                if isinstance(m_val, tuple):
-                    values = f"{m_val[0]} ({m_val[1]})"
-                else:
-                    values = m_val
-                padding = " " * (max_global - len(unidecode(name)) - len(values))
-                print(f"  {name}:        {padding}{values}")
-        if len(processed) == 0:
-            log(
-                "Metrics {} have unsatisfiable predecessor dependencies!".format(
-                    metrics
-                )
-            )
+            # Calculate metrics, recovering from unexpected error
+            try:
+                metric_unit = metric()
+                metric_unit.calculate_metrics(source, obfuscated)
+                metric_values = metric_unit.get_metrics()
+            except Exception as e:
+                log(f"Unknown error when processing metrics: {e}")
+                continue
+            processed_values[metric.name] = metric_values
+            just_processed.append(metric)
+        if len(just_processed) == 0:
+            log(f"Unsatisfiable metric predecessor dependencies: {metrics}")
             return
-        for metric in processed:
-            metrics.remove(metric)
+        for metric in just_processed:
+            metrics.remove(metric)  # Remove metrics at the end to avoid iteration bugs
+    return processed_values
+
+
+def display_complexity_metrics(
+    source: interaction.CSource, obfuscated: interaction.CSource
+) -> None:
+    """Prints out all available complexity metrics (retrieved from valid subclasses
+    of the complexity.CodeMetricUnit abstract base class), feeding them the original
+    source code and the obfuscated code and printing out the results for each metric.
+
+    Args:
+        source (interaction.CSource): The original, unmodified source C program.
+        obfuscated (interaction.CSource): The final C program after all obfuscation."""
+    if source is None or obfuscated is None:
+        return
+    log("Began processing and displaying complexity metrics")
+    print("\n===Obfuscation Metrics===")
+    # Retrieve, process, and calculate the size of metrics
+    metrics = complexity.CodeMetricUnit.__subclasses__()
+    metric_value_dict = process_metrics(metrics, source, obfuscated)
+    max_str_len = 0
+    for metric_values in metric_value_dict.values():
+        max_str_len = max(max_str_len, *[get_metric_length(m) for m in metric_values])
+    # Print formatted metrics in a tabulated list
+    for metric_name, metric_vals in metric_value_dict.items():
+        print(f"\n{metric_name}:")
+        for name, val in metric_vals:
+            values = f"{val[0]} ({val[1]})" if isinstance(val, tuple) else val
+            padding = " " * (max_str_len - len(unidecode.unidecode(name)) - len(values))
+            print(f"  {name}:        {padding}{values}")
     print("")
+    log("Finished displaying complexity metrics")
 
 
-def get_transformations(
-    source: CSource, seed: Optional[int] = None
-) -> Optional[CSource]:
+def load_composition() -> obfs.Pipeline | None:
+    """Attempts to load the saved composition file into a valid pipeline object
+    using relevant file reading and JSON parsing. Also sets the seed to be
+    used if no seed was given during this execution.
+
+
+    Returns:
+        obfs.Pipeline | None: The loaded pipeline corresponding to the 
+        information in the composition file. None if an error ocurred.
+    """
+    file_contents = interaction.load_composition_file(config.COMPOSITION)
+    if file_contents is None:
+        logprint("Error loading saved transformations - invalid composition file supplied.")
+        return None
+    saved_pipeline = obfs.Pipeline.from_json(file_contents, use_gui=False)
+    if saved_pipeline is None:
+        logprint("Error loading saved transformations - please provide a valid compositions file")
+        return None
+    if config.SEED is None:  # Only use the saved seed if no seed was provided
+        config.SEED = saved_pipeline.seed
+    log("Loaded saved composition into pipeline.")
+    return saved_pipeline
+
+
+def cli_obfuscation(
+    source: interaction.CSource, seed: int | None = None
+) -> interaction.CSource | None:
     """Given a source program to obfuscate, this program implements the CLI that allows
     users to select a sequence of obfuscation transformations to apply and obfuscates
     the program, returning the result.
 
     Args:
-        source (CSource): The C source code program to obfuscate.
-        seed (Optional[int], optional): The seed to use for randomness. Defaults to None.
+        source (interaction.CSource): The C source file to obfuscate.
+        seed (int | None, optional): The seed to use for randomness. Defaults to None.
 
     Returns:
-        Optional[CSource]: If successful, returns the obfuscated C source code. If an
-        error occurs or the user quits, returns None.
-    """
-    if config.COMPOSITION is None:
-        selected = []
-        cursor_index = 0  # Cursor to allow traversal of transforms in CLI.
+        interaction.CSource | None: The obfuscated C source file, or None if quit."""
+    # Load starting selections from the composition file if provided
+    if config.COMPOSITION is not None:
+        composition_pipeline = load_composition()
+        if composition_pipeline is None: 
+            return None
+        selected = composition_pipeline.transforms
     else:
-        contents = load_composition_file(config.COMPOSITION)
-        if contents is None:
-            log(
-                "Error loading saved transformations - please provide a valid compositions file",
-                print_err=True,
-            )
-            return None
-        saved_pipeline = Pipeline.from_json(contents, use_gui=False)
-        if saved_pipeline is None:
-            log(
-                "Error loading saved transformations - please provide a valid compositions file",
-                print_err=True,
-            )
-            return None
-        if config.SEED is None:  # Only use saved seed if no seed was provided
-            config.SEED = saved_pipeline.seed
-        selected = saved_pipeline.transforms
-        cursor_index = len(selected)
-
+        selected = []
+    cursor_index = len(selected)
+    
     # Generate available transforms from implemented classes
-    available_transforms = ObfuscationUnit.__subclasses__()
+    available_transforms = obfs.ObfuscationUnit.__subclasses__()
     num_transforms = len(available_transforms)
     options = [f"{t.name}: {t.description}" for t in available_transforms]
     options += [
@@ -244,19 +221,16 @@ def get_transformations(
     # Iteratively get transform information until user selects to continue/quit.
     done_selecting = config.SKIP_MENUS
     while not done_selecting:
-        # Format current transforms with cursor location for printing
         prompt = "\nCurrent transforms: {} >>> {}\n".format(
             " -> ".join(str(t) for t in selected[:cursor_index]),
             " -> ".join(str(t) for t in selected[cursor_index:]),
         )
-        choice = menu_driven_option(options, prompt=prompt)
-        if choice == -1:  # Quit
+        choice = interaction.menu_driven_option(options, prompt=prompt)
+        if choice == -1:  # Choice to quit
             log("Selected to exit the transformation selection menu.")
             return None
-        elif choice < num_transforms:  # Selected transform
+        elif choice < num_transforms:  # Choice a specific transform
             new_t = available_transforms[choice].get_cli()
-            if new_t is None:
-                return None
             selected = selected[:cursor_index] + [new_t] + selected[cursor_index:]
             log(
                 "Added transform {} at index {}. Current transforms: {}".format(
@@ -264,26 +238,28 @@ def get_transformations(
                 )
             )
             cursor_index += 1
-        elif choice == num_transforms:  # Move cursor left
+        elif choice == num_transforms:  # Choice to move cursor left
             cursor_index = max(cursor_index - 1, 0)
-        elif choice == num_transforms + 1:  # Move cursor right
+        elif choice == num_transforms + 1:  # Choice to move cursor right
             cursor_index = min(cursor_index + 1, len(selected))
-        elif choice == num_transforms + 2:  # Delete transform after cursor
-            selected = selected[:cursor_index] + selected[(cursor_index + 1) :]
-        elif choice == num_transforms + 3:  # Edit transform after cursor
+        elif choice == num_transforms + 2:  # Choice to delete transform after cursor
             if cursor_index < len(selected):
+                log(f"Deleted selected transform {selected[cursor_index]} at index {cursor_index}")
+            selected = selected[:cursor_index] + selected[(cursor_index + 1) :]
+        elif choice == num_transforms + 3:  # Choice to edit transform after cursor
+            if cursor_index < len(selected):
+                log(f"Began editing transform {selected[cursor_index]} at index {cursor_index}")
                 selected[cursor_index].edit_cli()
-        else:  # Finished selecting
+        else:  # Choice to finish selecting
             done_selecting = True
+            log("Finished selecting from command line.")
 
     # Apply selected transform pipeline to given source code
-    pipeline = Pipeline(seed, *selected)
+    pipeline = obfs.Pipeline(seed, *selected)
     if config.SAVE_COMPOSITION:
-        save_composition_file(pipeline.to_json())
-    original = deepcopy(source)
+        interaction.save_composition_file(pipeline.to_json())
+    original = copy.deepcopy(source)
     obfuscated = pipeline.process(source)
-
-    # Calculate and display complexity metrics
     if config.CALCULATE_COMPLEXITY:
         display_complexity_metrics(original, obfuscated)
 
@@ -309,31 +285,29 @@ def handle_CLI() -> bool:
     log(f"Supplied arguments: {str(supplied_args)}")
 
     # Handle supplied arguments/options
-    args = handle_arguments(supplied_args, options)
+    args = interaction.handle_arguments(supplied_args, interaction.shared_options)
     if isinstance(args, bool):
         return args
 
-    # Determine subsequent execution based on number of supplied arguments.
-    if len(args) == 0:  # No arguments - error
+    # Read file and display parse errors
+    if len(args) == 0:  # 0 arguments supplied, which is erroneous
         print_error(
             "No source file supplied. Use the -h or --help options to see usage information."
         )
         log("Aborting executions because no arguments were supplied.")
         return False
-
-    # Read file and display parse errors
-    source = CSource(args[0])
+    source = interaction.CSource(args[0])
     if source.contents is None or not source.valid_parse:
         return False
-    obfuscated = get_transformations(source, config.SEED)
+    obfuscated = cli_obfuscation(source, config.SEED)
     if obfuscated is None:
         return False
 
-    # Handle obfuscation interface
+    # Choose how to record the output based on the number of arguments
     if len(args) == 1:  # 1 argument - take as input source file, and print output
         if obfuscated is not None:
             log("Displaying obfuscation output.")
-            print("\n===Obfuscated Output===\n")
+            print("\n===Obfuscated Output===")
             print(obfuscated.contents)
         log("Execution finished normally.")
         return True
