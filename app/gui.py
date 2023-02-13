@@ -2,21 +2,9 @@
 Implements functions to implement the graphical user interface of the program,
 such that it can be more accessibly used without text interaction in a terminal
 window. """
+from . import interaction
 from .obfuscation import *
 from .complexity import *
-from .interaction import (
-    handle_arguments,
-    disable_logging,
-    set_seed,
-    suppress_errors,
-    display_progress,
-    save_composition,
-    save_composition_file,
-    load_composition,
-    load_composition_file,
-    disable_metrics,
-    display_version,
-)
 from app import settings as config
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
@@ -92,103 +80,35 @@ MINIMAL_SCROLL_BAR_CSS = """
 """
 
 
-options = [
-    (
-        None,  # Function to call if argument supplied
-        ["-h", "--help"],  # Arguments that can be provided for this function
-        "Displays this help menu.",  # A help menu description for this argument
-        [],  # Names of proceeding values used by the function
-    ),
-    (
-        display_version,
-        ["-v", "--version"],
-        "Displays the program's name and current version.",
-        [],
-    ),
-    (
-        disable_logging,
-        ["-l", "--noLogs"],
-        "Stops a log file being created for this execution.",
-        [],
-    ),
-    (
-        set_seed,
-        ["-s", "--seed"],
-        "Initialises the program with the random seed x (some integer).",
-        ["x"],
-    ),
-    (
-        suppress_errors,
-        ["-S", "--supress-errors"],
-        "Attempts to obfsucate in spite of errors (WARNING: MAY CAUSE UNEXPECTED BEHAVIOUR).",
-        [],
-    ),
-    (
-        display_progress,  # TODO implement progress display - not currently implemented in GUI
-        ["-p", "--progress"],
-        "Outputs obfuscation pipleline progress (transformation completion) during obfuscation.\n"
-        "Note that this currently only displays progress to the terminal (not in the GUI).",
-        [],
-    ),
-    (
-        save_composition,
-        ["-c", "--save-comp"],
-        "Saves the selected composition of obfuscation transformations as a JSON file to be reused.",
-        [],
-    ),
-    (
-        load_composition,
-        ["-l", "--load-comp"],
-        "Loads a given JSON file containing the composition of obfuscation transformations to use.",
-        ["file"],
-    ),
-    (
-        disable_metrics,
-        ["-m", "--no-metrics"],
-        "Disables calculation of code complexity metrics for the obfuscated programs.",
-        [],
-    ),
-]
-
-
 def help_menu() -> bool:
-    """Prints the help menu detailing usage of the CLI command interface.
+    """Prints the help menu detailing usage of the GUI command interface.
 
     Returns:
-        (bool) Always returns False, to signal that program execution should stop."""
-    help_str = """################ CLI Help Manual ################
-This program takes as an argument some input C source program file and allows the application of a sequence of obfuscation transformations, resulting in an obfuscated C source file being produced. For more information on usage and options, see below.
-
-Usage: python {} input_c_file [output_file] [options]
-
-Options:\n""".format(
-        __file__.split("\\")[-1]
-    )
-    opt_strings = [" ".join(opt[1] + opt[3]) for opt in options]
-    max_len = max([len(opt_str) for opt_str in opt_strings])
-    for i, option in enumerate(options):
-        opt_str = opt_strings[i]
-        help_str += (
-            "    "
-            + opt_str
-            + (max_len - len(opt_str) + 1) * " "
-            + "| "
-            + option[2].split("\n")[0]
-            + ("\n" if "\n" in option[2] else "")
-            + "\n".join(
-                [
-                    (5 + max_len) * " " + "| " + line
-                    for line in option[2].split("\n")[1:]
-                ]
-            )
-            + "\n"
-        )
+        bool: Always returns False, to signal that execution should stop."""
+    help_str = (
+        "################ GUI Help Manual ################\n"
+        "This program takes as an argument some input C source program file and allows\n"
+        "the application of a sequence of obfuscation transformations, resulting in an\n"
+        "obfuscated C source file being produced. An input file can be optionally     \n"
+        "provided or just loaded in the application (or you can type in the GUI       \n"
+        "directly). If an output file is provided, the contents of the obfuscated code\n"
+        "editor will be automatically saved to that file when you quit. For more      \n"
+        "information on usage and options, see below.\n\n"
+        "Usage: python {} [input_c_file] [output_file] [options]\n\n"
+        "Options:\n"
+    ).format(__file__.split("\\")[-1])
+    max_len = max([len(str(opt)) for opt in interaction.shared_options])
+    for option in interaction.shared_options:
+        option_str = str(option)
+        padding = (max_len - len(option_str) + 1) * " "
+        desc_str = option.get_desc_str(5 + max_len)
+        help_str += f"    {option_str}{padding}| {desc_str}\n"
     print(help_str)
     log("Displayed the help menu.")
     return False
 
 
-options[0] = (help_menu, *options[0][1:])
+interaction.set_help_menu(help_menu)
 
 
 def set_no_options_widget(parent: QWidget) -> None:
@@ -2350,7 +2270,7 @@ def handle_gui() -> bool:
     log(f"Supplied arguments: {str(supplied_args)}")
 
     # Handle supplied arguments/options
-    args = handle_arguments(supplied_args, options)
+    args = interaction.handle_arguments(supplied_args, interaction.shared_options)
     if isinstance(args, bool):
         return args
 
@@ -2367,7 +2287,7 @@ def handle_gui() -> bool:
         source = CSource(args[1], "")  # TODO check this works
         window.obfuscate_widget.obfuscated_editor.add_source(source)
     if config.COMPOSITION is not None:
-        contents = load_composition_file(config.COMPOSITION)
+        contents = interaction.load_composition_file(config.COMPOSITION)
         if contents is None:
             logprint(
                 "Error loading saved transformations - please provide a valid compositions file",
@@ -2393,7 +2313,7 @@ def handle_gui() -> bool:
         seed = window.obfuscate_widget.misc_form.general_options.seed
         transforms = window.obfuscate_widget.selection_form.current_form.selected
         pipeline = Pipeline(seed, *transforms)
-        save_composition_file(pipeline.to_json())
+        interaction.save_composition_file(pipeline.to_json())
 
     if len(args) == 2:
         try:

@@ -36,9 +36,9 @@ def help_menu() -> bool:
         bool: Always returns False, to signal that execution should stop."""
     help_str = (
         "################ CLI Help Manual ################\n"
-        "This program takes as an argument some input C source program file and allows "
-        "the application of a sequence of obfuscation transformations, resulting in an "
-        "obfuscated C source file being produced. For more information on usage and "
+        "This program takes as an argument some input C source program file and allows\n"
+        "the application of a sequence of obfuscation transformations, resulting in an\n"
+        "obfuscated C source file being produced. For more information on usage and   \n"
         "options, see below.\n\n"
         "Usage: python {} input_c_file [output_file] [options]\n\n"
         "Options:\n"

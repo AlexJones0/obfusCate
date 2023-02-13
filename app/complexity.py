@@ -60,7 +60,9 @@ def float_delta(new: float, prev: float) -> str:
     f_str = "{:.1f}".format(delta)
     return ("+" + f_str) if delta >= 0.0 else f_str
 
-def format_time(time: int) -> str:
+def format_time(time: int | str) -> str:
+    if isinstance(time, str):
+        return time
     fstring = "{}s".format(time % 60)
     time = time // 60
     if time == 0:
@@ -850,6 +852,7 @@ class CyclomaticComplexityUnit(CodeMetricUnit):
                 avg_cyclo_delta = "N/A"
         else:
             avg_new_cyclo = "N/A"
+            avg_new_cyclo_str = "N/A"
             avg_cyclo_delta = "N/A"
         self.add_metric("Total Cyclomatic \u03A3M", str(total_new_cyclo),
                         int_delta(total_new_cyclo, total_old_cyclo))
@@ -861,11 +864,19 @@ class CyclomaticComplexityUnit(CodeMetricUnit):
         new_orig_values = new_cfg_generator.func_decisions.values()
         total_old_orig_values = sum(old_orig_values)
         total_new_orig_values = sum(new_orig_values)
-        avg_old_orig_values = total_old_orig_values / len(old_orig_values)
-        avg_new_orig_values = total_new_orig_values / len(new_orig_values)
+        if len(old_orig_values) != 0:
+            avg_old_orig_values = total_old_orig_values / len(old_orig_values)
+        else:
+            avg_old_orig_values = "N/A"
+        if len(new_orig_values) != 0:
+            avg_new_orig_values = total_new_orig_values / len(new_orig_values)
+            avg_new_orig_values_str = "{:.1f}".format(avg_new_orig_values)
+        else:
+            avg_new_orig_values = "N/A"
+            avg_new_orig_values_str = "N/A"
         self.add_metric("Total Orig. \u03A3M", str(total_new_orig_values),
                         int_delta(total_new_orig_values, total_old_orig_values))
-        self.add_metric("Avg. Orig. M\u0305", "{:.1f}".format(avg_new_orig_values),
+        self.add_metric("Avg. Orig. M\u0305", avg_new_orig_values_str,
                         float_delta(avg_new_orig_values, avg_old_orig_values))
         self.add_metric("Orig. Rating", 
                         self.get_interpretation(avg_new_orig_values))
@@ -875,8 +886,14 @@ class CyclomaticComplexityUnit(CodeMetricUnit):
         new_myers = new_cfg_generator.func_myers.values()
         total_old_myers = sum(old_myers)
         total_new_myers = sum(new_myers)
-        avg_old_myers = total_old_myers / len(old_myers)
-        avg_new_myers = total_new_myers / len(new_myers)
+        if len(old_myers) != 0:
+            avg_old_myers = total_old_myers / len(old_myers)
+        else:
+            avg_old_myers = "N/A"
+        if len(new_myers) != 0:
+            avg_new_myers = total_new_myers / len(new_myers)
+        else:
+            avg_new_myers = "N/A"
         self.add_metric("Avg. Myers' Interval", str(avg_new_myers), "{}".format(
             float_delta(avg_new_myers, avg_old_myers)
         ))
@@ -1053,13 +1070,21 @@ class CognitiveComplexityUnit(CodeMetricUnit):
         total_new_cognitive = sum(new_cognitive)
         self.add_metric("Total Cognitive Num", str(total_new_cognitive),
                         int_delta(total_new_cognitive, total_old_cognitive))
-        avg_old_cognitive = total_old_cognitive / len(old_cognitive)
-        avg_new_cognitive = total_new_cognitive / len(new_cognitive)
-        self.add_metric("Avg. Cognitive Num", "{:.1f}".format(avg_new_cognitive),
+        if len(old_cognitive) != 0:
+            avg_old_cognitive = total_old_cognitive / len(old_cognitive)
+        else:
+            avg_old_cognitive = "N/A"
+        if len(new_cognitive) != 0:
+            avg_new_cognitive = total_new_cognitive / len(new_cognitive)
+            avg_new_cognitive_str = "{:.1f}".format(avg_new_cognitive)
+        else:
+            avg_new_cognitive = "N/A"
+            avg_new_cognitive_str = "N/A"
+        self.add_metric("Avg. Cognitive Num", avg_new_cognitive_str,
                         float_delta(avg_new_cognitive, avg_old_cognitive))
-        max_new_cognitive = max(new_cognitive)
+        max_new_cognitive = max([0] + list(new_cognitive))
         self.add_metric("Max Cognitive Num", str(max_new_cognitive),
-                        int_delta(max_new_cognitive, max(old_cognitive)))
+                        int_delta(max_new_cognitive, max([0] + list(old_cognitive))))
         if len(old_cognitive) >= 2:
             sd_old_cognitive = math.sqrt(statistics.variance(old_cognitive, avg_old_cognitive))
         else:
@@ -1074,13 +1099,21 @@ class CognitiveComplexityUnit(CodeMetricUnit):
                         float_delta(sd_new_cognitive, sd_old_cognitive))
         old_nesting = old_analyzer.func_nestings.values()
         new_nesting = new_analyzer.func_nestings.values()
-        avg_old_nesting = sum(old_nesting) / len(old_nesting)
-        avg_new_nesting = sum(new_nesting) / len(new_nesting)
-        self.add_metric("Avg. Nesting Depth", "{:.1f}".format(avg_new_nesting),
+        if len(old_nesting) != 0:
+            avg_old_nesting = sum(old_nesting) / len(old_nesting)
+        else:
+            avg_old_nesting = "N/A"
+        if len(new_nesting) != 0:
+            avg_new_nesting = sum(new_nesting) / len(new_nesting)
+            avg_new_nesting_str = "{:.1f}".format(avg_new_nesting)
+        else:
+            avg_new_nesting = "N/A"
+            avg_new_nesting_str = "N/A"
+        self.add_metric("Avg. Nesting Depth", avg_new_nesting_str,
                         float_delta(avg_new_nesting, avg_old_nesting))
-        max_new_nesting = max(new_nesting)
+        max_new_nesting = max([0] + list(new_nesting))
         self.add_metric("Max Nesting Depth", str(max_new_nesting),
-                        int_delta(max_new_nesting, max(old_nesting)))
+                        int_delta(max_new_nesting, max([0] + list(old_nesting))))
         if len(old_nesting) >= 2:
             sd_old_nesting = math.sqrt(statistics.variance(old_nesting, avg_old_nesting))
         else:
@@ -1317,16 +1350,16 @@ class HalsteadComplexityUnit(CodeMetricUnit):
         else:
             new_volume = 'N/A'
         if old_uq_operands != 0:
-            old_difficulty = (old_uq_operators / 2) * (old_operands / old_uq_operands)
+            old_difficulty = int((old_uq_operators / 2) * (old_operands / old_uq_operands))
         else:
             old_difficulty = 'N/A'
         if new_uq_operands != 0:
-            new_difficulty = (new_uq_operators / 2) * (new_operands / new_uq_operands)
+            new_difficulty = int((new_uq_operators / 2) * (new_operands / new_uq_operands))
         else:
             new_difficulty = 'N/A'
         if old_difficulty != 'N/A' and old_volume != 'N/A':
             old_effort = int(old_difficulty * old_volume)
-            old_bugs = math.pow(old_effort, (2 / 3)) / 3000
+            old_bugs = int(math.pow(old_effort, (2 / 3)) / 3000)
         else:
             old_effort = 'N/A'
             old_bugs = 'N/A'
@@ -1334,24 +1367,26 @@ class HalsteadComplexityUnit(CodeMetricUnit):
             new_effort = int(new_difficulty * new_volume)
             new_timetp = int(new_effort / 18)
             new_bugs = math.pow(new_effort, (2 / 3)) / 3000
+            new_bugs_str = "{:.1f}".format(new_bugs)
         else:
             new_effort = 'N/A'
             new_timetp = 'N/A'
             new_bugs = 'N/A'
+            new_bugs_str = 'N/A'
         self.add_metric("Vocabulary (\u03B7)", str(new_vocabulary),
                         int_delta(new_vocabulary, old_vocabulary))
         self.add_metric("Length (N)", str(new_length),
                         int_delta(new_length, old_length))
         self.add_metric("Estimated Length (\u004E\u0302)", str(new_estim_len),
                         int_delta(new_estim_len, old_estim_len))
-        self.add_metric("Volume (V)", str(int(new_volume)), 
-                        int_delta(int(new_volume), int(old_volume)))
-        self.add_metric("Difficulty (D)", str(int(new_difficulty)),
-                        int_delta(int(new_difficulty), int(old_difficulty)))
-        self.add_metric("Effort (E)", str(int(new_effort)), 
+        self.add_metric("Volume (V)", str(new_volume), 
+                        int_delta(new_volume, old_volume))
+        self.add_metric("Difficulty (D)", str(new_difficulty),
+                        int_delta(new_difficulty, old_difficulty))
+        self.add_metric("Effort (E)", str(new_effort), 
                         int_delta(new_effort, old_effort))
         self.add_metric("Estimated Time (T)", format_time(new_timetp))
-        self.add_metric("Delivered Bugs (B)", "{:.1f}".format(new_bugs),
+        self.add_metric("Delivered Bugs (B)", new_bugs_str,
                         float_delta(new_bugs, old_bugs))
         self.__cache_metrics({"Volume": (new_volume, old_volume)})
 
