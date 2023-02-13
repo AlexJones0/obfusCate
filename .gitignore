@@ -134,4 +134,4 @@ logs/
 # Output locations
 out/
 examples/
-compositions/
+/compositions/
