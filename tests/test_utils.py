@@ -260,6 +260,7 @@ class TestInteractionFunctions(unittest.TestCase):
 
     def test_valid_parse_true(self) -> None:
         """Tests that the CSource.valid_parse property works correctly for a true case."""
+        self.assertEqual(os.getcwd(), "abc")
         source = CSource(os.getcwd() + "./tests/data/minimal.c")
         self.assertTrue(source.valid_parse)
         del source

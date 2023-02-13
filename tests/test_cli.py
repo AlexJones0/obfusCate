@@ -8,7 +8,7 @@ from tests import *
 import io
 
 
-class TestUnit(obfs.ObfuscationUnit):
+class CountUnit(obfs.ObfuscationUnit):
     "A simple obfuscation class made for testing purposes."
     count = 1
     
@@ -22,9 +22,9 @@ class TestUnit(obfs.ObfuscationUnit):
     def edit_cli(self):
         print(f"Edited {self.count}")
     
-    def get_cli() -> "TestUnit":
-        TestUnit.count += 1
-        return TestUnit(TestUnit.count)
+    def get_cli() -> "CountUnit":
+        CountUnit.count += 1
+        return CountUnit(CountUnit.count)
     
     def from_json():
         return None
@@ -33,7 +33,7 @@ class TestUnit(obfs.ObfuscationUnit):
         return None
     
     def __str__(self) -> str:
-        return f"TestUnit(c={self.count})"
+        return f"CountUnit(c={self.count})"
 
 
 class TestMainCLIFunctions(unittest.TestCase):
@@ -363,33 +363,33 @@ class TestMainCLIFunctions(unittest.TestCase):
         """ Tests that the transform selection CLI displays the available transforms
         and the cursor correctly."""
         source = CSource(os.getcwd() + "./tests/data/minimal.c")
-        TestUnit.count = 0
+        CountUnit.count = 0
         inp = str(len(obfs.ObfuscationUnit.__subclasses__()))
         inputs = [inp, inp, inp, inp, inp, "quit"]
         out = io.StringIO()
         with patch("builtins.input", side_effect=inputs), redirect_stdout(out):
             cli_obfuscation(source)
         out = out.getvalue()
-        self.assertIn("Current transforms: TestUnit(c=1) -> TestUnit(c=2) -> TestUnit(c=3) -> TestUnit(c=4) -> TestUnit(c=5) >>>", out)
+        self.assertIn("Current transforms: CountUnit(c=1) -> CountUnit(c=2) -> CountUnit(c=3) -> CountUnit(c=4) -> CountUnit(c=5) >>>", out)
 
     def test_cli_create_transform(self) -> None:
         """ Tests that the option to create a transform in the CLI correctly
         calls the `get_cli` function and adds the created transform to the list. """
         source = CSource(os.getcwd() + "./tests/data/minimal.c")
-        TestUnit.count = 0
+        CountUnit.count = 0
         inp = str(len(obfs.ObfuscationUnit.__subclasses__()))
         inputs = [inp, "quit"]
         out = io.StringIO()
         with patch("builtins.input", side_effect=inputs), redirect_stdout(out):
             cli_obfuscation(source)
         out = out.getvalue()
-        self.assertIn("Current transforms: TestUnit(c=1) >>>", out)
+        self.assertIn("Current transforms: CountUnit(c=1) >>>", out)
 
     def test_cli_move_cursor(self) -> None:
         """ Tests that the cursor can be properly moved left and right within the
         current composition of selected transforms in the CLI. """
         source = CSource(os.getcwd() + "./tests/data/minimal.c")
-        TestUnit.count = 0
+        CountUnit.count = 0
         inp = len(obfs.ObfuscationUnit.__subclasses__())
         left = str(inp + 1)
         right = str(inp + 2)
@@ -400,13 +400,13 @@ class TestMainCLIFunctions(unittest.TestCase):
         with patch("builtins.input", side_effect=inputs), redirect_stdout(out):
             cli_obfuscation(source)
         out = out.getvalue()
-        self.assertIn("Current transforms: TestUnit(c=3) -> TestUnit(c=2) -> TestUnit(c=1) -> TestUnit(c=7) >>> TestUnit(c=4) -> TestUnit(c=6) -> TestUnit(c=5)", out)
+        self.assertIn("Current transforms: CountUnit(c=3) -> CountUnit(c=2) -> CountUnit(c=1) -> CountUnit(c=7) >>> CountUnit(c=4) -> CountUnit(c=6) -> CountUnit(c=5)", out)
 
     def test_cli_delete_transform(self) -> None:
         """ Tests that transforms can be deleted from the selection menu
         within the CLI, deleting the transform after the cursor only if one exists. """
         source = CSource(os.getcwd() + "./tests/data/minimal.c")
-        TestUnit.count = 0
+        CountUnit.count = 0
         inp = len(obfs.ObfuscationUnit.__subclasses__())
         left = str(inp + 1)
         delete = str(inp + 3)
@@ -416,13 +416,13 @@ class TestMainCLIFunctions(unittest.TestCase):
         with patch("builtins.input", side_effect=inputs), redirect_stdout(out):
             cli_obfuscation(source)
         out = out.getvalue()
-        self.assertIn("Current transforms: TestUnit(c=1) -> TestUnit(c=2) -> TestUnit(c=4) -> TestUnit(c=5) >>>", out)
+        self.assertIn("Current transforms: CountUnit(c=1) -> CountUnit(c=2) -> CountUnit(c=4) -> CountUnit(c=5) >>>", out)
 
     def test_cli_edit_transform(self) -> None:
         """ Tests that the user can select to edit the transform after the cursor
         in the CLI, if such a transform exists. """
         source = CSource(os.getcwd() + "./tests/data/minimal.c")
-        TestUnit.count = 0
+        CountUnit.count = 0
         inp = len(obfs.ObfuscationUnit.__subclasses__())
         left = str(inp + 1)
         edit = str(inp + 4)
@@ -443,7 +443,7 @@ class TestMainCLIFunctions(unittest.TestCase):
         obfuscate their code with the GUI selection menu. """
         source = CSource(os.getcwd() + "./tests/data/minimal.c")
         original_contents = source.contents
-        TestUnit.count = 0
+        CountUnit.count = 0
         inp = len(obfs.ObfuscationUnit.__subclasses__())
         finish = str(inp + 5)
         inp = str(inp)
