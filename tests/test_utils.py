@@ -19,12 +19,12 @@ class TestDebugFunctions(unittest.TestCase):
     def test_log_creation_disabled(self) -> None:
         """Test that log creation is actually disabled by the setting."""
         clean_dir()
-        cfg.LOG_PATH = "/tests/testing/"
+        cfg.LOG_PATH = "./tests/testing/"
         cfg.LOG_FILE = ""
         cfg.LOGS_ENABLED = False
         self.assertTrue(create_log_file(cfg.LOG_PATH))
-        if os.path.isdir(os.getcwd() + "/tests/testing"):
-            log_files = os.listdir(os.getcwd() + "/tests/testing")
+        if os.path.isdir(os.getcwd() + "./tests/testing"):
+            log_files = os.listdir(os.getcwd() + "./tests/testing")
             self.assertEqual(len(log_files), 0)
         self.assertEqual(len(cfg.LOG_FILE), 0)
         clean_dir()
@@ -32,37 +32,37 @@ class TestDebugFunctions(unittest.TestCase):
     def test_log_creation_use_path_on_none(self) -> None:
         """Test that log creation will use the LOG_PATH setting if not supplied."""
         clean_dir()
-        cfg.LOG_PATH = "/tests/testing/"
+        cfg.LOG_PATH = "./tests/testing/"
         cfg.LOGS_ENABLED = True
         self.assertTrue(create_log_file())
-        log_files = os.listdir(os.getcwd() + "/tests/testing/")
+        log_files = os.listdir(os.getcwd() + "./tests/testing/")
         self.assertGreater(len(cfg.LOG_FILE), 0)
         self.assertEqual(len(log_files), 1)
         clean_dir()
 
     def test_log_dir_creation(self) -> None:
         """Test that log creation will create the log directories if needed."""
-        if os.path.isdir(os.getcwd() + "/tests/testing/dir/"):
-            log_files = os.listdir(os.getcwd() + "/tests/testing/dir/")
+        if os.path.isdir(os.getcwd() + "./tests/testing/dir/"):
+            log_files = os.listdir(os.getcwd() + "./tests/testing/dir/")
             for file_ in log_files:
-                os.remove(os.path.join(os.getcwd() + "/tests/testing/dir/", file_))
-            os.rmdir(os.getcwd() + "/tests/testing/dir/")
-        cfg.LOG_PATH = "/tests/testing/dir/"
+                os.remove(os.path.join(os.getcwd() + "./tests/testing/dir/", file_))
+            os.rmdir(os.getcwd() + "./tests/testing/dir/")
+        cfg.LOG_PATH = "./tests/testing/dir/"
         cfg.LOGS_ENABLED = True
         self.assertTrue(create_log_file(cfg.LOG_PATH))
-        self.assertTrue(os.path.isdir(os.getcwd() + "/tests/testing/dir/"))
-        log_files = os.listdir(os.getcwd() + "/tests/testing/dir/")
+        self.assertTrue(os.path.isdir(os.getcwd() + "./tests/testing/dir/"))
+        log_files = os.listdir(os.getcwd() + "./tests/testing/dir/")
         for file_ in log_files:
-            os.remove(os.path.join(os.getcwd() + "/tests/testing/dir/", file_))
-        os.rmdir(os.getcwd() + "/tests/testing/dir/")
+            os.remove(os.path.join(os.getcwd() + "./tests/testing/dir/", file_))
+        os.rmdir(os.getcwd() + "./tests/testing/dir/")
 
     def test_normal_log_creation(self) -> None:
         """Test that regular use of log creation does indeed create a log file."""
         clean_dir()
-        cfg.LOG_PATH = "/tests/testing/"
+        cfg.LOG_PATH = "./tests/testing/"
         cfg.LOGS_ENABLED = True
         self.assertTrue(create_log_file(cfg.LOG_PATH))
-        log_files = os.listdir(os.getcwd() + "/tests/testing/")
+        log_files = os.listdir(os.getcwd() + "./tests/testing/")
         self.assertGreater(len(cfg.LOG_FILE), 0)
         self.assertEqual(len(log_files), 1)
         clean_dir()
@@ -70,11 +70,11 @@ class TestDebugFunctions(unittest.TestCase):
     def test_logging_disabled(self) -> None:
         """Test that logging is actually disabled by the setting."""
         clean_dir()
-        cfg.LOG_PATH = "/tests/testing/"
+        cfg.LOG_PATH = "./tests/testing/"
         cfg.LOG_FILE = ""
         cfg.LOGS_ENABLED = False
         self.assertTrue(log("Test message"))
-        log_files = os.listdir(os.getcwd() + "/tests/testing")
+        log_files = os.listdir(os.getcwd() + "./tests/testing")
         self.assertEqual(len(cfg.LOG_FILE), 0)
         self.assertEqual(len(log_files), 0)
         clean_dir()
@@ -82,7 +82,7 @@ class TestDebugFunctions(unittest.TestCase):
     def test_logging_before_creation(self) -> None:
         """Test that logging requires the log file to be created first."""
         clean_dir()
-        cfg.LOG_PATH = "/tests/testing/"
+        cfg.LOG_PATH = "./tests/testing/"
         cfg.LOG_FILE = ""
         cfg.LOGS_ENABLED = True
         self.assertFalse(log("Test message"))
@@ -91,13 +91,13 @@ class TestDebugFunctions(unittest.TestCase):
     def test_normal_logging(self) -> None:
         """Tests that regular logging behaviour functions as expected."""
         clean_dir()
-        cfg.LOG_PATH = "/tests/testing/"
+        cfg.LOG_PATH = "./tests/testing/"
         cfg.LOGS_ENABLED = True
         self.assertTrue(create_log_file())
         self.assertTrue(log("Test message!"))
-        log_files = os.listdir(os.getcwd() + "/tests/testing")
+        log_files = os.listdir(os.getcwd() + "./tests/testing")
         self.assertEqual(len(log_files), 1)
-        with open(os.getcwd() + "/tests/testing/" + log_files[0], "r") as log_file:
+        with open(os.getcwd() + "./tests/testing/" + log_files[0], "r") as log_file:
             content = log_file.read().split("\n")[-2]
             self.assertNotEqual(content.find("Test message!"), -1)
         clean_dir()
@@ -116,14 +116,14 @@ class TestDebugFunctions(unittest.TestCase):
     def test_normal_log_deletion(self) -> None:
         """Tests that the `delete_log_file()` function works normally."""
         clean_dir()
-        cfg.LOG_PATH = "/tests/testing/"
-        with open("/tests/testing/logger.txt", "w+") as f:
+        cfg.LOG_PATH = "./tests/testing/"
+        with open("./tests/testing/logger.txt", "w+") as f:
             f.write("some stuff...\n")
-        cfg.LOG_FILE = "/tests/testing/logger.txt"
+        cfg.LOG_FILE = "./tests/testing/logger.txt"
         cfg.LOGS_ENABLED = True
-        self.assertIn("logger.txt", os.listdir("/tests/testing/"))
+        self.assertIn("logger.txt", os.listdir("./tests/testing/"))
         delete_log_file()
-        self.assertNotIn("logger.txt", os.listdir("/tests/testing/"))
+        self.assertNotIn("logger.txt", os.listdir("./tests/testing/"))
     
     def test_log_deletion_no_file(self) -> None:
         """Tests that the `delete_log_file()` function works with no log 
@@ -138,15 +138,15 @@ class TestDebugFunctions(unittest.TestCase):
         """Tests that the `delete_log_file()` function can handle the case 
         where the log file no longer exists. """
         clean_dir()
-        cfg.LOG_PATH = "/tests/testing/"
-        cfg.LOG_FILE = "/tests/testing/logger.txt"
+        cfg.LOG_PATH = "./tests/testing/"
+        cfg.LOG_FILE = "./tests/testing/logger.txt"
         cfg.LOGS_ENABLED = True
         self.assertFalse(delete_log_file())
 
     def test_logprint(self) -> None:
         """Tests that the `logprint` function works as expected."""
         clean_dir()
-        cfg.LOG_PATH = "/tests/testing/"
+        cfg.LOG_PATH = "./tests/testing/"
         cfg.LOGS_ENABLED = True
         self.assertTrue(create_log_file())
         err = io.StringIO()
@@ -154,9 +154,9 @@ class TestDebugFunctions(unittest.TestCase):
         with redirect_stderr(err), redirect_stdout(out):
             self.assertTrue(logprint("Test message!"))
         self.assertNotIn("Test message!", out)
-        log_files = os.listdir(os.getcwd() + "/tests/testing")
+        log_files = os.listdir(os.getcwd() + "./tests/testing")
         self.assertEqual(len(log_files), 1)
-        with open(os.getcwd() + "/tests/testing/" + log_files[0], "r") as log_file:
+        with open(os.getcwd() + "./tests/testing/" + log_files[0], "r") as log_file:
             content = log_file.read().split("\n")[-2]
             self.assertNotEqual(content.find("Test message!"), -1)
         clean_dir()
@@ -164,13 +164,13 @@ class TestDebugFunctions(unittest.TestCase):
     def test_time_function(self) -> None:
         """Tests that the time function decorator logs information as expected."""
         clean_dir()
-        cfg.LOG_PATH = "/tests/testing/"
+        cfg.LOG_PATH = "./tests/testing/"
         cfg.LOGS_ENABLED = True
         self.assertTrue(create_log_file())
         self.garbage_func()
-        log_files = os.listdir(os.getcwd() + "/tests/testing")
+        log_files = os.listdir(os.getcwd() + "./tests/testing")
         self.assertEqual(len(log_files), 1)
-        with open(os.getcwd() + "/tests/testing/" + log_files[0], "r") as log_file:
+        with open(os.getcwd() + "./tests/testing/" + log_files[0], "r") as log_file:
             content = log_file.read().split("\n")[-2]
             self.assertNotEqual(content.find("garbage_func"), -1)
         clean_dir()
@@ -187,14 +187,14 @@ class TestInteractionFunctions(unittest.TestCase):
 
     def test_csource_only_fname(self) -> None:
         """Tests that the CSource constructor works correctly when taking only a file name."""
-        source = CSource(os.getcwd() + "/tests/data/minimal.c")
+        source = CSource(os.getcwd() + "./tests/data/minimal.c")
         self.assertEqual(source.contents, "int main() {}")
         self.assertIsNotNone(source.t_unit)
         del source
 
     def test_csource_fname_and_contents(self) -> None:
         """Tests that the CSource constructor works correctly when taking a file name and contents."""
-        source = CSource(os.getcwd() + "/tests/data/minimal.c", "int main() {}")
+        source = CSource(os.getcwd() + "./tests/data/minimal.c", "int main() {}")
         self.assertIsNotNone(source.t_unit)
         del source
 
@@ -203,8 +203,8 @@ class TestInteractionFunctions(unittest.TestCase):
         import clang.cindex
 
         index = clang.cindex.Index.create()
-        fpath = os.getcwd() + "/tests/data/minimal.c"
-        t_unit = index.parse(os.getcwd() + "/tests/data/minimal.c")
+        fpath = os.getcwd() + "./tests/data/minimal.c"
+        t_unit = index.parse(os.getcwd() + "./tests/data/minimal.c")
         source = CSource(fpath, "int main() {}", t_unit)
         self.assertIsNotNone(source.fpath)
         self.assertIsNotNone(source.contents)
@@ -213,21 +213,21 @@ class TestInteractionFunctions(unittest.TestCase):
 
     def test_non_c_file(self) -> None:
         """Tests that the CSource constructor correctly fails on being given a non-C file."""
-        source = CSource(os.getcwd() + "/tests/data/minimal.cpp")
+        source = CSource(os.getcwd() + "./tests/data/minimal.cpp")
         self.assertIsNone(source.contents)
         del source
 
     def test_non_existent_file(self) -> None:
         """Tests that the CSource constructor correctly fails on being given a file that
         does not exist."""
-        source = CSource(os.getcwd() + "/tests/data/does_not_exist.c")
+        source = CSource(os.getcwd() + "./tests/data/does_not_exist.c")
         self.assertIsNone(source.contents)
         del source
 
     def test_parse_invalid_c_file(self) -> None:
         """Tests that the CSource constructor correctly fails on being given an invalid
         C file (that cannot be parsed)."""
-        source = CSource(os.getcwd() + "/tests/data/invalid.c")
+        source = CSource(os.getcwd() + "./tests/data/invalid.c")
         self.assertEqual(
             source.contents,
             """int main() {
@@ -241,7 +241,7 @@ class TestInteractionFunctions(unittest.TestCase):
 
     def test_parse_valid_c_file(self) -> None:
         """Tests that the CSource constructor correctly parses a valid C file."""
-        source = CSource(os.getcwd() + "/tests/data/minimal.c")
+        source = CSource(os.getcwd() + "./tests/data/minimal.c")
         self.assertEqual(source.contents, "int main() {}")
         self.assertTrue(source.valid_parse)
         self.assertTrue(isinstance(source.t_unit, FileAST))
@@ -254,34 +254,34 @@ class TestInteractionFunctions(unittest.TestCase):
 
     def test_valid_parse_false(self) -> None:
         """Tests that the CSource.valid_parse property works correctly for a false case."""
-        source = CSource(os.getcwd() + "/tests/data/invalid.c")
+        source = CSource(os.getcwd() + "./tests/data/invalid.c")
         self.assertFalse(source.valid_parse)
         del source
 
     def test_valid_parse_true(self) -> None:
         """Tests that the CSource.valid_parse property works correctly for a true case."""
-        source = CSource(os.getcwd() + "/tests/data/minimal.c")
+        source = CSource(os.getcwd() + "./tests/data/minimal.c")
         self.assertTrue(source.valid_parse)
         del source
 
     def test_parse_errors_single_case(self) -> None:
         """Tests that the CSource.valid_parse property correctly detects single errors
         for an invalid C program."""
-        source = CSource(os.getcwd() + "/tests/data/invalid.c")
+        source = CSource(os.getcwd() + "./tests/data/invalid.c")
         self.assertFalse(source.valid_parse)
         del source
 
     def test_parse_errors_multiple_case(self) -> None:
         """Tests that the CSource.valid_parse property correctly detects multiple errors
         found by clang for an invalid C program."""
-        source = CSource(os.getcwd() + "/tests/data/five_invalid.c")
+        source = CSource(os.getcwd() + "./tests/data/five_invalid.c")
         self.assertFalse(source.valid_parse)
         del source
 
     def test_source_file_copy(self) -> None:
         """Tests that the Csource.copy function correclty returns a copy with a separate
         clang translation unit instance but the same name and file contents."""
-        source = CSource(os.getcwd() + "/tests/data/minimal.c")
+        source = CSource(os.getcwd() + "./tests/data/minimal.c")
         copied = source.copy()
         self.assertEqual(source.fpath, copied.fpath)
         self.assertEqual(source.contents, copied.contents)
@@ -293,7 +293,7 @@ class TestInteractionFunctions(unittest.TestCase):
     def test_update_t_unit(self) -> None:
         """ Tests that the CSource can update its AST (t_unit) from its contents
         without changing the original file by writing to and reading from a temp file."""
-        source = CSource(os.getcwd() + "/tests/data/minimal.c")
+        source = CSource(os.getcwd() + "./tests/data/minimal.c")
         prev_contents = source.contents
         prev_t_unit = source.t_unit
         source.contents = "int main() { int x = 4 + 2; return x; }"
@@ -302,7 +302,7 @@ class TestInteractionFunctions(unittest.TestCase):
         self.assertIs(prev_t_unit, source.t_unit)
         source.update_t_unit()
         self.assertIsNot(prev_t_unit, source.t_unit)
-        new_source = CSource(os.getcwd() + "/tests/data/minimal.c")
+        new_source = CSource(os.getcwd() + "./tests/data/minimal.c")
         self.assertEqual(prev_contents, new_source.contents)
         self.assertNotEqual(new_source.contents, source.contents)
         self.assertFalse(os.path.exists(cfg.TEMP_FILE_PATH))
@@ -311,7 +311,7 @@ class TestInteractionFunctions(unittest.TestCase):
         """ Tests that the CSource's `update_t_unit()` method can handle
         the case where No (or an empty) temporary file path is given. """
         cfg.TEMP_FILE_PATH = None
-        source = CSource(os.getcwd() + "/tests/data/minimal.c")
+        source = CSource(os.getcwd() + "./tests/data/minimal.c")
         prev_t_unit = source.t_unit
         source.contents = "int main() { int x = 4 + 2; return x; }"
         self.assertIsNone(source.update_t_unit())
@@ -741,53 +741,53 @@ class TestInteractionFunctions(unittest.TestCase):
     def test_save_valid_composition_file(self) -> None:
         """ Tests that the user can save a valid composition file."""
         clean_dir()
-        result = save_composition_file("{}", "/tests/testing/")
+        result = save_composition_file("{}", "./tests/testing/")
         self.assertTrue(result)
-        if os.path.isdir(os.getcwd() + "/tests/testing"):
-            log_files = os.listdir(os.getcwd() + "/tests/testing")
+        if os.path.isdir(os.getcwd() + "./tests/testing"):
+            log_files = os.listdir(os.getcwd() + "./tests/testing")
             self.assertEqual(len(log_files), 1)
-            with open(os.getcwd() + "/tests/testing/" + log_files[0], "r") as f:
+            with open(os.getcwd() + "./tests/testing/" + log_files[0], "r") as f:
                 self.assertEqual(f.read(), "{}")
     
     def test_save_composition_dir_creation(self) -> None:
         """ Tests that the user can save a valid composition file, even if
         directories have to be created to meet the required path. """
         clean_dir()
-        if os.path.isdir(os.getcwd() + "/tests/testing/dir/"):
-            log_files = os.listdir(os.getcwd() + "/tests/testing/dir/")
+        if os.path.isdir(os.getcwd() + "./tests/testing/dir/"):
+            log_files = os.listdir(os.getcwd() + "./tests/testing/dir/")
             for file_ in log_files:
-                os.remove(os.path.join(os.getcwd() + "/tests/testing/dir/", file_))
-            os.rmdir(os.getcwd() + "/tests/testing/dir/")
-        result = save_composition_file("{}", "/tests/testing/dir/")
+                os.remove(os.path.join(os.getcwd() + "./tests/testing/dir/", file_))
+            os.rmdir(os.getcwd() + "./tests/testing/dir/")
+        result = save_composition_file("{}", "./tests/testing/dir/")
         self.assertTrue(result)
-        self.assertTrue(os.path.isdir(os.getcwd() + "/tests/testing/dir/"))
-        comp_files = os.listdir(os.getcwd() + "/tests/testing/dir/")
+        self.assertTrue(os.path.isdir(os.getcwd() + "./tests/testing/dir/"))
+        comp_files = os.listdir(os.getcwd() + "./tests/testing/dir/")
         for file_ in comp_files:
-            os.remove(os.path.join(os.getcwd() + "/tests/testing/dir/", file_))
-        os.rmdir(os.getcwd() + "/tests/testing/dir/")
+            os.remove(os.path.join(os.getcwd() + "./tests/testing/dir/", file_))
+        os.rmdir(os.getcwd() + "./tests/testing/dir/")
     
     def test_save_composition_no_path(self) -> None:
         """ Tests that the `save_composition_file` defaults to using the config
         composition path if no filepath is supplied. """
         clean_dir()
-        cfg.COMP_PATH = "/tests/testing/"
+        cfg.COMP_PATH = "./tests/testing/"
         result = save_composition_file("{}")
         self.assertTrue(result)
-        if os.path.isdir(os.getcwd() + "/tests/testing"):
-            log_files = os.listdir(os.getcwd() + "/tests/testing")
+        if os.path.isdir(os.getcwd() + "./tests/testing"):
+            log_files = os.listdir(os.getcwd() + "./tests/testing")
             self.assertEqual(len(log_files), 1)
-            with open(os.getcwd() + "/tests/testing/" + log_files[0], "r") as f:
+            with open(os.getcwd() + "./tests/testing/" + log_files[0], "r") as f:
                 self.assertEqual(f.read(), "{}")
     
     def test_load_valid_composition_file(self) -> None:
         """ Tests that the `load_composition_file` function works when given
         a valid file path to read from. """
         clean_dir()
-        with open("/tests/testing/test.cobf", "w+") as f:
+        with open("./tests/testing/test.cobf", "w+") as f:
             f.write("{}")
-        result = load_composition_file("/tests/testing/test.cobf")
+        result = load_composition_file("./tests/testing/test.cobf")
         self.assertEqual(result, "{}")
-        cfg.COMPOSITION = "/tests/testing/test.cobf"
+        cfg.COMPOSITION = "./tests/testing/test.cobf"
         result = load_composition_file()
         self.assertEqual(result, "{}")
     
@@ -801,13 +801,13 @@ class TestInteractionFunctions(unittest.TestCase):
         """ Tests that the `load_composition_file` function can handle the case
         where the file that is specified does not exist or cannot be read. """
         self.assertIsNone(load_composition_file("tests/testing/does_not_exist.abc"))
-        self.assertFalse(os.path.exists("/tests/testing/does_not_exist.abc"))
+        self.assertFalse(os.path.exists("./tests/testing/does_not_exist.abc"))
     
     def test_disable_logging_func(self) -> None:
         """ Tests that the `disable_logging` func does indeed disable logging
         and delete any existing log file. """
         clean_dir()
-        cfg.LOG_PATH = "/tests/testing/"
+        cfg.LOG_PATH = "./tests/testing/"
         cfg.LOGS_ENABLED = True
         create_log_file()
         self.assertIsNone(disable_logging())
