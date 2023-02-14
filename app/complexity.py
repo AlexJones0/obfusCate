@@ -944,7 +944,7 @@ class CognitiveAnalyzer(NodeVisitor):
         self.nesting = 0
         self.max_nesting = 0
         self.generic_visit(node)
-        self.func_cognitives[node] = self.cognitive
+        self.func_cognitives[node.decl.name] = self.cognitive
         self.func_nestings[node] = self.max_nesting
         self.current_function = prev_function
     
@@ -1379,7 +1379,7 @@ class HalsteadComplexityUnit(CodeMetricUnit):
                         int_delta(new_length, old_length))
         self.add_metric("Estimated Length (\u004E\u0302)", str(new_estim_len),
                         int_delta(new_estim_len, old_estim_len))
-        self.add_metric("Volume (V)", str(new_volume), 
+        self.add_metric("Volume (V)", str(int(new_volume)), 
                         int_delta(new_volume, old_volume))
         self.add_metric("Difficulty (D)", str(new_difficulty),
                         int_delta(new_difficulty, old_difficulty))

@@ -1,6 +1,7 @@
 # Sourced most of these from: https://www.pegasoft.ca/coder/coder_july_2014.html
 # And https://jabde.com/2022/01/09/top-100-variable-names-2021/
 # And some manually added
+# TODO figure out what I'm doing with this
 a
 b
 c

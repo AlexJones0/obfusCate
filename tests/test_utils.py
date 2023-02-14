@@ -8,6 +8,7 @@ import math
 from app import settings as cfg
 from app.debug import *
 from app.interaction import *
+from app.utils import *
 from tests import *
 from pycparser.c_ast import FuncDef, Decl
 from time import sleep
@@ -979,3 +980,19 @@ class TestInteractionFunctions(unittest.TestCase):
         for target in targets:
             self.assertIn(target, names)
         
+
+class TestGeneralUtilities(unittest.TestCase):
+    """Implements unit tests for the utils.py functions"""
+
+    def test_is_initialised(self) -> None:
+        """ Tests that the general `is_initialised` utility function can correctly detect
+        when a library is being initialised in the file or not."""
+        source = CSource(os.path.join(os.getcwd(), "./tests/data/minimal.c"))
+        source.contents = source.contents + (
+            "\n#include <stdio.h>\n\n\n\n"
+            "           #include    <stdlib.h>\n\n\n"
+            "#include <time.h>\n"
+        )
+        result = is_initialised(source, ['<time.h>', 'math.h', '<stdio.h>', 'stdlib.h', '<string.h>'])
+        self.assertTrue(result[0] and result[2] and result[3])
+        self.assertFalse(result[1] or result[4])
