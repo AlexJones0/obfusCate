@@ -1349,8 +1349,10 @@ class HalsteadComplexityUnit(CodeMetricUnit):
             old_volume = 'N/A'
         if new_vocabulary != 0:
             new_volume = new_length * math.log2(new_vocabulary)
+            new_volume_str = str(int(new_volume))
         else:
             new_volume = 'N/A'
+            new_volume_str = 'N/A'
         if old_uq_operands != 0:
             old_difficulty = int((old_uq_operators / 2) * (old_operands / old_uq_operands))
         else:
@@ -1381,7 +1383,7 @@ class HalsteadComplexityUnit(CodeMetricUnit):
                         int_delta(new_length, old_length))
         self.add_metric("Estimated Length (\u004E\u0302)", str(new_estim_len),
                         int_delta(new_estim_len, old_estim_len))
-        self.add_metric("Volume (V)", str(int(new_volume)), 
+        self.add_metric("Volume (V)", new_volume_str, 
                         int_delta(new_volume, old_volume))
         self.add_metric("Difficulty (D)", str(new_difficulty),
                         int_delta(new_difficulty, old_difficulty))

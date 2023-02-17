@@ -40,6 +40,7 @@ class CSource:
             self.__parse_file(self.fpath)
         else:
             self.t_unit = t_unit
+        self.error_context = None
 
     def __read_file(self) -> str | None:
         """Reads the file contents from the stored C file path.
@@ -77,9 +78,12 @@ class CSource:
             # TODO keep linked libraries to get functions etc.? Could do this?
             t_unit.ext = [x for x in t_unit.ext if fname in x.coord.file]
             self.t_unit = t_unit
+            self.error_context = None
         except Exception as e:
+            self.error_context = str(e).replace(".\\\\obfuscate_temp.c:", "")
             log(f"Unexpected error whilst parsing the program: {str(e)}.")
             print_error(f"An unknown error occurred whilst parsing {self.fpath}.")
+            self.t_unit = None
 
     def update_t_unit(self) -> None:
         """Updates the translation unit (parsed AST) of the CSource without
@@ -87,7 +91,7 @@ class CSource:
         with the file). Does this by writing to a temporary file for
         preprocessing via clang, and then removing this aftwards."""
         if cfg.TEMP_FILE_PATH is None or cfg.TEMP_FILE_PATH == "":
-            return None
+            return
         try:
             with open(cfg.TEMP_FILE_PATH, "w+") as f:
                 f.write(self.contents)
@@ -96,7 +100,7 @@ class CSource:
         except OSError as e:
             log(f"Unexpected OS error whilst interacting with temp file: {str(e)}.")
             print_error(f"An unknown error occurred whilst updating the AST.")
-            return None
+            return
 
     def copy(self) -> "CSource":
         """Creates a copy of the code CSource, producing a separate translation unit.

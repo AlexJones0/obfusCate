@@ -111,6 +111,10 @@ def help_menu() -> bool:
 interaction.set_help_menu(help_menu)
 
 
+def display_error(error_msg: str) -> None:
+    error_window = QMessageBox.critical(None, "Error", error_msg)
+
+
 def set_no_options_widget(parent: QWidget) -> None:
     layout = QVBoxLayout(parent)
     no_options_label = QLabel("No options available.", parent)
@@ -1109,6 +1113,9 @@ class SourceEditor(QPlainTextEdit):
         if self.file_label is not None:
             fname = source.fpath.split("\\")[-1].split("/")[-1]
             self.file_label.setText("/" + fname)
+    
+    def get_fname(self) -> str:
+        return self.source.fpath.split("\\")[-1].split("/")[-1]
 
     def set_modified(self):
         self.modified_from_read = True
@@ -1911,6 +1918,28 @@ class GeneralOptionsForm(QFrame):
         if self.__source_form_reference.modified_from_read:
             source.update_t_unit()
         source.fpath = self.__obfuscated_form_reference.source.fpath
+        if not source.valid_parse:
+            # If invalid code is given, display an error and reset
+            # the obfuscated form (code editor) and complexity metrics
+            self.__obfuscated_form_reference.add_source(
+                CSource(self.__obfuscated_form_reference.source.fpath, "", FileAST([]))
+            )
+            if cfg.CALCULATE_COMPLEXITY:
+                self.parent().metrics_form.load_metrics(None, None)
+            error_msg = (
+                "An error occurred whilst parsing your C source code, and so\n"
+                "obfuscation cannot be applied."
+            )
+            if source.error_context is not None:
+                error_msg = "<html>" + error_msg
+                error_msg.replace("\n", "<br></br>")
+                error_msg += " Here is some more context for your error:<br></br>"
+                error_msg += " <b>/{}:{}</b></html>".format(
+                    self.__source_form_reference.get_fname(),
+                    source.error_context
+                )
+            display_error(error_msg)
+            return
         if cfg.CALCULATE_COMPLEXITY:
             original_source = deepcopy(source)
         if len(pipeline.transforms) != 0:
