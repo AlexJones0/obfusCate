@@ -495,55 +495,6 @@ class IdentifierRenameUnit(ObfuscationUnit):
         new_contents = generate_new_contents(source)
         return interaction.CSource(source.fpath, new_contents, source.t_unit)
 
-    def edit_cli(self) -> bool:
-        options = [s.value for s in IdentifierTraverser.Style]
-        options.append("placeholder")
-        options.append("Finish editing")
-        while True:
-            prompt = f'\nChoose a style for the identifier renaming. Your current style is "{self.style.value}".\n'
-            if self.minimiseIdents:
-                options[
-                    len(IdentifierTraverser.Style)
-                ] = "Disable minimal identifier usage option [WARNING:EXPERIMENTAL] (currently: ENABLED)"
-            else:
-                options[
-                    len(IdentifierTraverser.Style)
-                ] = "Enable minimal identifer usage option [WARNING:EXPERIMENTAL] (currently: DISABLED)"
-            choice = interaction.menu_driven_option(options, prompt)
-            if choice == -1:
-                return False
-            elif choice == len(IdentifierTraverser.Style):
-                self.minimiseIdents = not self.minimiseIdents
-            elif choice == len(options) - 1:
-                return True
-            else:
-                self.style = IdentifierTraverser.Style(options[choice])
-
-    def get_cli() -> Optional["IdentifierRenameUnit"]:
-        options = [s.value for s in IdentifierTraverser.Style]
-        prompt = "\nChoose a style for the identifier renaming.\n"
-        minimiseIdents = False
-        validChoice = False
-        while not validChoice:
-            if minimiseIdents:
-                options.append(
-                    "Disable minimal identifier usage option [WARNING:EXPERIMENTAL] (currently: ENABLED)"
-                )
-            else:
-                options.append(
-                    "Enable minimal identifer usage option [WARNING:EXPERIMENTAL] (currently: DISABLED)"
-                )
-            choice = interaction.menu_driven_option(options, prompt)
-            if choice == -1:
-                return None
-            elif choice == len(IdentifierTraverser.Style):
-                minimiseIdents = not minimiseIdents
-                options = options[:-1]
-            else:
-                style = IdentifierTraverser.Style(options[choice])
-                return IdentifierRenameUnit(style, minimiseIdents)
-        return None
-
     def to_json(self) -> str:
         """Converts the identifier renaming unit to a JSON string.
 
@@ -668,23 +619,6 @@ class ReverseIndexUnit(ObfuscationUnit):
         self.traverser.visit(source.t_unit)
         new_contents = generate_new_contents(source)
         return interaction.CSource(source.fpath, new_contents, source.t_unit)
-
-    def edit_cli(self) -> bool:
-        print(f"The current probability of index reversal is {self.probability}.")
-        print("What is the new probability (0.0 <= p <= 1.0) of reversal?")
-        prob = interaction.get_float(0.0, 1.0)
-        if prob == float("nan"):
-            return None
-        self.probability = prob
-        self.traverser.probability = prob
-        return True
-
-    def get_cli() -> Optional["ReverseIndexUnit"]:
-        print("What is the probability (0.0 <= p <= 1.0) of the augmentation?")
-        prob = interaction.get_float(0.0, 1.0)
-        if prob == float("nan"):
-            return None
-        return ReverseIndexUnit(prob)
 
     def to_json(self) -> str:
         """Converts the whitespace cluttering unit to a JSON string.
@@ -868,40 +802,6 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
             new_contents += "".join(cur_line)
         return interaction.CSource(source.fpath, new_contents, source.t_unit)
 
-    def edit_cli(self) -> bool:
-        print(f"The current target maximum line length is {self.target_length}.")
-        print(
-            "What target maximum line length (l >= 0) should be used? (recommended: l = 100)"
-        )
-        target_length = interaction.get_int(0, None)
-        if target_length is None:
-            return False
-        options = ["Pad lines to max length", "Do not pad lines to max length"]
-        prompt = "\nYou have currently selected to{} pad the generated lines.\n".format(
-            "" if self.pad_lines else " not"
-        )
-        prompt += "Select whether you would like to pad the generated lines to max length (where possible) or not.\n"
-        choice = interaction.menu_driven_option(options, prompt)
-        if choice == -1:
-            return False
-        self.target_length = target_length
-        self.pad_lines = choice == 0
-        return True
-
-    def get_cli() -> Optional["ClutterWhitespaceUnit"]:
-        print(
-            "What target maximum line length (l >= 0) should be used? (recommended: l = 100)"
-        )
-        target_length = interaction.get_int(0, None)
-        if target_length is None:
-            return False
-        options = ["Pad lines to max length", "Do not pad lines to max length"]
-        prompt = "\nSelect whether you would like to pad the generated lines to max length (where possible) or not.\n"
-        choice = interaction.menu_driven_option(options, prompt)
-        if choice == -1:
-            return None
-        return ClutterWhitespaceUnit(target_length, choice == 0)
-
     def to_json(self) -> str:
         """Converts the whitespace cluttering unit to a JSON string.
 
@@ -1072,36 +972,6 @@ class DiTriGraphEncodeUnit(ObfuscationUnit):
                 new_contents += char
             prev = char
         return interaction.CSource(source.fpath, new_contents, source.t_unit)
-
-    def edit_cli(self) -> bool:
-        options = [s.value for s in self.Style]
-        prompt = f"\nThe current encoding style is {self.style.value}.\n"
-        prompt += "Choose a new style for the digraph/trigraph encoding.\n"
-        choice = interaction.menu_driven_option(options, prompt)
-        if choice == -1:
-            return False
-        style = self.Style(options[choice])
-        print(f"The current probability of encoding is {self.chance}.")
-        print("What is the new probability (0.0 <= p <= 1.0) of the encoding?")
-        prob = interaction.get_float(0.0, 1.0)
-        if prob == float("nan"):
-            return False
-        self.style = style
-        self.chance = prob
-        return True
-
-    def get_cli() -> Optional["DiTriGraphEncodeUnit"]:
-        options = [s.value for s in DiTriGraphEncodeUnit.Style]
-        prompt = "\nChoose a style for the digraph/trigraph encoding.\n"
-        choice = interaction.menu_driven_option(options, prompt)
-        if choice == -1:
-            return None
-        style = DiTriGraphEncodeUnit.Style(options[choice])
-        print("What is the probability (0.0 <= p <= 1.0) of the encoding?")
-        prob = interaction.get_float(0.0, 1.0)
-        if prob == float("nan"):
-            return None
-        return DiTriGraphEncodeUnit(style, prob)
 
     def to_json(self) -> str:
         """Converts the digraph/trigraph encoding unit to a JSON string.

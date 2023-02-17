@@ -655,6 +655,8 @@ class CFGGenerator(NodeVisitor):
         self.func_decisions[node] = self.decisions
         self.func_myers[node] = self.myers
         for label_name, goto_entries in self.gotos.items():
+            if label_name not in self.label_blocks:
+                continue
             label_entry = self.label_blocks[label_name]
             for goto_entry in goto_entries:
                 self.__add_edge(goto_entry, label_entry)

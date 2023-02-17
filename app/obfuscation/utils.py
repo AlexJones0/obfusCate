@@ -72,14 +72,6 @@ class ObfuscationUnit(abc.ABC):
         return NotImplemented
 
     @abc.abstractmethod
-    def edit_cli() -> bool:
-        return NotImplemented
-
-    @abc.abstractmethod
-    def get_cli() -> Optional["ObfuscationUnit"]:
-        return NotImplemented
-
-    @abc.abstractmethod
     def to_json(self) -> str:
         return json.dumps({"transformation": "ObfuscationUnit"})
 
@@ -115,25 +107,6 @@ class IdentityUnit(ObfuscationUnit):
             interaction.CSource: The transformed source code.
         """
         return source
-
-    def edit_cli(self) -> bool:
-        """Implements a command-line interface for editing an identity transformation.
-
-        Returns:
-            bool: True if editing successful, false if the user chose to quit.
-        """
-        return True
-
-    def get_cli() -> Optional["IdentityUnit"]:
-        """Creates an identity transformation and performs the CLI interaction to allow
-        the user to edit the new transform.
-
-        Returns:
-            Optional[IdentityUnit]: the transform created from user CLI interaction.
-            Returns None if the user chose to quit within the CLI.
-        """
-        new_transform = IdentityUnit()
-        return new_transform
 
     def to_json(self) -> str:
         """Converts the identity unit to a JSON string.

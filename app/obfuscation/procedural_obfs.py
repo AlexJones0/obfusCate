@@ -217,24 +217,6 @@ class FuncArgumentRandomiseUnit(ObfuscationUnit):
         new_contents = generate_new_contents(source)
         return interaction.CSource(source.fpath, new_contents, source.t_unit)
 
-    def edit_cli(self) -> bool:  # TODO - maybe allow users to give specific functions?
-        print(f"The current number of extra arguments is {self.extra_args}.")
-        print("What is the new number of extra arguments per function?")
-        extra = interaction.get_int(0, None)
-        if extra is None:
-            return False
-        self.extra_args = extra
-        self.traverser.extra = extra
-        return True
-
-    def get_cli() -> Optional["FuncArgumentRandomiseUnit"]:
-        # TODO should I add an option to make randomisation optional?
-        print("How many extra arguments should be inserted?")
-        extra = interaction.get_int(0, None)
-        if extra is None:
-            return False
-        return FuncArgumentRandomiseUnit(extra)
-
     def to_json(self) -> str:
         """Converts the function argument randomisation unit to a JSON string.
 

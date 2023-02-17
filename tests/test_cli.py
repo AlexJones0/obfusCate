@@ -11,20 +11,14 @@ import io
 class CountUnit(obfs.ObfuscationUnit):
     "A simple obfuscation class made for testing purposes."
     count = 1
+    type = obfs.TransformType.STRUCTURAL
     
     def __init__(self, count: int) -> None:
-        self.count = count
+        self.count_ = count
         
     def transform(self, source: CSource):
-        source.contents += f"\n{self.count}"
+        source.contents += f"\n{self.count_}"
         return source
-        
-    def edit_cli(self):
-        print(f"Edited {self.count}")
-    
-    def get_cli() -> "CountUnit":
-        CountUnit.count += 1
-        return CountUnit(CountUnit.count)
     
     def from_json():
         return None
@@ -33,7 +27,17 @@ class CountUnit(obfs.ObfuscationUnit):
         return None
     
     def __str__(self) -> str:
-        return f"CountUnit(c={self.count})"
+        return f"CountUnit(c={self.count_})"
+
+
+class CliCountUnit(CountUnit):
+
+    def edit_cli(self):
+        print(f"Edited {self.count_}")
+    
+    def get_cli() -> "CountUnit":
+        CountUnit.count += 1
+        return CliCountUnit(CountUnit.count)
 
 
 class TestMainCLIFunctions(unittest.TestCase):
@@ -581,7 +585,7 @@ if __name__ == "__main__":
 ###Done### Debug unit tests
 ###Done### Interaction unit tests
 ###Done### General CLI unit tests
-# Utils unit tests
+###Done### Utils unit tests
 # Obfuscation CLI unit tests
 # Code Complexity CLI unit tests
 # CLI integration tests

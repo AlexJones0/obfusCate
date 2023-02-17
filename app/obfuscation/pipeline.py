@@ -153,13 +153,10 @@ class Pipeline:
         else:
             json_transformations = json_obj["transformations"]
         transformations = []
-        if use_gui:
-            subc = ObfuscationUnit.__subclasses__()
-            subclasses = []
-            for class_ in subc:
-                subclasses += class_.__subclasses__()
-        else:
-            subclasses = ObfuscationUnit.__subclasses__()
+        subc = ObfuscationUnit.__subclasses__()
+        subclasses = []
+        for class_ in subc:
+            subclasses += class_.__subclasses__()
         for t in json_transformations:
             json_t = json.loads(t)
             if "type" not in json_t:

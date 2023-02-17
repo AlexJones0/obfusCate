@@ -221,26 +221,6 @@ class StringEncodeUnit(ObfuscationUnit):
         new_contents = generate_new_contents(source)
         return interaction.CSource(source.fpath, new_contents, source.t_unit)
 
-    def edit_cli(self) -> bool:
-        options = [s.value for s in StringEncodeTraverser.Style]
-        prompt = f"\nThe current encoding style is {self.style.value}.\n"
-        prompt += "Choose a new style for string encoding.\n"
-        choice = interaction.menu_driven_option(options, prompt)
-        if choice == -1:
-            return False
-        self.style = StringEncodeTraverser.Style(options[choice])
-        self.traverser.style = self.style
-        return True
-
-    def get_cli() -> Optional["StringEncodeUnit"]:
-        options = [s.value for s in StringEncodeTraverser.Style]
-        prompt = "\nChoose a style for the string encoding.\n"
-        choice = interaction.menu_driven_option(options, prompt)
-        if choice == -1:
-            return None
-        style = StringEncodeTraverser.Style(options[choice])
-        return StringEncodeUnit(style)
-
     def to_json(self) -> str:
         """Converts the string encoding unit to a JSON string.
 
@@ -410,26 +390,6 @@ class IntegerEncodeUnit(ObfuscationUnit):
         self.traverser.visit(source.t_unit)
         new_contents = generate_new_contents(source)
         return interaction.CSource(source.fpath, new_contents, source.t_unit)
-
-    def edit_cli(self) -> bool:
-        options = [s.value for s in IntegerEncodeTraverser.Style]
-        prompt = f"\nThe current encoding style is {self.style.value}.\n"
-        prompt += "Choose a new style for integer encoding.\n"
-        choice = interaction.menu_driven_option(options, prompt)
-        if choice == -1:
-            return False
-        self.style = IntegerEncodeTraverser.Style(options[choice])
-        self.traverser.style = self.style
-        return True
-
-    def get_cli() -> Optional["IntegerEncodeUnit"]:
-        options = [s.value for s in IntegerEncodeTraverser.Style]
-        prompt = "\nChoose a style for the integer encoding.\n"
-        choice = interaction.menu_driven_option(options, prompt)
-        if choice == -1:
-            return None
-        style = IntegerEncodeTraverser.Style(options[choice])
-        return IntegerEncodeUnit(style)
 
     def to_json(self) -> str:
         """Converts the integer encoding unit to a JSON string.
@@ -660,25 +620,6 @@ class ArithmeticEncodeUnit(ObfuscationUnit):
         self.traverser.visit(source.t_unit)
         new_contents = generate_new_contents(source)
         return interaction.CSource(source.fpath, new_contents, source.t_unit)
-
-    def edit_cli(self) -> bool:
-        print(f"The current arithmetic encoding depth is {self.level}.")
-        print("What is the new depth (recommended: 1 <= d <= 5) of the encoding?")
-        depth = interaction.get_int(1, None)
-        if depth is None:
-            return False
-        self.level = depth
-        self.traverser.transform_depth = depth
-        return True
-
-    def get_cli() -> Optional["ArithmeticEncodeUnit"]:
-        print(
-            "What recursive arithmetic encoding depth should be used? (recommended: 1 <= d <= 5)"
-        )
-        depth = interaction.get_int(0, None)
-        if depth is None:
-            return False
-        return ArithmeticEncodeUnit(depth)
 
     def to_json(self) -> str:
         """Converts the arithmetic encoding unit to a JSON string.
