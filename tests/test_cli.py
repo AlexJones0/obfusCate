@@ -508,6 +508,10 @@ class TestMainCLIFunctions(unittest.TestCase):
         out = out.getvalue()
         self.assertIn("===Obfuscation Metrics===", out)
 
+
+class TestCLISysArgs(unittest.TestCase):
+    """ Tests the available system argument options for the CLI program interface. """
+
     def test_cli_no_args(self) -> None:
         """ Tests that the CLI correctly identifies the erroneous case in which
         no arguments are supplied when calling it from the command line."""
@@ -573,7 +577,212 @@ class TestMainCLIFunctions(unittest.TestCase):
 class TestObfuscationCLIFunctions(unittest.TestCase):
     """Implements unit test for the obfuscation edit_cli and get_cli methods."""
 
-    pass
+    def test_cli_help_sysarg(self) -> None:
+        """ Tests that the CLI correctly displays the help menu when the 
+        help system arguments are given, and that this contains a title,
+        as well as usage and option information. Also tests that the 
+        help menu causes the program to quit when read. """
+        help_args = ["-h", "--help"]
+        for arg in help_args:
+            reset_config()
+            sys.argv = ["script.py", "./tests/data/minimal.c", 
+                        "-l", "-S", "123", arg, "-v"]
+            out = io.StringIO()
+            with redirect_stdout(out):
+                handle_CLI()
+            out = out.getvalue()
+            self.assertNotIn("Current transforms:", out)
+            self.assertNotIn("{} {}".format(cfg.NAME, cfg.VERSION), out)
+            self.assertIn("CLI Help Manual", out)
+            self.assertIn("Usage:", out)
+            self.assertIn("Options:", out)
+        reset_config()
+        sys.argv = ["script.py","./tests/data/minimal.c"]
+        out = io.StringIO()
+        with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+            handle_CLI()
+        out = out.getvalue()
+        self.assertIn("Current transforms:", out)
+        self.assertNotIn("CLI Help Manual", out)
+        self.assertNotIn("Usage:", out)
+        self.assertNotIn("Options:", out)
+    
+    def test_cli_version_sysarg(self) -> None:
+        """ Tests that the CLI correctly displays the program name and
+        version when the version system arguments are given. """
+        ver_args = ["-v", "--version"]
+        for arg in ver_args:
+            reset_config()
+            sys.argv = ["script.py", "./tests/data/minimal.c", 
+                        "-l", "-S", "123", arg, "-h"]
+            out = io.StringIO()
+            with redirect_stdout(out):
+                handle_CLI()
+            out = out.getvalue()
+            self.assertNotIn("Current transforms:", out)
+            self.assertNotIn("CLI Help Manual", out)
+            self.assertIn("{} {}".format(cfg.NAME, cfg.VERSION), out)
+        reset_config()
+        sys.argv = ["script.py", "./tests/data/minimal.c"]
+        out = io.StringIO()
+        with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+            handle_CLI()
+        out = out.getvalue()
+        self.assertIn("Current transforms:", out)
+        self.assertNotIn("{} {}".format(cfg.NAME, cfg.VERSION), out)
+        
+    def test_cli_nologs_sysarg(self) -> None:
+        """ Tests that the CLI correctly detects when the noLogs system
+        arguments are given, and does not create a log file. """
+        nolog_args = ["-L", "--noLogs"]
+        for arg in nolog_args:
+            reset_config()
+            sys.argv = ["script.py", "./tests/data/minimal.c", 
+                        "-m", arg, "-S", "123"]
+            out = io.StringIO()
+            with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+                handle_CLI()
+            out = out.getvalue()
+        self.assertFalse(cfg.LOGS_ENABLED)
+        reset_config()
+        sys.argv = ["script.py", "./tests/data/minimal.c"]
+        out = io.StringIO()
+        with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+            handle_CLI()
+        out = out.getvalue()
+        self.assertTrue(cfg.LOGS_ENABLED)
+        
+    def test_cli_seed_sysarg(self) -> None:
+        """ Tests that the CLI correctly updates the loaded seed when
+        a seed system argument is provided (along with a seed value). """
+        from random import randint
+        
+        seed_args = ["-S", "--seed"]
+        for arg in seed_args:
+            reset_config()
+            seed_val = randint(100, 100000)
+            sys.argv = ["script.py", "./tests/data/minimal.c", 
+                        "-m", arg, str(seed_val), "-l"]
+            out = io.StringIO()
+            with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+                handle_CLI()
+            out = out.getvalue()
+            self.assertEqual(cfg.SEED, seed_val)
+        reset_config()
+        sys.argv = ["script.py", "./tests/data/minimal.c"]
+        out = io.StringIO()
+        with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+            handle_CLI()
+        out = out.getvalue()
+        self.assertIsNone(cfg.SEED)
+    
+    def test_cli_progress_sysarg(self) -> None:
+        """ Tests that the CLI correctly updates the option to display
+        prograss information when the progress system arguments are 
+        provided. """
+        progress_args = ["-p", "--progress"]
+        for arg in progress_args:
+            reset_config()
+            sys.argv = ["script.py", "./tests/data/minimal.c", 
+                        "-m", arg, "-S", "123"]
+            out = io.StringIO()
+            with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+                handle_CLI()
+            out = out.getvalue()
+            self.assertTrue(cfg.DISPLAY_PROGRESS)
+        reset_config()
+        sys.argv = ["script.py", "./tests/data/minimal.c"]
+        out = io.StringIO()
+        with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+            handle_CLI()
+        out = out.getvalue()
+        self.assertFalse(cfg.DISPLAY_PROGRESS)
+    
+    def test_cli_save_comp_sysarg(self) -> None:
+        """ Tests that the CLI correctly sets the option to save the
+        final composition at when the progress system arugments are
+        provided. """
+        save_comp_args = ["-c", "--save-comp"]
+        for arg in save_comp_args:
+            reset_config()
+            sys.argv = ["script.py", "./tests/data/minimal.c", 
+                        "-m", arg, "-S", "123"]
+            out = io.StringIO()
+            with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+                handle_CLI()
+            out = out.getvalue()
+            self.assertTrue(cfg.SAVE_COMPOSITION)
+        reset_config()
+        sys.argv = ["script.py", "./tests/data/minimal.c"]
+        out = io.StringIO()
+        with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+            handle_CLI()
+        out = out.getvalue()
+        self.assertFalse(cfg.SAVE_COMPOSITION)
+    
+    def test_cli_load_comp_sysarg(self) -> None:
+        """ Tests that the CLI correctly sets the option to load the given 
+        composition file when the load composition system arguments are given. """
+        load_comp_args = ["-l", "--load-comp"]
+        for arg in load_comp_args:
+            reset_config()
+            sys.argv = ["script.py", "./tests/data/minimal.c", 
+                        "-m", arg, "comp.cobf", "-S", "123"]
+            out = io.StringIO()
+            with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+                handle_CLI()
+            out = out.getvalue()
+            self.assertEqual(cfg.COMPOSITION, "comp.cobf")
+        reset_config()
+        sys.argv = ["script.py", "./tests/data/minimal.c"]
+        out = io.StringIO()
+        with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+            handle_CLI()
+        out = out.getvalue()
+        self.assertIsNone(cfg.COMPOSITION)
+    
+    def test_cli_no_metric_sysarg(self) -> None:
+        """ Tests that the CLI correctly sets the option to not calculate or 
+        display the obfuscation metrics when the no metrics system arguments 
+        are given. """
+        no_metric_args = ["-m", "--no-metrics"]
+        for arg in no_metric_args:
+            reset_config()
+            sys.argv = ["script.py", "./tests/data/minimal.c", 
+                        "-p", arg, "-S", "123"]
+            out = io.StringIO()
+            with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+                handle_CLI()
+            out = out.getvalue()
+            self.assertFalse(cfg.CALCULATE_COMPLEXITY)
+        reset_config()
+        sys.argv = ["script.py", "./tests/data/minimal.c"]
+        out = io.StringIO()
+        with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+            handle_CLI()
+        out = out.getvalue()
+        self.assertTrue(cfg.CALCULATE_COMPLEXITY)
+    
+    def test_cli_skip_sysarg(self) -> None:
+        """ Tests that the CLI correctly sets the option to skip the selection
+        interface when the skip system arguments are given. """
+        skip_args = ["-s", "--skip"]
+        for arg in skip_args:
+            reset_config()
+            sys.argv = ["script.py", "./tests/data/minimal.c", 
+                        "-p", arg, "-S", "123"]
+            out = io.StringIO()
+            with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+                handle_CLI()
+            out = out.getvalue()
+            self.assertTrue(cfg.SKIP_MENUS)
+        reset_config()
+        sys.argv = ["script.py", "./tests/data/minimal.c"]
+        out = io.StringIO()
+        with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+            handle_CLI()
+        out = out.getvalue()
+        self.assertFalse(cfg.SKIP_MENUS)
 
 
 if __name__ == "__main__":
@@ -584,8 +793,9 @@ if __name__ == "__main__":
 # TESTING TODO
 ###Done### Debug unit tests
 ###Done### Interaction unit tests
-###Done### General CLI unit tests
 ###Done### Utils unit tests
+###Done### General CLI unit tests
+###Done### CLI System Argument tests
 # Obfuscation CLI unit tests
 # Code Complexity CLI unit tests
 # CLI integration tests

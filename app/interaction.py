@@ -508,13 +508,13 @@ shared_options = [
     ),
     SystemOpt(
         disable_logging,
-        ["-l", "--noLogs"],
+        ["-L", "--noLogs"],
         "Stops a log file being created for this execution.",
         [],
     ),
     SystemOpt(
         set_seed,
-        ["-s", "--seed"],
+        ["-S", "--seed"],
         "Initialises the program with the random seed x (some integer).",
         ["x"],
     ),

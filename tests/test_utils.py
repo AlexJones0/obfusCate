@@ -879,7 +879,7 @@ class TestInteractionFunctions(unittest.TestCase):
     def test_extract_valid_argumens(self) -> None:
         """ Tests that the `handle_arguments` function can correctly handle
         extracting a set of valid arguments interspersed with options."""
-        supplied_args = ["one", "-s", "123", "two", "three", "--noLogs", "four"]
+        supplied_args = ["one", "-S", "123", "two", "three", "--noLogs", "four"]
         result = handle_arguments(supplied_args, shared_options)
         self.assertEqual(len(result), 4)
         for i, arg in enumerate(["one", "two", "three", "four"]):
