@@ -1,5 +1,4 @@
 //////
-//////13 163
 #include <stdio.h>
 
 int main() {

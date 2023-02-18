@@ -828,15 +828,22 @@ if __name__ == "__main__":
 #                   - Run the method on the program, and check it compiles.
 #                   - Run the method on the program, and check it gives the same result.
 #   = (150N^2 * P) runs
-#   - For every combination of three methods (random parameters)
+#   - For every combination of three methods
 #       - For 3 combinations of random options/parameters:
 #           - For every example program
 #               - Run the method on the example, and check it runs without error
 #               - Run the method on the example, and check it compiles
 #               - Run the method on the example, and check it gives the same result
 #   = (9N^3 * P) runs
+#   - For 500 random combinations of all 12 methods
+#       - For 10 combinations of random options/parameters:
+#           - For every example program
+#               - Run the method on the example, and check it runs without error
+#               - Run the method on the example, and check it compiles
+#               - Run the method on the example, and check it gives the same result
+#   = (15000P) runs
 # Assuming 12 methods, 50 average option combinations, and 50 example programs, that gives
-#   = 900,000 + 1,080,000 + 777,600 = 2,757,600 tests (1,838,400 C program executions)
+#   = 900,000 + 1,080,000 + 777,600 + 750,000 = 3,507,600 tests (2,338,400 C program executions)
 #
 # Evaluation stuff:
 #   - How does project meet objectives (show it does)

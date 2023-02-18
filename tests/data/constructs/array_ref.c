@@ -1,5 +1,4 @@
 //////
-//////385 220
 #include <stdio.h>
 
 int main() {

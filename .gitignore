@@ -133,5 +133,8 @@ logs/
 
 # Output locations
 out/
-examples/
+/examples/
 /compositions/
+
+# VScode
+.vscode/

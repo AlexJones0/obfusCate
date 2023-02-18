@@ -144,10 +144,11 @@ class IdentityUnit(ObfuscationUnit):
 # give random stuff in the wrong order - not a huge deal but would be nice to fix
 
 
-class TypeKinds(enum.Enum):  # Could also call tags?
-    STRUCTURE = 0
+class TypeKinds(enum.Enum): 
+    # TODO turns out these are actually called "name spaces",
+    STRUCTURE = 0 # TODO turns out this should be 'tag'
     LABEL = 1
-    NONSTRUCTURE = 2
+    NONSTRUCTURE = 2 # TODO turns out this should be 'ordinary'/'other'
 
 
 class NewVariableUseAnalyzer(NodeVisitor):

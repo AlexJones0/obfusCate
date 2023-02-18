@@ -1,5 +1,4 @@
 //////
-//////1 55
 #include <stdio.h>
 
 int main() {

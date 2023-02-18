@@ -1,5 +1,4 @@
 //////
-//////6 13.200000
 #include <stdio.h>
 
 int f_arr_add(double a[static 3], const double b[static 3]) {
