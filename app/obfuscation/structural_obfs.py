@@ -2,7 +2,8 @@
 Implements classes (including obfuscation unit classes) for performing
 structural obfuscation transformations, including obfuscation related
 to the augmenting of existing conditionals with opaque predicates,
-and the insertion of new conditional opaque predicates into the program. """
+and the insertion of new conditional opaque predicates into the program. 
+"""
 from .. import utils, interaction
 from ..debug import *
 from .utils import ObfuscationUnit, TransformType, generate_new_contents, \
@@ -366,9 +367,10 @@ class OpaqueAugmenter(NodeVisitor):
         # LINKED_LIST = "Predicates constructed from intractable pointer aliasing on a linked list."
         # TODO above is not implemented yet
 
-    def __init__(self, styles: Iterable[Style], probability: float = 1.0) -> None:
+    def __init__(self, styles: Iterable[Style], probability: float = 1.0, number: int = 1) -> None:
         self.styles = styles
         self.probability = probability
+        self.number = number
         self.reset()
 
     def reset(self):
@@ -466,7 +468,8 @@ class OpaqueAugmenter(NodeVisitor):
 
     def test_add_predicate(self, node):
         if node.cond is not None and random.random() < self.probability:
-            node.cond = self.generate_opaque_predicate(node.cond)
+            for _ in range(self.number):
+                node.cond = self.generate_opaque_predicate(node.cond)
 
     def visit_If(self, node):
         self.test_add_predicate(node)
@@ -538,43 +541,17 @@ class AugmentOpaqueUnit(ObfuscationUnit):
     type = TransformType.STRUCTURAL
 
     def __init__(
-        self, styles: Iterable[OpaqueAugmenter.Style], probability: float
+        self, styles: Iterable[OpaqueAugmenter.Style], probability: float, number: int
     ) -> None:
         self.styles = styles
         self.probability = probability
-        self.traverser = OpaqueAugmenter(styles, probability)
+        self.number = number
+        self.traverser = OpaqueAugmenter(styles, probability, number)
 
     def transform(self, source: interaction.CSource) -> interaction.CSource:
         self.traverser.process(source)
         new_contents = generate_new_contents(source)
         return interaction.CSource(source.fpath, new_contents, source.t_unit)
-
-    def generic_styles(
-        styles: Iterable[OpaqueAugmenter.Style],
-    ) -> Iterable[OpaqueAugmenter.Style] | None:
-        available = [s for s in OpaqueAugmenter.Style]
-        choice = 0
-        while choice < len(OpaqueAugmenter.Style) or len(styles) == 0:
-            options = [
-                ("[X] " if s in styles else "[ ] ") + s.value
-                for s in OpaqueAugmenter.Style
-            ]
-            options.append("Finish selecting styles.")
-            prompt = "\nChoose which syles to enable for opaque predicate augmenting, or choose to finish.\n"
-            choice = interaction.menu_driven_option(options, prompt)
-            if choice == -1:
-                return None
-            elif choice < len(OpaqueAugmenter.Style):
-                style = OpaqueAugmenter.Style(available[choice])
-                if style in styles:
-                    styles.remove(style)
-                else:
-                    styles.append(style)
-            elif len(styles) == 0:
-                print(
-                    "No valid options are currently selected. Please select at least one option.\n"
-                )
-        return styles
 
     def to_json(self) -> str:
         """Converts the opaque augmentation unit to a JSON string.
@@ -586,6 +563,7 @@ class AugmentOpaqueUnit(ObfuscationUnit):
                 "type": str(__class__.name),
                 "styles": [style.name for style in self.styles],
                 "probability": self.probability,
+                "number": self.number,
             }
         )
 
@@ -666,12 +644,31 @@ class AugmentOpaqueUnit(ObfuscationUnit):
                 print_err=True,
             )
             return None
-        return AugmentOpaqueUnit(styles, json_obj["probability"])
+        elif "number" not in json_obj:
+            log(
+                "Failed to load AugmentOpaqueUnit() - no number value is given.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["number"], (int)):
+            log(
+                "Failed to load AugmentOpaqueUnit() - number value is not a valid integer.",
+                print_err=True,
+            )
+            return None
+        elif json_obj["number"] < 0:
+            log(
+                "Failed to load AugmentOpaqueUnit() - number value must be n >= 0.",
+                print_err=True,
+            )
+            return None
+        return AugmentOpaqueUnit(styles, json_obj["probability"], json_obj["number"])
 
     def __str__(self) -> str:
         style_flag = "styles=[" + ", ".join([x.name for x in self.styles]) + "]"
         probability_flag = f"p={self.probability}"
-        return f"AugmentOpaqueUnit({style_flag},{probability_flag})"
+        number_flag = f"n={self.number}"
+        return f"AugmentOpaqueUnit({style_flag},{probability_flag},{number_flag})"
 
 
 class BugGenerator(NodeVisitor):

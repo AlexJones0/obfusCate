@@ -1,13 +1,14 @@
 """ File: interaction.py
 Implements classes and functions for handling input and output, including
 processing and writing of C source files as well as utilities for handling
-system options (command-line arguments)."""
+system options (command-line arguments).
+"""
 from .debug import print_error, log, delete_log_file, logprint
 from app import settings as cfg
 from pycparser import parse_file as pycparse_file
 from pycparser.c_ast import FileAST
 from typing import Iterable, Tuple, Callable
-import os, time
+import os, time, enum
 
 
 class CSource:
@@ -26,7 +27,8 @@ class CSource:
             None, in which case the file path is opened and read to retrieve contents.
             t_unit (FileAST | None, optional): The translation unit of the file
             after it is preprocessed by clang and parsed by pycparser. Defaults to None,
-            in which case it is retrieved by parsing the loaded contents."""
+            in which case it is retrieved by parsing the loaded contents.
+        """
         self.fpath = filepath
         if contents is None:
             self.contents = self.__read_file()
@@ -46,7 +48,8 @@ class CSource:
         """Reads the file contents from the stored C file path.
 
         Returns:
-            Optional[str]: The string contents of the file, or None if some error occurs."""
+            str | None: The string contents of the file, or None if some error occurs.
+        """
         if not self.fpath.endswith(".c"):
             print_error(f"Supplied file {self.fpath} is not a .c file!")
             return None
@@ -114,7 +117,7 @@ class CSource:
     @property
     def valid_parse(self) -> bool:
         """This boolean property describes whether a valid parse has been performed on
-        the C source file or not."""
+        the C source file or not. """
         return self.t_unit is not None
 
 
@@ -136,7 +139,8 @@ class SystemOpt:
             names (Iterable[str]): The names (synonyms) that can be provided as the option.
             desc (str): The help menu description for the option, describing its behaviour.
             param_names (Iterable[str]): The names of any parameters that must be supplied
-            alongside the option, which will be passed to the called function."""
+            alongside the option, which will be passed to the called function.
+        """
         self.func = func
         self.names = names
         self.desc = desc
@@ -151,7 +155,8 @@ class SystemOpt:
             on new lines.
 
         Returns:
-            str: The formatted help menu description string for the option."""
+            str: The formatted help menu description string for the option.
+        """
         if "\n" not in self.desc:
             return self.desc
         lines = self.desc.split("\n")
@@ -163,7 +168,8 @@ class SystemOpt:
         any parameter names.
 
         Returns:
-            str: The string representing the option usage "name param1 param2" etc."""
+            str: The string representing the option usage "name param1 param2" etc.
+        """
         return " ".join(self.names + self.param_names)
 
 
@@ -182,7 +188,8 @@ def menu_driven_option(
         user after the printing of options but before requesting input. Defaults to None.
 
     Returns:
-        int: The integer index of the selected choice. -1 if it was selected to quit."""
+        int: The integer index of the selected choice. -1 if it was selected to quit.
+    """
     if len(options) == 0:
         return 0
     prompt = "" if prompt is None else prompt
@@ -211,6 +218,7 @@ def menu_driven_option(
             if not isinstance(choice, int):
                 choice = int(choice)
             if choice > 0 and choice <= len(options):
+                log(f"Valid choice {choice} in menu with {options} and {prompt}.")
                 valid_input = True
             else:
                 log(f"Invalid choice {choice} in menu with {options} and {prompt}.")
@@ -239,7 +247,8 @@ def get_float(
         upper_bound (float | None, optional): The upper bound. Defaults to None.
 
     Returns:
-        float: The user input float. NaN if the user chose to quit."""
+        float: The user input float. NaN if the user chose to quit.
+    """
     while True:
         user_input = input("\n>").lower().strip()
         if user_input in ["q", "quit", "exit", "leave", "x"]:
@@ -276,7 +285,8 @@ def get_int(
 
     Returns:
         int | None: None if the user quits the selection, or a valid
-        integer in the specified range otherwise."""
+        integer in the specified range otherwise.
+    """
     while True:
         user_input = input("\n>").lower().strip()
         if user_input in ["q", "quit", "exit", "leave", "x"]:
@@ -301,6 +311,63 @@ def get_int(
         return user_input
 
 
+def cli_enum_select(
+    enum_: enum.Enum,
+    init: Iterable[enum.Enum] | None,
+    type_name: str,
+    action_name: str,
+    custom_prompt: str | None = None,
+) -> list[enum.Enum] | None:
+    """This function creates an iterative selection context from a given enum,
+    allowing any combination of that enum's values to be selected by the user
+    in a command-line interface and returned.
+
+    Args:
+        enum_ (enum.Enum): The enumerator to retrieve the available choices from.
+        The enumerator values (.value) are the presented option strings.
+        init (Iterable[enum.Enum] | None): The initial set of enumerator values
+        to start with selected. None here is equivalent to `[]`.
+        type_name (str): The name of what is being selected, e.g. "styles".
+        action_name (str): The name of what you are doing with the selection,
+        e.g. "opaque predicate insertion".
+        custom_prompt (str | None, optional): A custom prompt to use instead
+        of the default generated from the given `type_name` and `action_name`. 
+        Defaults to None, in which case the generated prompt is used.
+
+    Returns:
+        list[enum.Enum] | None: The list of selected enumerator values, or 
+        None if the user chose to quit the selection.
+    """
+    available = [s for s in enum_]
+    chosen = [] if init is None else list(init)
+    choice = 0
+    while choice < len(enum_) or len(chosen) == 0:
+        options = [("[X] " if s in chosen else "[ ] ") + s.value for s in enum_]
+        options.append(f"Finish selecting {type_name}.")
+        if custom_prompt is None:
+            prompt = (
+                "\nChoose which {} to enable for {}, or choose to finish.\n".format(
+                    type_name, action_name
+                )
+            )
+        else:
+            prompt = custom_prompt
+        choice = menu_driven_option(options, prompt)
+        if choice == -1:
+            return None
+        elif choice < len(enum_):
+            enumerator_val = enum_(available[choice])
+            if enumerator_val in chosen:
+                chosen.remove(enumerator_val)
+            else:
+                chosen.append(enumerator_val)
+        elif len(chosen) == 0:
+            print(
+                "No valid options are currently selected. Please select at least one option.\n"
+            )
+    return chosen
+
+
 def save_composition_file(json: str, filepath: str | None = None) -> bool:
     """Creates a composition file and saves the JSON string representing the
     composition to it.
@@ -312,7 +379,8 @@ def save_composition_file(json: str, filepath: str | None = None) -> bool:
         location stored in the config.
 
     Returns:
-        bool: Whether execution was successful or not."""
+        bool: Whether execution was successful or not.
+    """
     if filepath is None:
         filepath = cfg.COMP_PATH
     filepath = os.path.join(os.getcwd(), filepath)
@@ -376,7 +444,8 @@ def set_seed(supplied_args: Iterable[str]) -> bool:
         supplied_args (Iterable[str]): The list of arguments following this argument.
 
     Returns:
-        bool: Whether the supplied arguments were valid or not."""
+        bool: Whether the supplied arguments were valid or not.
+    """
     if len(supplied_args) <= 0:
         print_error(
             "Some integer seed must be supplied with the -s and --seed options. Use the -h or --help options to see usage information."

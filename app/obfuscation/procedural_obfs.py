@@ -2,7 +2,8 @@
 Implements classes (including obfuscation unit classes) for performing
 procedural obfuscation transformations, including obfuscation related
 to the randomising function interfaces (the set and order of function
-arguments). """
+arguments). 
+"""
 from .. import interaction
 from ..debug import *
 from .utils import ObfuscationUnit, TransformType, generate_new_contents, NewVariableUseAnalyzer
@@ -45,8 +46,9 @@ class FuncArgRandomiserTraverser(NodeVisitor):
         ),
     }
 
-    def __init__(self, extra: int):
+    def __init__(self, extra: int, randomise: bool):
         self.extra = extra
+        self.randomise = randomise
         self.reset()
 
     def reset(self):
@@ -135,11 +137,13 @@ class FuncArgRandomiserTraverser(NodeVisitor):
                     # order otherwise va_args stuff breaks
                     ellipsis_arg = fdecl.args.params[-1]
                     fdecl.args.params = fdecl.args.params[:-1] + extra_args
-                    random.shuffle(fdecl.args.params)
+                    if self.randomise:
+                        random.shuffle(fdecl.args.params)
                     fdecl.args.params.append(ellipsis_arg)
                 else:
                     fdecl.args.params += extra_args
-                    random.shuffle(fdecl.args.params)
+                    if self.randomise:
+                        random.shuffle(fdecl.args.params)
                 mapping = {}
                 for i, arg in enumerate(before_change):
                     if isinstance(
@@ -208,9 +212,10 @@ class FuncArgumentRandomiseUnit(ObfuscationUnit):
     )
     type = TransformType.PROCEDURAL
 
-    def __init__(self, extra_args: int):
+    def __init__(self, extra_args: int, randomise: bool):
         self.extra_args = extra_args
-        self.traverser = FuncArgRandomiserTraverser(extra_args)
+        self.randomise = randomise
+        self.traverser = FuncArgRandomiserTraverser(extra_args, randomise)
 
     def transform(self, source: interaction.CSource) -> interaction.CSource:
         self.traverser.visit(source.t_unit)
@@ -222,7 +227,11 @@ class FuncArgumentRandomiseUnit(ObfuscationUnit):
 
         Returns:
             (str) The corresponding serialised JSON string."""
-        return json.dumps({"type": str(__class__.name), "extra_args": self.extra_args})
+        return json.dumps({
+            "type": str(__class__.name), 
+            "extra_args": self.extra_args,
+            "randomise": self.randomise,
+        })
 
     def from_json(json_str: str) -> "FuncArgumentRandomiseUnit":
         """Converts the provided JSON string to a function argument randomisation transformation, if possible.
@@ -269,8 +278,21 @@ class FuncArgumentRandomiseUnit(ObfuscationUnit):
                 print_err=True,
             )
             return None
-        return FuncArgumentRandomiseUnit(json_obj["extra_args"])
+        elif "randomise" not in json_obj:
+            log(
+                "Failed to load RandomiseFuncArgs() - no randomise flag value provided.",
+                print_err=True,
+            )
+            return None
+        elif not isinstance(json_obj["randomise"], bool):
+            log(
+                "Failed to load RandomiseFuncArgs() - randomise flag is not a valid Boolean value.",
+                print_err=True,
+            )
+            return None
+        return FuncArgumentRandomiseUnit(json_obj["extra_args"], json_obj["randomise"])
 
     def __str__(self) -> str:
         extra_args_flag = f"extra={self.extra_args}"
-        return f"RandomiseFuncArgs({extra_args_flag})"
+        randomise_flag = f"random_order={'ENABLED' if self.randomise else 'DISABLED'}"
+        return f"RandomiseFuncArgs({extra_args_flag},{randomise_flag})"

@@ -4,7 +4,8 @@ lexical obfuscation transformations that manipulate either the character
 or token streams that comprise a program (as opposed to some more structured 
 intermediate representation), including obfuscation related to identifier 
 renaming, reversal of indexes, whitespace cluttering and digraph/trigraph
-macro encoding. """
+macro encoding. 
+"""
 from .. import interaction
 from ..debug import *
 from .utils import ObfuscationUnit, TransformType, generate_new_contents, TypeKinds, \
@@ -18,7 +19,7 @@ class NewNewIdentifierRenamer:
     """Traverses the program AST looking for non-external identifiers (except main),
     transform them to some random scrambled identifier."""
 
-    def __init__(self, style: "IdentifierTraverser.Style", minimiseIdents: bool):
+    def __init__(self, style: "IdentifierTraverser.Style", minimise_idents: bool):
         self.new_idents_set = set()
         self.new_idents = []
         self.current_struct = None
@@ -32,9 +33,9 @@ class IdentifierRenamer:
     """Traverses the program AST looking for non-external identifiers (except main),
     transforming them to some random scrambled identifier."""
 
-    def __init__(self, style: "IdentifierTraverser.Style", minimiseIdents: bool):
+    def __init__(self, style: "IdentifierTraverser.Style", minimise_idents: bool):
         self.style = style
-        self.minimiseIdents = minimiseIdents
+        self.minimise_idents = minimise_idents
         self.reset()
 
     def reset(self):
@@ -291,9 +292,9 @@ class IdentifierTraverser(NodeVisitor):
         I_AND_L = "Blocks of l's and I's"
         #REALISTIC = "Realistic Names" # TODO salvage or scrap
 
-    def __init__(self, style: Style, minimiseIdents: bool):
+    def __init__(self, style: Style, minimise_idents: bool):
         self.style = style
-        self.minimiseIdents = minimiseIdents
+        self.minimise_idents = minimise_idents
         self.reset()
 
     def reset(self):
@@ -306,7 +307,7 @@ class IdentifierTraverser(NodeVisitor):
         self, ident
     ):  # TODO could add an option for variable reuse as well using liveness?
         if (
-            self.minimiseIdents
+            self.minimise_idents
         ):  # TODO THIS OPTION IS VERY BROKE BUT COMPLEX SO JUST LEAVE IT FOR NOW?
             for new_ident in self._new_idents:
                 in_scope = False  # TODO maintain a list of unused idents - will be cleaner and cheaper
@@ -479,13 +480,13 @@ class IdentifierRenameUnit(ObfuscationUnit):
     )
     type = TransformType.LEXICAL
 
-    def __init__(self, style, minimiseIdents):
+    def __init__(self, style, minimise_idents):
         self.style = style
-        self.minimiseIdents = minimiseIdents
-        self.transformer = IdentifierRenamer(style, minimiseIdents)
+        self.minimise_idents = minimise_idents
+        self.transformer = IdentifierRenamer(style, minimise_idents)
 
     def transform(self, source: interaction.CSource) -> interaction.CSource:
-        if self.minimiseIdents:
+        if self.minimise_idents:
             # TODO identifier minimisation breaking on AOCday6 example - WHY!?
             transformer = IdentifierRenamer(self.style, True)
             transformer.transform(source.t_unit)
@@ -504,7 +505,7 @@ class IdentifierRenameUnit(ObfuscationUnit):
             {
                 "type": str(__class__.name),
                 "style": self.style.name,
-                "minimiseIdents": self.minimiseIdents,
+                "minimise_idents": self.minimise_idents,
             }
         )
 
@@ -557,13 +558,13 @@ class IdentifierRenameUnit(ObfuscationUnit):
                 print_err=True,
             )
             return None
-        elif "minimiseIdents" not in json_obj:
+        elif "minimise_idents" not in json_obj:
             log(
                 "Failed to load RenameIdentifiers() - no identifier minimisation flag value provided.",
                 print_err=True,
             )
             return None
-        elif not isinstance(json_obj["minimiseIdents"], bool):
+        elif not isinstance(json_obj["minimise_idents"], bool):
             log(
                 "Failed to load RenameIdentifiers() - identifier minimisation flag value is not a Boolean.",
                 print_err=True,
@@ -573,13 +574,13 @@ class IdentifierRenameUnit(ObfuscationUnit):
             {style.name: style for style in IdentifierTraverser.Style}[
                 json_obj["style"]
             ],
-            json_obj["minimiseIdents"],
+            json_obj["minimise_idents"],
         )
 
     def __str__(self):
         style_flag = f"style={self.style.name}"
         minimise_ident_flag = (
-            f"minimal={'ENABLED' if self.minimiseIdents else 'DISABLED'}"
+            f"minimal={'ENABLED' if self.minimise_idents else 'DISABLED'}"
         )
         return f"RenameIdentifiers({style_flag},{minimise_ident_flag})"
 

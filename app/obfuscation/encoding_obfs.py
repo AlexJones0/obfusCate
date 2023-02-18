@@ -2,7 +2,8 @@
 Implements classes (including obfuscation unit classes) for performing
 encoding obfuscation transformations, including obfuscation related
 to the encoding of string literals and integer literals, as well as 
-the encoding of integer arithmetic expressions/operations. """
+the encoding of integer arithmetic expressions/operations. 
+"""
 from .. import interaction
 from ..debug import *
 from .utils import ObfuscationUnit, TransformType, generate_new_contents, ExpressionAnalyzer

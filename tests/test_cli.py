@@ -791,20 +791,20 @@ if __name__ == "__main__":
 
 # TODO
 # TESTING TODO
-###Done### Debug unit tests
-###Done### Interaction unit tests
-###Done### Utils unit tests
-###Done### General CLI unit tests
-###Done### CLI System Argument tests
-# Obfuscation CLI unit tests
-# Code Complexity CLI unit tests
-# CLI integration tests
-# General GUI unit tests
-# Obfuscation GUI unit tests
-# Code Complexity GUI unit tests
-# GUI integration tests
-# Obfuscation unit tests (per method, per construct)
-# Obfucation construct integration tests (per method)
-# Obfuscation transformation integration tests (combinations of methods)
-# Code Complexity metric unit tests
-# Whole system tests
+# Debug unit tests: YES                                                                 Documented/Refactored: YES
+# Interaction unit tests: YES                                                           Documented/Refactored: YES
+# Utils unit tests: YES                                                                 Documented/Refactored: YES
+# General CLI unit tests: YES                                                           Documented/Refactored: YES
+# CLI System Argument tests: YES                                                        Documented/Refactored: YES
+# Obfuscation CLI unit tests: NO                                                        Documented/Refactored: NO
+# Code Complexity CLI unit tests: NO                                                    Documented/Refactored: NO
+# CLI integration tests: NO                                                             Documented/Refactored: N/A
+# General GUI unit tests: NO                                                            Documented/Refactored: NO
+# Obfuscation GUI unit tests: NO                                                        Documented/Refactored: NO
+# Code Complexity GUI unit tests: NO                                                    Documented/Refactored: NO
+# GUI integration tests: NO                                                             Documented/Refactored: N/A
+# Obfuscation unit tests (per method, per construct): NO                                Documented/Refactored: NO
+# Obfucation construct integration tests (per method): NO                               Documented/Refactored: N/A
+# Obfuscation transformation integration tests (combinations of methods): NO            Documented/Refactored: NO
+# Code Complexity metric unit tests: NO                                                 Documented/Refactored: NO
+# Whole system tests: NO                                                                Documented/Refactored: N/A

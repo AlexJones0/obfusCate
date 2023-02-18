@@ -2,7 +2,8 @@
 Implements abstract base classes and basic functions for implementing 
 obfuscation methods as ObfuscationUnit subclasses. Also implements
 the identity obfuscation transformation as an example for how to
-implement new obfuscation methods, and to provide the method itself. """
+implement new obfuscation methods, and to provide the method itself. 
+"""
 from .. import interaction
 from ..debug import *
 from pycparser.c_ast import *

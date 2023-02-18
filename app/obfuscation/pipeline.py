@@ -1,7 +1,8 @@
 """ File: obfuscation/pipeline.py
 Implements a Pipeline class for composing sequences of obfuscation 
 transformation units, as well as storing and loading these
-representations. """
+representations. 
+"""
 from .. import interaction, settings as cfg
 from ..debug import log
 from .utils import ObfuscationUnit
