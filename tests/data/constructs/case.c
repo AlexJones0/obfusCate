@@ -1,4 +1,5 @@
-//////57 101
+//////
+//////1 55
 #include <stdio.h>
 
 int main() {
@@ -15,12 +16,10 @@ int main() {
     char y = 'e';
     switch (y) {
         case 'x': y = 'y';
-                  break;
-        case 'y': x = 'z';
-        default: x = '3';
-        case 'a': x = '9';
-                  break; 
-        case 'd': x = '7';
+        case 'y': y = 'z';
+        default: y = '3';
+        case 'a': y = '9';
+        case 'd': y = '7';
     }
     printf("%d %d\n", x, y);
 }

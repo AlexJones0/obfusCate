@@ -796,7 +796,7 @@ if __name__ == "__main__":
 # Utils unit tests: YES                                                                 Documented/Refactored: YES
 # General CLI unit tests: YES                                                           Documented/Refactored: YES
 # CLI System Argument tests: YES                                                        Documented/Refactored: YES
-# Obfuscation CLI unit tests: NO                                                        Documented/Refactored: NO
+# Obfuscation CLI unit tests: NO                                                        Documented/Refactored: YES
 # Code Complexity CLI unit tests: NO                                                    Documented/Refactored: NO
 # CLI integration tests: NO                                                             Documented/Refactored: N/A
 # General GUI unit tests: NO                                                            Documented/Refactored: NO
@@ -808,3 +808,41 @@ if __name__ == "__main__":
 # Obfuscation transformation integration tests (combinations of methods): NO            Documented/Refactored: NO
 # Code Complexity metric unit tests: NO                                                 Documented/Refactored: NO
 # Whole system tests: NO                                                                Documented/Refactored: N/A
+
+# TODO could have a very scaled down testing plan and a very scaled up testing plan?
+# General obfuscation testing idea (using N = number of transforms, M = avg number of preset options, P = number of programs)
+#   - For every method
+#       - For every combination of limited (predefined) options/parameters:
+#           - For a program type for each AST node AND every example program
+#               - For 10 random seeds
+#                   - Run the method on the program, and check it runs without error.
+#                   - Run the method on the program, and check it compiles.
+#                   - Run the method on the program, and check it gives the same result.
+#       ? Check the transform performs as we would expect for every AST node type.
+#   = (30N * M * P) runs
+#   - For every combination of two methods
+#       - For 5 combinations of random options/parameters:
+#           - For every example program
+#               - For 10 random seeds:
+#                   - Run the method on the program, and check it runs without error.
+#                   - Run the method on the program, and check it compiles.
+#                   - Run the method on the program, and check it gives the same result.
+#   = (150N^2 * P) runs
+#   - For every combination of three methods (random parameters)
+#       - For 3 combinations of random options/parameters:
+#           - For every example program
+#               - Run the method on the example, and check it runs without error
+#               - Run the method on the example, and check it compiles
+#               - Run the method on the example, and check it gives the same result
+#   = (9N^3 * P) runs
+# Assuming 12 methods, 50 average option combinations, and 50 example programs, that gives
+#   = 900,000 + 1,080,000 + 777,600 = 2,757,600 tests (1,838,400 C program executions)
+#
+# Evaluation stuff:
+#   - How does project meet objectives (show it does)
+#   - Test case passing
+#   - Demo
+#   - How does it compare to other solutions? - feature richness
+#   - Compare to Tigress - performance on similar transformations, using my own metrics
+#   - Evaluation using automatic deobfuscation software?
+#

@@ -24,6 +24,9 @@
 ** - Main function return type changed to integer for automation purposes
 ** - Re-organized output for cleaner reports
 **
+** Modified by Alex Jones, 02/23, to remove #define preprocessor statements
+**   from the code for use in further obfuscation processing.
+**
 ** To compile:  cc -O -o linpack linpack.c -lm
 **
 */
