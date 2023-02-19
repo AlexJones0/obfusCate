@@ -1,21 +1,12 @@
 ## **Currently Known Bugs/Issues/Limitations**
- - Due to many issues with pycparser handling these cases, the program does not currently support
-   the use of **static assertions** and **pragmas**. Static assertions should be fine but often
-   cause pycparser to crash for unknown reasons, and **pragmas** are ignored due to scope - the
-   additional complexity of parsing every single pragma rule (e.g. setting a startup function)
-   when handling identifier renaming (used in many obfuscation techniques) is too much for the
-   scope of this project. Examples of these features are shown below.
+ - Due to many issues with pycparser handling these cases, the program does not currently support the use of **static assertions** and **pragmas**. Static assertions should be fine but often cause pycparser to crash for unknown reasons, and **pragmas** are ignored due to scope - the additional complexity of parsing every single pragma rule (e.g. setting a startup function) when handling identifier renaming (used in many obfuscation techniques) is too much for the scope of this project. Examples of these features are shown below.
    ```
    static_assert(sizeof(int) == 2 * sizeof(short), "The program requires an integer is the size of 2 shorts.");
    #pragma startup myfunc
    #pragma omp parallel for
    ```
    
- - The **Function Interface/Argument Randomisation** obfuscation mehod does not work with 
-   **alised function pointer calls**, as to transform these cases to match the new function
-   signatures would require a solution to pointer aliasing, which is computationally intractable
-   in many cases and undecidable in others. Such, this is a feature in C which is simply too
-   powerful for this obfuscation to apply to.
+ - The **Function Interface/Argument Randomisation** obfuscation mehod does not work with **alised function pointer calls**, as to transform these cases to match the new function signatures would require a solution to pointer aliasing, which is computationally intractable in many cases and undecidable in others. Such, this is a feature in C which is simply too powerful for this obfuscation to apply to.
    ```
    int f(int x) { printf("%d\n", x); }
    int main() {
@@ -24,12 +15,7 @@
    }
    ```
 
- - Due to a (suspected) problem with how pycparser handles generating
-   declaration lists, it does not **collect modified anonymous structured
-   types together**. This means that two structs defined on the same line
-   may technically have different types even though they are the same
-   struct, and this can break some C features via this aliasing, such
-   as assigning arrays wrapped in structs using anonymous structs, e.g.:
+ - Due to a (suspected) problem with how pycparser handles generating declaration lists, it does not **collect modified anonymous structured types together**. This means that two structs defined on the same line may technically have different types even though they are the same struct, and this can break some C features via this aliasing, such as assigning arrays wrapped in structs using anonymous structs, e.g.:
      ```    
      struct { int arr[2]; } s1 = { {5, 6} }, s2 = { {7, 8} };
     s1 = s2;  // This works normally, but not after any obfuscating.
@@ -46,5 +32,10 @@
     default: x = -1;
   }
   ``` 
+
+ - The **Control Flow Flattening** obfuscation does not work when an array of **const** values is assigned via an initializer list, as this cannot be trivially lifted to the start of the function. In the future I might make this so that it only breaks on **randomised case order** by just keeping const array decls in place, or I might even make it work in all cases by enforcing a 'quasi-random' case ordering that ensures a correct ordering between const array decls and their uses such that they are defined correctly and in scope for their usage, and thus function as expected. But this is requires a lot more work for little payoff, so this is not implemented currently. Example below:
+ ```
+ const double snd[] = {5.6, 3.4, 1.2};
+ ```
 
  - ...

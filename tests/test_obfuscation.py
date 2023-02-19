@@ -456,7 +456,7 @@ class TestObfuscationIntegration(unittest.TestCase):
 
         # Calculate number of required tests from setting
         bounds = {
-            UsedDepth.LIGHTEST: (1, 10, 2),  # Currently: 160 tests
+            UsedDepth.LIGHTEST: (1, 10, 3),  # Currently: 240 tests
             UsedDepth.VERY_LIGHT: (1, 20, 10),  # Currently: ...
             UsedDepth.LIGHT: (3, 50, 100),  # Currently:
             UsedDepth.MEDIUM: (5, 100, 100000),  # Currently:

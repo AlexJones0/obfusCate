@@ -1820,13 +1820,16 @@ class ControlFlowFlattener(NodeVisitor):
             None,
             node.bitsize,
         )
+        if isinstance(node.init, InitList):
+            # TODO does this work with multi-dimensional arrays? Probably not
+            decl.type.dim = Constant("int", str(len(node.init.exprs)))
         self.pending_head.append(decl)
         # Replace the declaration with a corresponding assignment if appropriate
         if node.init is None:
             assign = None
         elif isinstance(
             node.init, InitList
-        ):  # TODO does this fail on multi-dimensional init lists? Check
+        ):  # TODO does this fail on multi-dimensional init lists? Check. Probably.
             assign = []
             for i, expr in enumerate(node.init.exprs):
                 assign.append(
