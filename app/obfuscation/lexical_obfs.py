@@ -363,7 +363,6 @@ class IdentifierTraverser(NodeVisitor):
         if hasattr(node, "name") and node.name is not None:
             if node.name not in self.idents:
                 self.get_new_ident(node.name)
-            print(node.name, self.idents[node.name], node.coord)
             node.name = self.idents[node.name]
             self._scopes[-1].add(node.name)
 

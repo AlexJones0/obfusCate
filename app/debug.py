@@ -91,10 +91,13 @@ def log(log_str: str, print_err: bool = False) -> bool:
     return False
 
 
-def logprint(log_str: str) -> bool:
-    """ Prints an error message to stdout, whilst also logging that error
-    message at the same time. """
-    print_error(log_str)
+def logprint(log_str: str, err: bool = True) -> bool:
+    """ Prints an (error) message to stdout(/stderr), whilst also logging 
+    that (error) message at the same time."""
+    if err:
+        print_error(log_str)
+    else:
+        print(log_str)
     return log(log_str)
 
 

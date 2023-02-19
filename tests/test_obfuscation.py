@@ -360,7 +360,7 @@ class TestObfuscationIntegration(unittest.TestCase):
         except:
             exception_handled = True
         if not result.valid_parse or exception_handled:
-            debug.log(
+            debug.logprint(
                 (
                     "Test {} - Failed [obfuscation error] ({}/{})\n"
                     "   Transform={},\n"
@@ -373,7 +373,8 @@ class TestObfuscationIntegration(unittest.TestCase):
                     str(pipeline),
                     filepath.split("\\./")[-1],
                     seed,
-                )
+                ),
+                err=False
             )
             return False
         obfs_filepath = os.path.join(os.getcwd(), "./tests/testing/obfs.c")
@@ -381,7 +382,7 @@ class TestObfuscationIntegration(unittest.TestCase):
             f.write(result.contents)
         output = self.__get_program_output(obfs_filepath, inputs)
         if output is None:
-            debug.log(
+            debug.logprint(
                 (
                     "Test {} - Failed [compile/run error] ({}/{})\n"
                     "   Transform={},\n"
@@ -394,11 +395,12 @@ class TestObfuscationIntegration(unittest.TestCase):
                     str(pipeline),
                     filepath.split("\\./")[-1],
                     seed,
-                )
+                ),
+                err=False
             )
             return False
         if output != expected_output:
-            debug.log(
+            debug.logprint(
                 (
                     "Test {} - Failed [correctness error] ({}/{})\n"
                     "   Transform={},\n"
@@ -415,11 +417,12 @@ class TestObfuscationIntegration(unittest.TestCase):
                     seed,
                     expected_output,
                     output,
-                )
+                ),
+                err=False
             )
             return False
         passed += 1
-        debug.log("Test {} - Passed ({}/{})".format(test, passed, num_tests))
+        debug.logprint("Test {} - Passed ({}/{})".format(test, passed, num_tests), err=False)
         return True
 
     def __get_bounded(self, options: Iterable[Any], max_: int) -> Iterable[Any]:
@@ -453,11 +456,11 @@ class TestObfuscationIntegration(unittest.TestCase):
 
         # Calculate number of required tests from setting
         bounds = {
-            UsedDepth.LIGHTEST: (1, 10, 2),
-            UsedDepth.VERY_LIGHT: (1, 20, 10),
-            UsedDepth.LIGHT: (3, 50, 100),
-            UsedDepth.MEDIUM: (5, 100, 100000),
-            UsedDepth.HEAVY: (10, 100000, 100000),
+            UsedDepth.LIGHTEST: (1, 10, 2),  # Currently: 160 tests
+            UsedDepth.VERY_LIGHT: (1, 20, 10),  # Currently: ...
+            UsedDepth.LIGHT: (3, 50, 100),  # Currently:
+            UsedDepth.MEDIUM: (5, 100, 100000),  # Currently:
+            UsedDepth.HEAVY: (10, 100000, 100000),  # Currently:
         }
         num_seeds, max_options, max_programs = bounds[INTEGRATION_TEST_STYLE]
         runs = (
@@ -540,6 +543,7 @@ class TestObfuscationIntegration(unittest.TestCase):
 
         # Assert that all tests passed
         self.assertEqual(passed, runs)"""
+
 
 # TODO could have a very scaled down testing plan and a very scaled up testing plan?
 # General obfuscation testing idea (using N = number of transforms, M = avg number of preset options, P = number of programs)
