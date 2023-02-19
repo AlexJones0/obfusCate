@@ -899,6 +899,12 @@ class OpaqueInserter(NodeVisitor):
         return Compound([copied])
 
     def generate_opaque_predicate(self, stmt):
+        # Work around for pycparser incorrect C generation
+        # TODO need to check if this issue occurs anywhere else
+        # TODO also check this doesn't break anything
+        if not isinstance(stmt, Compound):
+            stmt = Compound([stmt])
+            
         kind = random.choice(self.kinds)  # TODO do I make this proportional also?
         match kind:
             case self.Kind.CHECK:  # if (true) { your code }
