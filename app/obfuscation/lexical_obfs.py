@@ -302,22 +302,11 @@ class IdentifierTraverser(NodeVisitor):
         self._new_idents = set()
         self._scopes = list()
         self._random_source = random.randint(0, 2**16)
+        self._typedecl_node_cache = set()
 
     def get_new_ident(
         self, ident
     ):  # TODO could add an option for variable reuse as well using liveness?
-        if (
-            self.minimise_idents
-        ):  # TODO THIS OPTION IS VERY BROKE BUT COMPLEX SO JUST LEAVE IT FOR NOW?
-            for new_ident in self._new_idents:
-                in_scope = False  # TODO maintain a list of unused idents - will be cleaner and cheaper
-                for scope in self._scopes[::-1]:
-                    if new_ident in scope:
-                        in_scope = True
-                        break
-                if not in_scope:
-                    self.idents[ident] = new_ident
-                    return new_ident
         new_ident = ""
         while len(new_ident) == 0 or new_ident in self._new_idents:
             if self.style == self.Style.COMPLETE_RANDOM:
@@ -374,6 +363,7 @@ class IdentifierTraverser(NodeVisitor):
         if hasattr(node, "name") and node.name is not None:
             if node.name not in self.idents:
                 self.get_new_ident(node.name)
+            print(node.name, self.idents[node.name], node.coord)
             node.name = self.idents[node.name]
             self._scopes[-1].add(node.name)
 
@@ -419,6 +409,13 @@ class IdentifierTraverser(NodeVisitor):
         NodeVisitor.generic_visit(self, node)
 
     def visit_TypeDecl(self, node):
+        if node in self._typedecl_node_cache:
+            # Work around for pycparser annoyingly
+            # using the same reference for anonymous struct
+            # types for decl lists, causing double-renaming
+            # issues. We check a cache to ensure this doesn't happen.
+            return
+        self._typedecl_node_cache.add(node)
         if node.declname is not None:
             if node.declname not in self.idents:
                 self.get_new_ident(node.declname)
@@ -429,7 +426,6 @@ class IdentifierTraverser(NodeVisitor):
     def visit_ID(self, node):
         if node.name in self.idents:
             node.name = self.idents[node.name]
-        NodeVisitor.generic_visit(self, node)
 
     def visit_FuncCall(self, node):
         if node.name in self.idents:
@@ -493,6 +489,7 @@ class IdentifierRenameUnit(ObfuscationUnit):
         else:
             traverser = IdentifierTraverser(self.style, False)
             traverser.visit(source.t_unit)
+            source.t_unit.show()
         new_contents = generate_new_contents(source)
         return interaction.CSource(source.fpath, new_contents, source.t_unit)
 
