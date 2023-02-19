@@ -18,7 +18,7 @@ from typing import Callable, Any, Type
 from random import uniform as randf, randint as randi
 
 
-class TestStyle(enum.Enum):
+class UsedDepth(enum.Enum):
     LIGHTEST = 0
     VERY_LIGHT = 1
     LIGHT = 2
@@ -26,7 +26,7 @@ class TestStyle(enum.Enum):
     HEAVY = 4
 
 
-INTEGRATION_TEST_STYLE = TestStyle.LIGHTEST
+INTEGRATION_TEST_STYLE = UsedDepth.LIGHTEST
 
 
 def callfunc_neq(func: Callable, neq: Iterable[Any]) -> Any:
@@ -371,7 +371,7 @@ class TestObfuscationIntegration(unittest.TestCase):
                     passed,
                     num_tests,
                     str(pipeline),
-                    filepath.split("\./")[-1],
+                    filepath.split("\\./")[-1],
                     seed,
                 )
             )
@@ -392,7 +392,7 @@ class TestObfuscationIntegration(unittest.TestCase):
                     passed,
                     num_tests,
                     str(pipeline),
-                    filepath.split("\./")[-1],
+                    filepath.split("\\./")[-1],
                     seed,
                 )
             )
@@ -411,7 +411,7 @@ class TestObfuscationIntegration(unittest.TestCase):
                     passed,
                     num_tests,
                     str(pipeline),
-                    filepath.split("\./")[-1],
+                    filepath.split("\\./")[-1],
                     seed,
                     expected_output,
                     output,
@@ -444,7 +444,7 @@ class TestObfuscationIntegration(unittest.TestCase):
         test_path = os.path.join(os.getcwd(), "./tests/testing")
         if os.path.isdir(test_path):
             shutil.rmtree(test_path)
-        os.mkdir("./tests/testing", 0o777)
+        os.mkdir(test_path, 0o777)
         try:
             examples = self.__get_example_programs()
         except:
@@ -453,11 +453,11 @@ class TestObfuscationIntegration(unittest.TestCase):
 
         # Calculate number of required tests from setting
         bounds = {
-            TestStyle.LIGHTEST: (1, 10, 2),
-            TestStyle.VERY_LIGHT: (1, 20, 10),
-            TestStyle.LIGHT: (3, 50, 100),
-            TestStyle.MEDIUM: (5, 100, 100000),
-            TestStyle.HEAVY: (10, 100000, 100000),
+            UsedDepth.LIGHTEST: (1, 10, 2),
+            UsedDepth.VERY_LIGHT: (1, 20, 10),
+            UsedDepth.LIGHT: (3, 50, 100),
+            UsedDepth.MEDIUM: (5, 100, 100000),
+            UsedDepth.HEAVY: (10, 100000, 100000),
         }
         num_seeds, max_options, max_programs = bounds[INTEGRATION_TEST_STYLE]
         runs = (
@@ -489,6 +489,57 @@ class TestObfuscationIntegration(unittest.TestCase):
         # Assert that all tests passed
         self.assertEqual(passed, runs)
 
+    def test_double_transforms(self) -> None:
+        # TODO docstring
+        # Reset state, initialise testing directory and retrieve examples
+        reset_config()
+        test_path = os.path.join(os.getcwd(), "./tests/testing")
+        if os.path.isdir(test_path):
+            shutil.rmtree(test_path)
+        os.mkdir(test_path, 0o777)
+        try:
+            examples = self.__get_example_programs()
+        except:
+            self.fail("Example programs could not be retrieved.")
+        debug.create_log_file()
+
+        # Calculate number of required tests from setting
+        bounds = {
+            UsedDepth.LIGHTEST: (1, 10, 2),
+            UsedDepth.VERY_LIGHT: (1, 20, 10),
+            UsedDepth.LIGHT: (3, 50, 100),
+            UsedDepth.MEDIUM: (5, 100, 100000),
+            UsedDepth.HEAVY: (10, 100000, 100000),
+        }
+        num_seeds, max_options, max_programs = bounds[INTEGRATION_TEST_STYLE]
+        runs = (
+            sum(min(len(self.options[t]), max_options) for t in self.transforms)
+            * min(len(examples), max_programs)
+            * num_seeds
+        )
+        passed = 0
+        test_num = 0
+
+        # Perform the tests according to the setings
+        for transform in self.transforms:
+            for parameters in self.__get_bounded(self.options[transform], max_options):
+                for program in self.__get_bounded(list(examples.keys()), max_programs):
+                    for seed in random.sample(range(0, 100000), num_seeds):
+                        test_num += 1
+                        test_passed = self.__run_test(
+                            test_num,
+                            runs,
+                            passed,
+                            Pipeline(seed, transform(*parameters)),
+                            program,
+                            *examples[program],
+                            seed
+                        )
+                        if test_passed:
+                            passed += 1
+
+        # Assert that all tests passed
+        self.assertEqual(passed, runs)
 
 # TODO could have a very scaled down testing plan and a very scaled up testing plan?
 # General obfuscation testing idea (using N = number of transforms, M = avg number of preset options, P = number of programs)
@@ -527,6 +578,6 @@ class TestObfuscationIntegration(unittest.TestCase):
 #   = 900,000 + 1,080,000 + 777,600 + 750,000 = 3,507,600 tests (2,338,400 C program executions)
 
 if __name__ == "__main__":
-    INTEGRATION_TEST_STYLE = TestStyle.MEDIUM
+    INTEGRATION_TEST_STYLE = UsedDepth.MEDIUM
     test_class = TestObfuscationIntegration("test_single_transforms")
     test_class.run()
