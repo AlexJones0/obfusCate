@@ -135,6 +135,7 @@ logs/
 out/
 /examples/
 /compositions/
+/tests/testing/*
 
 # VScode
 .vscode/

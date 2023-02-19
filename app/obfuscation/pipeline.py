@@ -179,3 +179,6 @@ class Pipeline:
                     transformations.append(transform.from_json(t))
                     break
         return Pipeline(seed, *transformations)
+    
+    def __str__(self):
+        return "[{}]".format(" ".join([str(t) for t in self.transforms]))
