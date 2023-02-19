@@ -1323,7 +1323,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.labels = []
         self.current_function = None
         self.function_decls = None
-        self.pending_decls = []
+        self.pending_head = []
         self.checked_stmts = None
         self.unavailable_idents = None
         self.numbers = set()
@@ -1739,7 +1739,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.current_function = node
         self.function_decls = set()
         self.checked_stmts = set()
-        self.pending_decls = []
+        self.pending_head = []
         if node.decl.type.args is not None:
             start_stmt = self.analyzer.compound_stmt_map[node.body][0]
         else:
@@ -1748,12 +1748,38 @@ class ControlFlowFlattener(NodeVisitor):
         self.visit(node.body)
         self.flatten_function(node)
         if node.body is not None:
-            node.body.block_items = self.pending_decls + node.body.block_items
-        self.pending_decls = []
+            node.body.block_items = self.pending_head + node.body.block_items
+        self.pending_head = []
         self.function_decls = None
         self.current_function = None
         self.cur_number = 0
         self.numbers = set()
+
+    def visit_Typedef(self, node):
+        if self.current_function is None:
+            return
+        # Retrieve the statement corresponding to the typedef
+        stmt = self.analyzer.get_stmt_from_node(node)
+        if stmt in self.checked_stmts:
+            return self.generic_visit(node)
+        # Perform identifier renaming if necessary to avoid typedef clashes
+        for ident, kind in list(self.analyzer.get_stmt_definitions(stmt)):
+            if (ident, kind) in self.function_decls or (ident, kind) in self.unavailable_idents:
+                # Renaming required to avoid conflicts
+                num = 2
+                new_ident = ident
+                while (new_ident, kind) in self.function_decls or (new_ident, kind) in self.unavailable_idents:
+                    new_ident = ident + str(num)
+                    num += 1
+                self.analyzer.change_ident(stmt, ident, kind, new_ident)
+                self.function_decls.add((new_ident, kind))
+            else:
+                self.function_decls.add((ident, kind))
+        self.checked_stmts.add(stmt)
+        # Create a relevant corresponding typedef at the start of the function
+        typedef = Typedef(node.name, node.quals, node.storage, node.type)
+        self.pending_head = [typedef] + self.pending_head
+        self.generic_visit(node)
 
     def visit_Decl(self, node):
         if self.current_function is None:
@@ -1763,7 +1789,6 @@ class ControlFlowFlattener(NodeVisitor):
         if stmt in self.checked_stmts and not isinstance(self.parent, ExprList):
             return self.generic_visit(node)
         # Perform identifier renaming if necessary to avoid variable name clashes
-        prev_decl_count = len(self.function_decls)
         for ident, kind in list(self.analyzer.get_stmt_definitions(stmt)):
             if isinstance(self.parent, ExprList) and ident != node.name:
                 continue
@@ -1785,7 +1810,6 @@ class ControlFlowFlattener(NodeVisitor):
                 self.function_decls.add((ident, kind))
         self.checked_stmts.add(stmt)
         # Create a relevant corresponding declaration at the start of the function
-        func_body = self.current_function.body
         decl = Decl(
             node.name,
             node.quals,
@@ -1796,7 +1820,7 @@ class ControlFlowFlattener(NodeVisitor):
             None,
             node.bitsize,
         )
-        self.pending_decls.append(decl)
+        self.pending_head.append(decl)
         # Replace the declaration with a corresponding assignment if appropriate
         if node.init is None:
             assign = None
