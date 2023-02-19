@@ -17,7 +17,7 @@ char* read_input(char* path) {
 }
 
 void problem1(char *file) {
-    char* line = strsep(&file, "\r");
+    char* line = (char *) strsep(&file, "\r");
     int count = 0;
     int max_ = 0;
     while (line != NULL) {
@@ -26,14 +26,14 @@ void problem1(char *file) {
             count = 0;
         }
         count += atoi(line);
-        line = strsep(&file, "\r");
+        line = (char *) strsep(&file, "\r");
     }
     max_ = (count > max_) ? count : max_;
     printf("\nProblem 1: %d", max_);
 }
 
 void problem2(char *file) {
-    char* line = strsep(&file, "\r");
+    char* line = (char *) strsep(&file, "\r");
     int count = 0;
     int max_[3] = {0, 0, 0};
     int lastpass = 0;
@@ -55,7 +55,7 @@ void problem2(char *file) {
                 break;
         }
         count += atoi(line);
-        line = strsep(&file, "\r");
+        line = (char *) strsep(&file, "\r");
         if (line == NULL)
             lastpass = 1;
     }

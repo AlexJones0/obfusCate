@@ -29,5 +29,6 @@ int main() {
     }
     clock_t end = clock();
     double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-    printf("Time elapsed: %f seconds.\n", time_spent);
+    if (time_spent < 5000)
+        printf("Time elapsed < 5000 seconds.\n");
 }

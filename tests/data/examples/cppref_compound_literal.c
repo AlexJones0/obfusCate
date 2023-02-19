@@ -32,12 +32,12 @@ int main(void)
  
 void drawline1(struct point from, struct point to)
 {
-    printf("drawline1: `from` @ %p {%.2f, %.2f}, `to` @ %p {%.2f, %.2f}\n",
-        (void*)&from, from.x, from.y, (void*)&to, to.x, to.y);
+    printf("drawline1: `from` @ {%.2f, %.2f}, `to` @ {%.2f, %.2f}\n",
+        from.x, from.y, to.x, to.y);
 }
  
 void drawline2(struct point *from, struct point *to)
 {
-    printf("drawline2: `from` @ %p {%.2f, %.2f}, `to` @ %p {%.2f, %.2f}\n",
-        (void*)from, from->x, from->y, (void*)to, to->x, to->y);
+    printf("drawline2: `from` @ {%.2f, %.2f}, `to` @ {%.2f, %.2f}\n",
+        from->x, from->y, to->x, to->y);
 }

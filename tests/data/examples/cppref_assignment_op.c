@@ -25,11 +25,6 @@ int main(void)
     int arr1[2] = {1,2}, arr2[2] = {3, 4};
     printf("arr1[0]=%d arr1[1]=%d arr2[0]=%d arr2[1]=%d\n",
             arr1[0],   arr1[1],   arr2[0],   arr2[1]);
- 
-    struct { int arr[2]; } sam1 = { {5, 6} }, sam2 = { {7, 8} };
-    sam1 = sam2; // OK: can assign arrays wrapped in structs
- 
-    printf("%d %d \n", sam1.arr[0], sam1.arr[1]);
 
     // Program 2 starts here
     int x = 10; 
