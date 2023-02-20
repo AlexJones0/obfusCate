@@ -1,8 +1,7 @@
-int main() {
-    int switchVar = 0;
-    A: while (switchVar != 1) {
-        switch (switchVar) {
+void ***g();
+void ***f() {};
 
-        }
-    }
+int main() {
+    int ***x;
+    int y[5][4][9][2];
 }

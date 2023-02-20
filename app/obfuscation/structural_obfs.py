@@ -1372,7 +1372,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.reset()
 
     def flatten_function(self, node):
-        if node.body is None or len(node.body.block_items) == 0:
+        if node.body is None or node.body.block_items is None or len(node.body.block_items) == 0:
             return
         while_label = self.analyzer.get_unique_identifier(
             node, TypeKinds.LABEL, node.body, node
@@ -1753,7 +1753,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.unavailable_idents = self.analyzer.get_definitions_at_stmt(start_stmt)
         self.visit(node.body)
         self.flatten_function(node)
-        if node.body is not None:
+        if node.body is not None and node.body.block_items is not None:
             node.body.block_items = self.pending_head + node.body.block_items
         self.pending_head = []
         self.function_decls = None
