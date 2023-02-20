@@ -497,7 +497,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
         # Visit all children as normal except for the parameter list, as this will be
         # walked by the body to record the parameters inside the compound.
         if node.type is not None:
-            declname = self.__get_declname(node)
+            declname = self.__get_declname(node.type)
             if declname is not None:
                 self.functions.add(declname[0])
         for child in node.children():
@@ -535,7 +535,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
         if node.name is not None:
             self.typedefs.add(node.name)
             attributes = [(node, "name")]
-            declname = self.__get_declname(node)
+            declname = self.__get_declname(node.type)
             if declname is not None:
                 attributes.append(declname[1], "declname")
             self.record_ident_def(node, node.name, attributes, TypeKinds.NONSTRUCTURE)
@@ -558,7 +558,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
                 self.current_function != "IGNORE"
             ):  # Regular parameter/function definition
                 attributes = [(node, "name")]
-                declname = self.__get_declname(node)
+                declname = self.__get_declname(node.type)
                 if declname is not None:
                     attributes.append((declname[1], "declname"))
                 # TODO is this right - apparently different for funcs and vars?
