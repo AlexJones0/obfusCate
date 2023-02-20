@@ -537,7 +537,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
             attributes = [(node, "name")]
             declname = self.__get_declname(node.type)
             if declname is not None:
-                attributes.append(declname[1], "declname")
+                attributes.append((declname[1], "declname"))
             self.record_ident_def(node, node.name, attributes, TypeKinds.NONSTRUCTURE)
         NodeVisitor.generic_visit(self, node)
 
