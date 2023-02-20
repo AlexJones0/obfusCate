@@ -26,7 +26,7 @@ class UsedDepth(enum.Enum):
     HEAVY = 4
 
 
-INTEGRATION_TEST_STYLE = UsedDepth.LIGHTEST
+INTEGRATION_TEST_STYLE = UsedDepth.LIGHT
 
 
 def callfunc_neq(func: Callable, neq: Iterable[Any]) -> Any:
@@ -354,18 +354,18 @@ class TestObfuscationIntegration(unittest.TestCase):
         seed: int,
     ) -> bool:
         # TODO Docstring
-        exception_handled = False
+        exception_handled = None
         try:
             result = pipeline.process(deepcopy(source))
-        except:
-            exception_handled = True
-        if not result.valid_parse or exception_handled:
+        except Exception as e:
+            exception_handled = e
+        if exception_handled is not None or not result.valid_parse:
             debug.logprint(
                 (
                     "Test {} - Failed [obfuscation error] ({}/{})\n"
                     "   Transform={},\n"
                     "   Example={},\n"
-                    "   Seed={}"
+                    "   Seed={}{}"
                 ).format(
                     test,
                     passed,
@@ -373,8 +373,11 @@ class TestObfuscationIntegration(unittest.TestCase):
                     str(pipeline),
                     filepath.split("\\./")[-1],
                     seed,
+                    "\n   Exception={}".format(exception_handled)
+                    if exception_handled is not None
+                    else "",
                 ),
-                err=False
+                err=False,
             )
             return False
         obfs_filepath = os.path.join(os.getcwd(), "./tests/testing/obfs.c")
@@ -396,7 +399,7 @@ class TestObfuscationIntegration(unittest.TestCase):
                     filepath.split("\\./")[-1],
                     seed,
                 ),
-                err=False
+                err=False,
             )
             return False
         if output != expected_output:
@@ -418,19 +421,26 @@ class TestObfuscationIntegration(unittest.TestCase):
                     expected_output,
                     output,
                 ),
-                err=False
+                err=False,
             )
             return False
         passed += 1
-        debug.logprint("Test {} - Passed ({}/{})".format(test, passed, num_tests), err=False)
+        debug.logprint(
+            "Test {} - Passed ({}/{})".format(test, passed, num_tests), err=False
+        )
         return True
 
-    def __get_bounded(self, options: Iterable[Any], max_: int) -> Iterable[Any]:
+    def __get_bounded(
+        self, options: Iterable[Any], max_: int, first_last: bool = False
+    ) -> Iterable[Any]:
         # TODO Docstring
         if len(options) <= max_:
             return options
-        # Always include the first or last - as edge cases
-        return [options[0], options[-1]] + random.sample(options[1:-1], max_ - 2)
+        if first_last:
+            # Always include the first or last - as edge cases
+            return [options[0], options[-1]] + random.sample(options[1:-1], max_ - 2)
+        else:
+            return random.sample(options, max_)
 
     def test_single_transforms(self) -> None:
         """Tests that for every single obfuscation transform, for every single defined set of
@@ -453,14 +463,15 @@ class TestObfuscationIntegration(unittest.TestCase):
         except:
             self.fail("Example programs could not be retrieved.")
         debug.create_log_file()
+        programs = list(examples.keys())
 
         # Calculate number of required tests from setting
         bounds = {
-            UsedDepth.LIGHTEST: (1, 10, 3),  # Currently: 240 tests
-            UsedDepth.VERY_LIGHT: (1, 20, 10),  # Currently: ...
-            UsedDepth.LIGHT: (3, 50, 100),  # Currently:
-            UsedDepth.MEDIUM: (5, 100, 100000),  # Currently:
-            UsedDepth.HEAVY: (10, 100000, 100000),  # Currently:
+            UsedDepth.LIGHTEST: (1, 10, 3),  # Currently: around 240 tests
+            UsedDepth.VERY_LIGHT: (1, 20, 10),  # Currently: around 1170 tests
+            UsedDepth.LIGHT: (3, 50, 100),  # Currently: around 16461 tests
+            UsedDepth.MEDIUM: (5, 100, 100000),  # Currently: ...
+            UsedDepth.HEAVY: (10, 100000, 100000),  # Currently: ...
         }
         num_seeds, max_options, max_programs = bounds[INTEGRATION_TEST_STYLE]
         runs = (
@@ -472,15 +483,15 @@ class TestObfuscationIntegration(unittest.TestCase):
         test_num = 1
 
         # Perform the tests according to the setings
-        for transform in self.transforms:
-            for parameters in self.__get_bounded(self.options[transform], max_options):
-                for program in self.__get_bounded(list(examples.keys()), max_programs):
+        for t in self.transforms:
+            for parameters in self.__get_bounded(self.options[t], max_options, True):
+                for program in self.__get_bounded(programs, max_programs):
                     for seed in random.sample(range(0, 100000), num_seeds):
                         test_passed = self.__run_test(
                             test_num,
                             runs,
                             passed,
-                            Pipeline(seed, transform(*parameters)),
+                            Pipeline(seed, t(*parameters)),
                             program,
                             *examples[program],
                             seed
@@ -492,7 +503,7 @@ class TestObfuscationIntegration(unittest.TestCase):
         # Assert that all tests passed
         self.assertEqual(passed, runs)
 
-    """def test_double_transforms(self) -> None:
+    def test_double_transforms(self) -> None:
         # TODO docstring
         # Reset state, initialise testing directory and retrieve examples
         reset_config()
@@ -505,34 +516,109 @@ class TestObfuscationIntegration(unittest.TestCase):
         except:
             self.fail("Example programs could not be retrieved.")
         debug.create_log_file()
+        programs = list(examples.keys())
 
         # Calculate number of required tests from setting
         bounds = {
-            UsedDepth.LIGHTEST: (1, 10, 2),
-            UsedDepth.VERY_LIGHT: (1, 20, 10),
-            UsedDepth.LIGHT: (3, 50, 100),
-            UsedDepth.MEDIUM: (5, 100, 100000),
-            UsedDepth.HEAVY: (10, 100000, 100000),
+            UsedDepth.LIGHTEST: (1, 2, 2),
+            UsedDepth.VERY_LIGHT: (1, 5, 5),
+            UsedDepth.LIGHT: (3, 5, 100),
+            UsedDepth.MEDIUM: (5, 25, 100000),
+            UsedDepth.HEAVY: (10, 1000, 100000),
         }
         num_seeds, max_options, max_programs = bounds[INTEGRATION_TEST_STYLE]
-        runs = (
-            sum(min(len(self.options[t]), max_options) for t in self.transforms)
-            * min(len(examples), max_programs)
-            * num_seeds
-        )
+        runs = 0
+        for t1 in self.transforms:
+            for t2 in self.transforms:
+                runs += min(len(self.options[t1]) * len(self.options[t2]), max_options)
+        runs *= min(len(examples), max_programs) * num_seeds
         passed = 0
-        test_num = 0
+        test_num = 1
 
         # Perform the tests according to the setings
-        for transform in self.transforms:
-            for parameters in self.__get_bounded(self.options[transform], max_options):
-                for program in self.__get_bounded(list(examples.keys()), max_programs):
+        combination_options = lambda t1, t2: self.__get_bounded(
+            list(itertools.product(self.options[t1], self.options[t2])), max_options
+        )
+        for t1 in self.transforms:
+            for t2 in self.transforms:
+                for t1params, t2params in combination_options(t1, t2):
+                    for program in self.__get_bounded(programs, max_programs):
+                        for seed in random.sample(range(0, 100000), num_seeds):
+                            test_passed = self.__run_test(
+                                test_num,
+                                runs,
+                                passed,
+                                Pipeline(seed, t1(*t1params), t2(*t2params)),
+                                program,
+                                *examples[program],
+                                seed
+                            )
+                            test_num += 1
+                            if test_passed:
+                                passed += 1
+
+        # Assert that all tests passed
+        self.assertEqual(passed, runs)
+
+    def __get_composition_options(
+        self, composition: list[Type[ObfuscationUnit]], n: int
+    ) -> list[Tuple[Any]]:
+        # TODO docstring
+        all_options = []
+        for _ in range(n):
+            options = []
+            for transform in composition:
+                t_opts = self.options[transform]
+                selected = t_opts[random.randint(0, len(t_opts) - 1)]
+                options.append(selected)
+            all_options.append(tuple(options))
+        return all_options
+
+    def test_max_transforms(self) -> None:
+        # TODO docstring
+        # Reset state, initialise testing directory and retrieve examples
+        reset_config()
+        test_path = os.path.join(os.getcwd(), "./tests/testing")
+        if os.path.isdir(test_path):
+            shutil.rmtree(test_path)
+        os.mkdir(test_path, 0o777)
+        try:
+            examples = self.__get_example_programs()
+        except:
+            self.fail("Example programs could not be retrieved.")
+        debug.create_log_file()
+        programs = list(examples.keys())
+
+        # Calculate number of required tests from setting
+        bounds = {
+            UsedDepth.LIGHTEST: (1, 10, 10, 2),
+            UsedDepth.VERY_LIGHT: (1, 20, 10, 5),
+            UsedDepth.LIGHT: (3, 20, 10, 100),
+            UsedDepth.MEDIUM: (5, 30, 30, 100000),
+            UsedDepth.HEAVY: (10, 250, 250, 100000),
+        }
+        num_seeds, max_comps, max_options, max_programs = bounds[INTEGRATION_TEST_STYLE]
+        runs = max_comps * max_options * min(len(examples), max_programs) * num_seeds
+        passed = 0
+        test_num = 1
+
+        # Perform the tests according to the setings
+        compositions = []
+        for _ in range(max_comps):
+            transforms = [t for t in self.transforms]
+            random.shuffle(transforms)
+            compositions.append(transforms)
+        for composition in compositions:
+            for params in self.__get_composition_options(composition, max_comps):
+                for program in self.__get_bounded(programs, max_programs):
                     for seed in random.sample(range(0, 100000), num_seeds):
                         test_passed = self.__run_test(
                             test_num,
                             runs,
                             passed,
-                            Pipeline(seed, transform(*parameters)),
+                            Pipeline(
+                                seed, *[t(*p) for t, p in zip(composition, params)]
+                            ),
                             program,
                             *examples[program],
                             seed
@@ -542,7 +628,7 @@ class TestObfuscationIntegration(unittest.TestCase):
                             passed += 1
 
         # Assert that all tests passed
-        self.assertEqual(passed, runs)"""
+        self.assertEqual(passed, runs)
 
 
 # TODO could have a very scaled down testing plan and a very scaled up testing plan?

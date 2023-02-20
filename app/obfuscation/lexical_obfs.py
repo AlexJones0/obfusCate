@@ -488,7 +488,6 @@ class IdentifierRenameUnit(ObfuscationUnit):
         else:
             traverser = IdentifierTraverser(self.style, False)
             traverser.visit(source.t_unit)
-            source.t_unit.show()
         new_contents = generate_new_contents(source)
         return interaction.CSource(source.fpath, new_contents, source.t_unit)
 

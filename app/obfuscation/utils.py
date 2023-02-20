@@ -1492,7 +1492,7 @@ class ExpressionAnalyzer(NodeVisitor):
         elif node.op in ["-", "+", "~"]:
             self.types[node] = self.types[node.expr]
             self.mutating[node] = self.mutating[node.expr]
-        elif node.op in ["!", "sizeof"]:
+        elif node.op in ["!", "_Sizeof", "sizeof", "alignof", "_Alignof"]:
             self.types[node] = self.SimpleType.INT
             self.mutating[node] = self.mutating[node.expr]
         elif node.op == "&":
