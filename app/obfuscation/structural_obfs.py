@@ -360,6 +360,7 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         return (ident, "int")
 
 
+# TODO a lot of duplicated code between OpaqueAugmenter and OpaqueInserter
 class OpaqueAugmenter(NodeVisitor):
     class Style(enum.Enum):
         INPUT = "Construct predicates from dynamic user input"
@@ -374,6 +375,7 @@ class OpaqueAugmenter(NodeVisitor):
         self.reset()
 
     def reset(self):
+        self.global_typedefs = {}
         self.current_function = None
         self.parameters = None
         self.analyzer = None
@@ -495,16 +497,40 @@ class OpaqueAugmenter(NodeVisitor):
         if node.params is None or self.parameters is None:
             return # No parameters or just parsing a signature.
         for node in node.params:
-            if isinstance(node, Decl) and node.name is not None:
-                if (
-                    node.type is not None
-                    and isinstance(node.type, TypeDecl)
-                    and node.type.type is not None
-                    and node.type.type.names is not None
-                ):
-                    type_ = " ".join(node.type.type.names)
-                    if type_ in OpaquePredicate.VALID_INPUT_TYPES:
-                        self.parameters.append((node.name, type_))
+            # Parsing out the names (and types) of parameter variables
+            if not isinstance(node, Decl) or node.name is None:
+                continue
+            if node.type is None or not isinstance(node.type, TypeDecl):
+                continue  # We don't touch pointers!
+            if node.type.type is None or not isinstance(node.type.type, IdentifierType):
+                continue  # We don't touch structs/unions (we could; but we simplify this)
+            if node.type.type.names is None or len(node.type.type.names) == 0:
+                continue
+            type_ = node.type.type.names[-1]  # TODO is [-1] right?
+            if type_ in OpaquePredicate.VALID_INPUT_TYPES:
+                self.parameters.append((node.name, type_))
+            elif type_ in self.global_typedefs.keys():
+                # Handle typedef'd parameters
+                if self.global_typedefs[type_] in OpaquePredicate.VALID_INPUT_TYPES:
+                    self.parameters.append((node.name, type_))
+
+    def visit_Typedef(self, node: Typedef) -> None:
+        # Parse valid global typedefs to find permissible input params
+        # as a lot of C programs use custom typedefs to rename
+        # common (esp. integer) types.
+        if node.name is None or node.type is None or self.current_function is not None:
+            return self.generic_visit(node)
+        if not isinstance(node.type, TypeDecl) or node.type.type is None:
+            return self.generic_visit(node)
+        if not isinstance(node.type.type, IdentifierType) or node.type.type.names is None or len(node.type.type.names) == 0:
+            return self.generic_visit(node) # Ignore pointer/array types; we don't use them
+        typetype = node.type.type.names[-1]
+        if typetype in self.global_typedefs.keys(): 
+            # Typedef to a typedef!
+            self.global_typedefs[node.name] = self.global_typedefs[typetype]
+        else: # Typedef to some standard C type
+            self.global_typedefs[node.name] = typetype 
+        self.generic_visit(node)
 
     def visit_FuncDef(self, node):
         prev = self.current_function
