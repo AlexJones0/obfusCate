@@ -9,7 +9,7 @@ from ..debug import *
 from pycparser.c_ast import *
 from pycparser.c_lexer import CLexer
 from pycparser.c_generator import CGenerator
-from typing import Optional
+from typing import Optional, Tuple
 import abc, enum, json, string, pycparser
 
 # TODO: clear down some of these old TODOs
@@ -404,6 +404,17 @@ class NewVariableUseAnalyzer(NodeVisitor):
                 return scope[(name, kind)]
         return None
 
+    def __get_declname(self, node: Node) -> Tuple[str, TypeDecl] | None:
+        if node is None:
+            return None
+        if isinstance(node, (PtrDecl, ArrayDecl)):
+            return self.__get_declname(node.type)
+        elif isinstance(node, TypeDecl):
+            if node.declname is None:
+                return None
+            return (node.declname, node)
+        return None            
+
     def record_ident_def(self, node, name, locations, kind, alt_scope=None):
         node = self.get_stmt_from_node(node)
         if self.current_structure is not None:
@@ -485,12 +496,10 @@ class NewVariableUseAnalyzer(NodeVisitor):
     def visit_FuncDecl(self, node):
         # Visit all children as normal except for the parameter list, as this will be
         # walked by the body to record the parameters inside the compound.
-        if (
-            node.type is not None
-            and isinstance(node.type, TypeDecl)
-            and node.type.declname is not None
-        ):
-            self.functions.add(node.type.declname)
+        if node.type is not None:
+            declname = self.__get_declname(node)
+            if declname is not None:
+                self.functions.add(declname[0])
         for child in node.children():
             if child[0] != "args" or self.current_function is None:
                 self.visit(child[1])
@@ -510,7 +519,10 @@ class NewVariableUseAnalyzer(NodeVisitor):
         self.current_function = old_func
 
     def visit_TypeDecl(self, node):
-        ### TODO why was the below code necessary?
+        ### TODO I think I can (and need to); but can I happily get rid of this?
+        ### Note: this would work, but typedecl can be both used and defined 
+        ### I believe (not 100% sure), so I don't want to do it like this
+        # COMEHERE is this right?
         """info = self.info[self.processing_stack[-1]]
         if node in info["idents"]:
             info["idents"][node].append(('declname', TypeKinds.NONSTRUCTURE, self.current_structure, False))
@@ -522,10 +534,10 @@ class NewVariableUseAnalyzer(NodeVisitor):
     def visit_Typedef(self, node):
         if node.name is not None:
             self.typedefs.add(node.name)
-            attributes = [
-                (node, "name"),
-                (node.type, "declname"),
-            ]  # TODO all 'declname' stuff doesn't account for arraydecls and pointerdecls
+            attributes = [(node, "name")]
+            declname = self.__get_declname(node)
+            if declname is not None:
+                attributes.append(declname[1], "declname")
             self.record_ident_def(node, node.name, attributes, TypeKinds.NONSTRUCTURE)
         NodeVisitor.generic_visit(self, node)
 
@@ -545,10 +557,11 @@ class NewVariableUseAnalyzer(NodeVisitor):
             if (
                 self.current_function != "IGNORE"
             ):  # Regular parameter/function definition
-                attributes = [
-                    (node, "name"),
-                    (node.type, "declname"),
-                ]  # TODO not right - different for funcs and vars
+                attributes = [(node, "name")]
+                declname = self.__get_declname(node)
+                if declname is not None:
+                    attributes.append((declname[1], "declname"))
+                # TODO is this right - apparently different for funcs and vars?
                 self.record_ident_def(
                     node, node.name, attributes, TypeKinds.NONSTRUCTURE
                 )

@@ -26,7 +26,7 @@ class UsedDepth(enum.Enum):
     HEAVY = 4
 
 
-INTEGRATION_TEST_STYLE = UsedDepth.LIGHT
+INTEGRATION_TEST_STYLE = UsedDepth.LIGHTEST
 
 
 def callfunc_neq(func: Callable, neq: Iterable[Any]) -> Any:
