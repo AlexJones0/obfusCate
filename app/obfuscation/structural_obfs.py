@@ -1070,16 +1070,19 @@ class OpaqueInserter(NodeVisitor):
         if node.params is None or self.parameters is None:
             return # No parameters or just parsing a signature.
         for node in node.params:
-            if isinstance(node, Decl) and node.name is not None:
-                if (
-                    node.type is not None
-                    and isinstance(node.type, TypeDecl)
-                    and node.type.type is not None
-                    and node.type.type.names is not None
-                ):
-                    type_ = " ".join(node.type.type.names)
-                    if type_ in OpaquePredicate.VALID_INPUT_TYPES:
-                        self.parameters.append((node.name, type_))
+            # Parsing out the names (and types) of parameter variables
+            if not isinstance(node, Decl) or node.name is None:
+                continue
+            if node.type is None or not isinstance(node.type, TypeDecl):
+                continue  # We don't touch pointers!
+            if node.type.type is None or not isinstance(node.type.type, IdentifierType):
+                continue  # We don't touch structs/unions (we could; but we simplify this)
+            if node.type.type.names is None or len(node.type.type.names) == 0:
+                continue
+            type_ = node.type.type.names[-1]  # TODO is [-1] right?
+            if type_ in OpaquePredicate.VALID_INPUT_TYPES:
+                self.parameters.append((node.name, type_))
+            # TODO allow typedefs here also? comehere
 
     def visit_FuncDef(self, node):
         prev = self.current_function
