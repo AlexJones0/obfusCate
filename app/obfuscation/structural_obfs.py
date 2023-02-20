@@ -793,6 +793,7 @@ class OpaqueInserter(NodeVisitor):
 
     def reset(self):
         self.functions = []
+        self.global_typedefs = {}
         self.current_function = None
         self.parameters = None
         self.analyzer = None
@@ -1082,7 +1083,28 @@ class OpaqueInserter(NodeVisitor):
             type_ = node.type.type.names[-1]  # TODO is [-1] right?
             if type_ in OpaquePredicate.VALID_INPUT_TYPES:
                 self.parameters.append((node.name, type_))
-            # TODO allow typedefs here also? comehere
+            elif type_ in self.global_typedefs.keys():
+                # Handle typedef'd parameters
+                if self.global_typedefs[type_] in OpaquePredicate.VALID_INPUT_TYPES:
+                    self.parameters.append((node.name, type_))
+
+    def visit_Typedef(self, node: Typedef) -> None:
+        # Parse valid global typedefs to find permissible input params
+        # as a lot of C programs use custom typedefs to rename
+        # common (esp. integer) types.
+        if node.name is None or node.type is None or self.current_function is not None:
+            return self.generic_visit(node)
+        if not isinstance(node.type, TypeDecl) or node.type.type is None:
+            return self.generic_visit(node)
+        if not isinstance(node.type.type, IdentifierType) or node.type.type.names is None or len(node.type.type.names) == 0:
+            return self.generic_visit(node) # Ignore pointer/array types; we don't use them
+        typetype = node.type.type.names[-1]
+        if typetype in self.global_typedefs.keys(): 
+            # Typedef to a typedef!
+            self.global_typedefs[node.name] = self.global_typedefs[typetype]
+        else: # Typedef to some standard C type
+            self.global_typedefs[node.name] = typetype 
+        self.generic_visit(node)
 
     def visit_FuncDef(self, node):
         prev = self.current_function
