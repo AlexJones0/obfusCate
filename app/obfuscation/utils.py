@@ -976,6 +976,9 @@ class VariableUseAnalyzer(NodeVisitor):
     def change_ident(self, node, name, new_name):
         stmt_node = self.get_stmt(node)
         for (change_node, attr) in self.definition_uses[(stmt_node, name)]:
+            if attr == "names":  # TODO stopgap fix, need to make more robust
+                setattr(change_node, attr, [new_name])
+                continue
             setattr(change_node, attr, new_name)
 
     def record_ident_usage(self, node, attr, kind, altname=None):
@@ -1263,13 +1266,12 @@ class VariableUseAnalyzer(NodeVisitor):
 
     def visit_IdentifierType(self, node):
         # TODO not sure why there can be multiple names here - need to check TODO
-        name = ".".join(node.names)
-        if name in self.typedefs:
-            self.record_ident_usage(node, "names", TypeKinds.NONSTRUCTURE, altname=name)
-        # if node.names is not None:
-        #    for name in node.names:
-        #        if name in self.typedefs:
-        #            self.record_ident_usage(name, TypeKinds.NONSTRUCTURE)
+        if node.names is not None:
+            self.record_ident_usage(node, "names", TypeKinds.NONSTRUCTURE, altname=node.names[-1])
+            # TODO this attribute it surely not updated correctly?
+        #name = ".".join(node.names)
+        #if name in self.typedefs:
+        #    self.record_ident_usage(node, "names", TypeKinds.NONSTRUCTURE, altname=name)
         self.generic_visit(node)
 
     def visit_StructRef(self, node):
@@ -1545,9 +1547,15 @@ class ExpressionAnalyzer(NodeVisitor):
         elif node.op in ["-", "+", "~"]:
             self.types[node] = self.types[node.expr]
             self.mutating[node] = self.mutating[node.expr]
-        elif node.op in ["!", "_Sizeof", "sizeof", "alignof", "_Alignof"]:
+        elif node.op == "!":
             self.types[node] = self.SimpleType.INT
             self.mutating[node] = self.mutating[node.expr]
+        elif node.op in ["_Sizeof", "sizeof", "alignof", "_Alignof"]:
+            self.types[node] = self.SimpleType.INT
+            if node.expr in self.mutating:
+                self.mutating[node] = self.mutating[node.expr]
+            else:  # getting size/alignment of a TypeDecl
+                self.mutating[node] = False
         elif node.op == "&":
             self.types[node] = self.Ptr(self.types[node.expr])
             self.mutating[node] = self.mutating[node.expr]
@@ -1709,31 +1717,3 @@ class ExpressionAnalyzer(NodeVisitor):
 
     # TODO what is a CompoundLiteral? Do I need to account for it?
 
-
-# TODO: abandoned for now, maybe finish another time?
-class FormattedCGenerator(CGenerator):
-    # NOTE: my code, but highly based on the original CGenerator object
-    # which is being extended - I'm just replacing some of its functions
-    # to remove whitespace that is being generated.
-    # See: https://github.com/eliben/pycparser/blob/master/pycparser/c_generator.py
-
-    def visit_FuncDef(self, node):
-        decl = self.visit(node.decl)
-        self.indent_level = 0
-        body = self.visit(node.body)
-        if node.param_decls:
-            params = ";\n".join(self.visit(p) for p in node.param_decls)
-            return decl + "\n" + params + "; " + body + ""
-        else:
-            return decl + " " + body + ""
-
-    def visit_If(self, node):
-        string = "if ("
-        if node.cond:
-            string += self.visit(node.cond)
-        string += ") "
-        string += self._generate_stmt(node.iftrue, add_indent=False)
-        if node.iffalse:
-            string += self._make_indent() + "else "
-            string += self._generate_stmt(node.iffalse, add_indent=False)
-        return string
