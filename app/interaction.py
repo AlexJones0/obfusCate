@@ -14,6 +14,44 @@ import os, time, enum
 
 
 class PatchedParser(CParser):
+    """ Patches the behaviour of pycparser's CParser class to correctly parse 
+    labels and gotos. By default, pycparser makes the assumption that it can 
+    split identifier tokens into regular identifiers ('ID') and type identifiers
+    ('TYPEID') based on whether a token is a defined type in the current scope
+    or not. Labels/Gotos are then defined to only be of the form:
+    
+        labeled_stmt   : ID COLON pragmacomp_or_statement | ...
+        jump_statement : GOTO ID SEMI | ...       
+        
+    This ignores the C name space rules [1], which states that we have four key name
+    spaces - one for labels, one for tags (enums, structs, unions), one for
+    members of unions & structs, and finally one for all other identifiers, colloquially
+    referred to as 'ordinary identifiers'. Hence the current grammar fails in the case 
+    where a type with the same name as the label has already been defined (by a typedef). 
+    This should compile, as the name spaces are separate, but pycparser does not recognise 
+    this. 
+    
+    Rather than alter the entire grammar/lexer to incorporate namespaces properly,
+    a quick partchwork fix is made in this class to allow type idenftifiers 
+    ('TYPEID') to be used as label names, such that even if an identifier 
+    corresponds to an existing type it can be used as a label. So we now have:
+    
+        labeled_stmt   : ID COLON pragmacomp_or_statement 
+                       | TYPEID COLON pragmacomp_or_statement | ...
+        jump_statement : GOTO ID SEMI 
+                       | GOTO TYPEID SEMI | ...
+        
+    Yacc optimisation is enabled but the yacc table is specified as a module
+    local to the project, and thus the first time a PatchedParser() is created
+    on the system some small slowdown will occur (a few seconds at most) to 
+    generate this yacc table for the first time. After this, the lexer/parser
+    will operate at full speed, however. 
+    
+    [1] See the C99 standards section 6.2.3 on the name spaces of identifiers
+    (pages 31) - which details these name spaces and how they are disambiguated.
+    https://www.open-std.org/jtc1/sc22/wg14/www/docs/n1256.pdf
+    """
+    
     def __init__(self) -> None:
         super(PatchedParser, self).__init__(
             lex_optimize=True,
