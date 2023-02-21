@@ -285,13 +285,15 @@ class CountUnit(CodeMetricUnit):
         self.add_metric("Statements", str(new_stmts), int_delta(new_stmts, old_stmts))
         if new_counter.functions != 0:
             new_spf = new_counter.stmts_in_functions / new_counter.functions
+            new_spf_str = "{:.2f}".format(new_spf)
         else:
             new_spf = "N/A"
+            new_spf_str = "N/A"
         if old_counter.functions != 0:
             old_spf = old_counter.stmts_in_functions / old_counter.functions
         else:
             old_spf = "N/A"
-        self.add_metric("Stmts/Function", str(new_spf), float_delta(new_spf, old_spf))
+        self.add_metric("Stmts/Function", new_spf_str, float_delta(new_spf, old_spf))
 
     def preprocess_contents(self, source: CSource) -> str:
         generator = c_generator.CGenerator()
@@ -895,9 +897,11 @@ class CyclomaticComplexityUnit(CodeMetricUnit):
             avg_old_myers = "N/A"
         if len(new_myers) != 0:
             avg_new_myers = total_new_myers / len(new_myers)
+            avg_new_myers_str = "{:.2f}".format(avg_new_myers)
         else:
             avg_new_myers = "N/A"
-        self.add_metric("Avg. Myers' Interval", str(avg_new_myers), "{}".format(
+            avg_new_myers_str = "N/A"
+        self.add_metric("Avg. Myers' Interval", avg_new_myers_str, "{}".format(
             float_delta(avg_new_myers, avg_old_myers)
         ))
         self.add_metric("Total Myers' Interval", str(total_new_myers), "{}".format(
