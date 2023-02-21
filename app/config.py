@@ -22,6 +22,7 @@ class Config(object):
     SAVE_COMPOSITION = False
     COMPOSITION = None
     SEED = None
+    USE_ALLOCA = True
 
 class GuiDefaults(object):
     DEFAULT_FONT = ["Consolas", "Fira Code", "Jetbrains Mono", "Courier New", "monospace"]

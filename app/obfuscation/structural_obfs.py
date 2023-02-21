@@ -4,7 +4,7 @@ structural obfuscation transformations, including obfuscation related
 to the augmenting of existing conditionals with opaque predicates,
 and the insertion of new conditional opaque predicates into the program. 
 """
-from .. import utils, interaction
+from .. import utils, interaction, settings as cfg
 from ..debug import *
 from .utils import (
     ObfuscationUnit,
@@ -12,6 +12,7 @@ from .utils import (
     generate_new_contents,
     NewVariableUseAnalyzer,
     TypeKinds,
+    ObjectFinder,
 )
 from pycparser.c_ast import *
 from typing import Iterable, Tuple, Optional
@@ -784,20 +785,6 @@ class BugGenerator(NodeVisitor):
                 NodeVisitor.generic_visit(self, child)
 
 
-class LabelFinder(NodeVisitor):
-    def __init__(self):
-        super(LabelFinder, self).__init__()
-        self.reset()
-
-    def reset(self):
-        self.labels = set()
-
-    def visit_Label(self, node):
-        if node.name is not None:
-            self.labels.add(node)
-        NodeVisitor.generic_visit(self, node)
-
-
 class OpaqueInserter(NodeVisitor):
     class Style(enum.Enum):
         INPUT = "Construct predicates from dynamic user input"
@@ -830,7 +817,7 @@ class OpaqueInserter(NodeVisitor):
         self.kinds = kinds
         self.number = number
         self.bug_generator = BugGenerator(0.5, 0.4)
-        self.label_finder = LabelFinder()
+        self.label_finder = ObjectFinder(Label, ["name"])
         self.reset()
 
     def reset(self):
@@ -928,7 +915,7 @@ class OpaqueInserter(NodeVisitor):
 
     def replace_labels(self, node):
         self.label_finder.visit(node)
-        for label in self.label_finder.labels:
+        for label in self.label_finder.objs:
             new_ident = self.analyzer.get_new_identifier(exclude=self.label_names)
             self.label_names.add(new_ident)
             label.name = new_ident
@@ -1403,6 +1390,8 @@ class ControlFlowFlattener(NodeVisitor):
         self.current_function = None
         self.function_decls = None
         self.pending_head = []
+        self.frees = []
+        self.malloced = False
         self.checked_stmts = None
         self.unavailable_idents = None
         self.numbers = set()
@@ -1411,6 +1400,15 @@ class ControlFlowFlattener(NodeVisitor):
         self.attr = None
         self.analyzer = None
         self.count = 0
+
+    def transform(self, source: interaction.CSource) -> None:
+        self.analyzer = NewVariableUseAnalyzer(source.t_unit)
+        self.analyzer.process()
+        self.visit(source.t_unit)
+        if self.malloced and not utils.is_initialised(source, ["stdlib.h"]):
+            # TODO could this break if the user already has functions used in these libraries? uh oh need to state this somewhere
+            source.contents = "#include <stdlib.h>\n" + source.contents
+        self.reset()
 
     def get_unique_number(self):
         if self.style == self.Style.SEQUENTIAL:
@@ -1438,11 +1436,31 @@ class ControlFlowFlattener(NodeVisitor):
             self.numbers.add(enum)
             return ID(enum)
 
-    def visit_FileAST(self, node):
-        self.analyzer = NewVariableUseAnalyzer(node)
-        self.analyzer.process()
-        self.generic_visit(node)
-        self.reset()
+    def __free_at_returns(self, func_body: Compound) -> None:
+        # Generate free statements
+        free_stmts = [
+            FuncCall(ID("free"), ExprList([free_id])) for free_id in self.frees
+        ]
+        # Find returns in the function body
+        return_finder = ObjectFinder(Return, [])
+        return_finder.visit(func_body)
+        # Add frees before all returns
+        for return_node in return_finder.objs:
+            parent = return_finder.parents[return_node]
+            attr = return_finder.attrs[return_node]
+            if isinstance(parent, Compound):
+                i = parent.block_items.index(return_node)
+                parent.block_items = (
+                    parent.block_items[:i] + free_stmts + parent.block_items[i:]
+                )
+            elif isinstance(parent, (Case, Default)):
+                i = parent.stmts.index(return_node)
+                parent.stmts = parent.stmts[:i] + free_stmts + parent.stmts[i:]
+            elif isinstance(parent, ExprList):
+                i = parent.exprs.index(return_node)
+                parent.exprs = parent.exprs[:i] + free_stmts + parent.exprs[i:]
+            else:
+                setattr(parent, attr, Compound(free_stmts + [return_node]))
 
     def flatten_function(self, node):
         if (
@@ -1507,7 +1525,11 @@ class ControlFlowFlattener(NodeVisitor):
             new_statements[0].type.values.enumerators = [
                 Enumerator(enum, None) for enum in self.numbers
             ]
+        # Free any mallocs at the end of the function
+        for free_id in self.frees:
+            new_statements.append(FuncCall(ID("free"), ExprList([free_id])))
         node.body.block_items = new_statements
+        self.__free_at_returns(node.body)  # Free any mallocs before each return
         if self.randomise_cases:
             random.shuffle(self.cases)
 
@@ -1821,6 +1843,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.function_decls = set()
         self.checked_stmts = set()
         self.pending_head = []
+        self.frees = []
         if node.decl.type.args is not None:
             start_stmt = self.analyzer.compound_stmt_map[node.body][0]
         else:
@@ -1830,7 +1853,6 @@ class ControlFlowFlattener(NodeVisitor):
         self.flatten_function(node)
         if node.body is not None and node.body.block_items is not None:
             node.body.block_items = self.pending_head + node.body.block_items
-        self.pending_head = []
         self.function_decls = None
         self.current_function = None
         self.cur_number = 0
@@ -1935,6 +1957,13 @@ class ControlFlowFlattener(NodeVisitor):
                 return [(node, [])]
         return None
 
+    def __is_variable_expr(self, node: Node) -> bool:
+        if node is None:
+            return False
+        id_finder = ObjectFinder(ID, ["name"])
+        id_finder.visit(node)
+        return len(id_finder.objs) != 0
+
     def visit_Decl(self, node):
         # TODO modularise!
         if self.current_function is None:
@@ -1965,6 +1994,7 @@ class ControlFlowFlattener(NodeVisitor):
                 self.function_decls.add((ident, kind))
         self.checked_stmts.add(stmt)
         # Create a relevant corresponding declaration at the start of the function
+        is_variable_expr = self.__is_variable_expr(node.type)
         if (
             node.type is not None
             and isinstance(node.type, ArrayDecl)
@@ -1983,11 +2013,20 @@ class ControlFlowFlattener(NodeVisitor):
                         )
                     )
                     break
-            #arr_values = self.__get_array_values(node.type, array_dims)
-            # TODO is this needed?
+        elif is_variable_expr and isinstance(node.type, ArrayDecl):
+            # Convert variable-length array to pointer (will be malloced later)
+            arr_decl = copy.deepcopy(node.type)
+            node_type = PtrDecl(None, None)
+            ptr_decl = node_type
+            while arr_decl.type is not None and isinstance(arr_decl.type, ArrayDecl):
+                # TODO what about arr_decl.quals?
+                next_decl = PtrDecl(None, None)
+                ptr_decl.type = next_decl
+                ptr_decl = next_decl
+                arr_decl = arr_decl.type
+            ptr_decl.type = arr_decl.type
         else:
             node_type = node.type
-            #arr_values = None
         decl = Decl(
             node.name,
             node.quals,
@@ -2004,7 +2043,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.pending_head.append(decl)
         # Replace the declaration with a corresponding assignment if appropriate
         if node.init is None:
-            assign = None
+            assign = []
         elif isinstance(
             node.init, InitList
         ):  # TODO does this fail on multi-dimensional init lists? Check. Probably.
@@ -2016,38 +2055,88 @@ class ControlFlowFlattener(NodeVisitor):
                         "=", ArrayRef(ID(node.name), Constant("int", str(i))), expr
                     )
                 )
-        elif isinstance(node.init, Constant) and node.init.type == "string" and node.init.value is not None:
+        elif (
+            isinstance(node.init, Constant)
+            and node.init.type == "string"
+            and node.init.value is not None
+        ):
             assign = []
             for i, val in enumerate(node.init.value[1:-1]):
                 assign.append(
                     Assignment(
-                        "=", ArrayRef(ID(node.name), Constant("int", str(i))), 
-                        Constant("char", "'{}'".format(val))
+                        "=",
+                        ArrayRef(ID(node.name), Constant("int", str(i))),
+                        Constant("char", "'{}'".format(val)),
                     )
                 )
             assign.append(
                 Assignment(
-                    "=", ArrayRef(ID(node.name), Constant("int", str(len(node.init.value) - 2))),
-                    Constant("char", "'\\0'")
+                    "=",
+                    ArrayRef(
+                        ID(node.name), Constant("int", str(len(node.init.value) - 2))
+                    ),
+                    Constant("char", "'\\0'"),
                 )
             )
         else:
             assign = [Assignment("=", ID(node.name), node.init)]
+        if is_variable_expr and isinstance(node.type, ArrayDecl):
+            # Parse out element type information and array dimensions
+            elem_type = node.type
+            while (
+                isinstance(elem_type, (PtrDecl, ArrayDecl))
+                and elem_type.type is not None
+            ):
+                elem_type = elem_type.type
+            if node.type.dim is None:
+                array_dims = self.__get_array_size(node.init)
+                if array_dims is None:
+                    arr_size = Constant("int", str(arr_size))
+                else:
+                    arr_size = Constant("int", str(math.prod(array_dims)))
+            else:
+                arr_size = node.type.dim
+            # Create a malloc for the Variable Length Array (VLA)
+            assign = [
+                Assignment(
+                    "=",
+                    ID(node.name),
+                    FuncCall(
+                        ID("alloca" if cfg.USE_ALLOCA else "malloc"),
+                        ExprList(
+                            [
+                                BinaryOp(
+                                    "*",
+                                    UnaryOp("sizeof", elem_type),
+                                    arr_size,
+                                )
+                            ]
+                        ),
+                    ),
+                )
+            ] + assign
+            ### TODO TODO TODO: NOT CURRENTLY MULTIDIMENSIONAL ARRAY STUFF? IS THIS NEEDED?
+            if not cfg.USE_ALLOCA:
+                self.frees.append(ID(node.name))
+            self.malloced = True
+        # I do this in frees before returning as well - just make utility functions for inserting
+        # a node before/after/replacing a given node to cut down on repeated code?
         if isinstance(self.parent, Compound):
             i = self.parent.block_items.index(node)
             self.parent.block_items = (
                 self.parent.block_items[:i]
-                + ([] if assign is None else assign)
+                + assign
                 + self.parent.block_items[(i + 1) :]
             )
+        elif isinstance(self.parent, (Case, Default)):
+            i = self.parent.stmts.index(node)
+            self.parent.stmts = self.parent.stmts[:i] + assign + self.parent.stmts[i:]
         elif isinstance(self.parent, ExprList):  # DeclList after transformation
             i = self.parent.exprs.index(node)
             self.parent.exprs = (
-                self.parent.exprs[:i]
-                + ([] if assign is None else assign)
-                + self.parent.exprs[(i + 1) :]
+                self.parent.exprs[:i] + assign + self.parent.exprs[(i + 1) :]
             )
-        elif assign is not None and len(assign) == 1:
+        elif len(assign) == 1:
             setattr(self.parent, self.attr, assign)
         else:
             setattr(self.parent, self.attr, Compound(assign))
@@ -2092,7 +2181,9 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
         """WARNING: Due to limitations of pycparser, this currently does not work with labelled case statements, e.g.\n"""
         """switch (x) {\n"""
         """    abc: case 1: do_stuff(); break;\n"""
-        """}"""
+        """}\n\n"""
+        """WARNING: Currently requires to translate variable length arrays (VLAs) to MALLOCs (stored on heap\n"""
+        """instead of stack) - make note of this for memory allocation! """
     )  # TODO talk about this limitation of pycparser in my report - downside to switching / Open source!
     type = TransformType.STRUCTURAL
 
@@ -2102,7 +2193,7 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
         self.traverser = ControlFlowFlattener(randomise_cases, style)
 
     def transform(self, source: interaction.CSource) -> interaction.CSource:
-        self.traverser.visit(source.t_unit)
+        self.traverser.transform(source)
         new_contents = generate_new_contents(source)
         return interaction.CSource(source.fpath, new_contents, source.t_unit)
 

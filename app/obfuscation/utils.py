@@ -9,7 +9,7 @@ from ..debug import *
 from pycparser.c_ast import *
 from pycparser.c_lexer import CLexer
 from pycparser.c_generator import CGenerator
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Type
 import abc, enum, json, string, pycparser
 
 # TODO: clear down some of these old TODOs
@@ -26,8 +26,37 @@ import abc, enum, json, string, pycparser
 # TODO also, add an option to disable logging!
 # TODO make a NodeVisitor subclass that overrides the traditional names to allow for consistent function naming
 
+
+class ObjectFinder(NodeVisitor):
+    def __init__(self, class_: Type, attrs: list[str]):
+        super(ObjectFinder, self).__init__()
+        self.class_ = class_
+        self.none_checks = attrs
+        self.reset()
+
+    def reset(self):
+        self.objs = set()
+        self.parents = {}
+        self.attrs = {}
+        self.parent = None
+        self.attr = None
+
+    def generic_visit(self, node: Node) -> None:
+        if isinstance(node, self.class_):
+            if all(getattr(node, attr) is not None for attr in self.none_checks):
+                self.objs.add(node)
+                self.parents[node] = self.parent
+                self.attrs[node] = self.attr
+        this_parent = self.parent
+        self.parent = node
+        for child in node.children():
+            self.attr = child[0]
+            self.visit(child[1])
+        self.parent = this_parent
+
+
 def generate_new_contents(source: interaction.CSource) -> str:
-    """Generates textual obfuscated file contents from a source's abstract syntax tree 
+    """Generates textual obfuscated file contents from a source's abstract syntax tree
     (AST), facilitating AST manipulation for source-to-source transformation.
 
     Args:
@@ -140,15 +169,16 @@ class IdentityUnit(ObfuscationUnit):
     def __str__(self):
         return "Identity()"
 
+
 # TODO a lot of ident parsing is done in the wrong order through the AST, which will
 # give random stuff in the wrong order - not a huge deal but would be nice to fix
 
 
-class TypeKinds(enum.Enum): 
+class TypeKinds(enum.Enum):
     # TODO turns out these are actually called "name spaces",
-    STRUCTURE = 0 # TODO turns out this should be 'tag'
+    STRUCTURE = 0  # TODO turns out this should be 'tag'
     LABEL = 1
-    NONSTRUCTURE = 2 # TODO turns out this should be 'ordinary'/'other'
+    NONSTRUCTURE = 2  # TODO turns out this should be 'ordinary'/'other'
 
 
 class NewVariableUseAnalyzer(NodeVisitor):
@@ -337,7 +367,9 @@ class NewVariableUseAnalyzer(NodeVisitor):
             compound = self.get_stmt_compound(stmt)
         return self.get_nested_scope_usage(compound, stmt, None)
 
-    def get_unique_identifier(self, node, type, compound=None, function=None, exclude=None):
+    def get_unique_identifier(
+        self, node, type, compound=None, function=None, exclude=None
+    ):
         stmt = self.get_stmt_from_node(node)
         if compound is None:
             compound = self.get_stmt_compound(stmt)
@@ -345,7 +377,9 @@ class NewVariableUseAnalyzer(NodeVisitor):
             self.get_scope_definitions(compound)
         )
         if function is not None:
-            defined = defined.union(set((x, TypeKinds.LABEL) for x in self.labels[function]))
+            defined = defined.union(
+                set((x, TypeKinds.LABEL) for x in self.labels[function])
+            )
         defined = set(x[0] for x in defined if x[1] == type)
         if exclude is not None:
             defined = defined.union(set(exclude))
@@ -413,7 +447,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
             if node.declname is None:
                 return None
             return (node.declname, node)
-        return None            
+        return None
 
     def record_ident_def(self, node, name, locations, kind, alt_scope=None):
         node = self.get_stmt_from_node(node)
@@ -520,7 +554,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
 
     def visit_TypeDecl(self, node):
         ### TODO I think I can (and need to); but can I happily get rid of this?
-        ### Note: this would work, but typedecl can be both used and defined 
+        ### Note: this would work, but typedecl can be both used and defined
         ### I believe (not 100% sure), so I don't want to do it like this
         # COMEHERE is this right?
         """info = self.info[self.processing_stack[-1]]
@@ -654,8 +688,10 @@ class NewVariableUseAnalyzer(NodeVisitor):
                 node.name,
                 [(node, "name")],
                 TypeKinds.LABEL,
-                alt_scope=self.current_definitions[1], # TODO look into fixing this it is breaking stuff
-            ) # The above defines it in the function, but when looking at usage it may not be found
+                alt_scope=self.current_definitions[
+                    1
+                ],  # TODO look into fixing this it is breaking stuff
+            )  # The above defines it in the function, but when looking at usage it may not be found
             self.labels[self.current_function].add(node.name)
         NodeVisitor.generic_visit(self, node)
 
@@ -1280,26 +1316,25 @@ class VariableUseAnalyzer(NodeVisitor):
 
 
 class ExpressionAnalyzer(NodeVisitor):
-    
     class SimpleType(Enum):
         INT = 0
         REAL = 1
         OTHER = 2
-    
+
     class Ptr:
         def __init__(self, val):
             self.val = val
-        
+
         def __eq__(self, other):
             return type(self) == type(other) and self.val == other.val
-    
+
     class Array:
         def __init__(self, val):
             self.val = val
-        
+
         def __eq__(self, other):
             return type(self) == type(other) and self.val == other.val
-    
+
     # TODO centralise these and combine with the opaque predicate types to reduce repetition
     VALID_INT_TYPES = [
         "int8_t",
@@ -1338,16 +1373,16 @@ class ExpressionAnalyzer(NodeVisitor):
         "_Bool",
     ]
     VALID_REAL_TYPES = ["float", "double", "long double"]
-    
+
     def __init__(self, t_unit: Node) -> None:
         super(ExpressionAnalyzer, self).__init__()
         self.t_unit = t_unit
         self.reset()
-    
+
     def reset(self):
-        self.type_aliases = [] # Stack of scopes of defined type aliases
-        self.structs = [] # Stack of scopes of defined structs/union
-        self.defined = [] # Stack of scopes of defined variables
+        self.type_aliases = []  # Stack of scopes of defined type aliases
+        self.structs = []  # Stack of scopes of defined structs/union
+        self.defined = []  # Stack of scopes of defined variables
         self.functions = {}
         self.params = {}
         self.in_param_list = False
@@ -1362,7 +1397,7 @@ class ExpressionAnalyzer(NodeVisitor):
     def process(self) -> None:
         self.visit(self.t_unit)
         self.processed = True
-        
+
     def is_type(self, expr: Node, type_) -> bool:
         if expr not in self.types:
             return type_ is None
@@ -1372,13 +1407,13 @@ class ExpressionAnalyzer(NodeVisitor):
         if expr not in self.mutating:
             return False
         return self.mutating[expr]
-        
+
     def get_type_alias(self, name):
         for scope in self.type_aliases[::-1]:
             if name in scope:
                 return scope[name]
         return None
-    
+
     def get_var_type(self, name):
         for scope in self.defined[::-1]:
             if name in scope:
@@ -1390,13 +1425,13 @@ class ExpressionAnalyzer(NodeVisitor):
             if name in scope:
                 return scope[name]
         return None
-    
+
     def get_struct_field_type(self, struct, field):
         for decl in struct.decls:
             if decl.name is not None and decl.name == field and decl.type is not None:
                 return self.convert_type(decl.type)
         return None
-    
+
     def standard_coalesce_types(self, types):
         if any([t == self.SimpleType.OTHER for t in types]):
             return self.SimpleType.OTHER
@@ -1411,12 +1446,12 @@ class ExpressionAnalyzer(NodeVisitor):
             return self.Ptr(self.standard_coalesce_types(vals))
         else:
             return self.SimpleType.INT
-            
+
     def get_func_type(self, name):
         if name in self.functions:
             return self.functions[name]
         return self.SimpleType.OTHER
-        
+
     def visit_FileAST(self, node):
         self.type_aliases.append({})
         self.structs.append({})
@@ -1438,12 +1473,12 @@ class ExpressionAnalyzer(NodeVisitor):
         self.defined = self.defined[:-1]
         self.structs = self.structs[:-1]
         self.type_aliases = self.type_aliases[:-1]
-    
+
     def visit_ParamList(self, node):
         self.params = {}
         self.in_param_list = True
         self.generic_visit(node)
-        
+
     def convert_type(self, node):
         if isinstance(node, PtrDecl):
             return self.Ptr(self.convert_type(node.type))
@@ -1476,17 +1511,22 @@ class ExpressionAnalyzer(NodeVisitor):
             return self.SimpleType.OTHER
         else:
             return self.SimpleType.OTHER
-        
+
     def visit_FuncDef(self, node):
-        if node.decl is not None and node.decl.name is not None and node.decl.type is not None and node.decl.type.type is not None:
+        if (
+            node.decl is not None
+            and node.decl.name is not None
+            and node.decl.type is not None
+            and node.decl.type.type is not None
+        ):
             self.functions[node.decl.name] = self.convert_type(node.decl.type.type)
         self.generic_visit(node)
-    
+
     def visit_Typedef(self, node):
         if node.name is not None and node.type is not None:
             self.type_aliases[-1][node.name] = self.convert_type(node.type)
         self.generic_visit(node)
-    
+
     def visit_Decl(self, node):
         if node.name is not None and node.type is not None:
             if self.in_param_list:
@@ -1494,7 +1534,7 @@ class ExpressionAnalyzer(NodeVisitor):
             else:
                 self.defined[-1][node.name] = self.convert_type(node.type)
         self.generic_visit(node)
-            
+
     def visit_UnaryOp(self, node):
         self.generic_visit(node)
         if node.expr is None or node.op is None:
@@ -1517,12 +1557,12 @@ class ExpressionAnalyzer(NodeVisitor):
                 self.types[node] = expr_type.val
             else:
                 self.types[node] = expr_type
-            self.mutating[node] = self.mutating[node.expr] 
+            self.mutating[node] = self.mutating[node.expr]
         else:
             log(f"Unknown unary operator {node.op} encountered.")
             self.types[node] = self.SimpleType.OTHER
             self.mutating[node] = True  # Pessimistic Assumption
-        
+
     def visit_BinaryOp(self, node):
         self.generic_visit(node)
         if node.left is None or node.right is None or node.op is None:
@@ -1532,7 +1572,7 @@ class ExpressionAnalyzer(NodeVisitor):
             right_type = self.types[node.right]
             self.types[node] = self.standard_coalesce_types([left_type, right_type])
             self.mutating[node] = self.mutating[node.left] or self.mutating[node.right]
-        elif node.op in ["%", "<<", ">>", "<", "<=", ">", ">=", "==", "!=", "&&", "||"]: 
+        elif node.op in ["%", "<<", ">>", "<", "<=", ">", ">=", "==", "!=", "&&", "||"]:
             self.types[node] = self.SimpleType.INT
             self.mutating[node] = self.mutating[node.left] or self.mutating[node.right]
         elif node.op in ["&", "|", "^"]:
@@ -1543,7 +1583,7 @@ class ExpressionAnalyzer(NodeVisitor):
             log(f"Unknown binary operator {node.op} encountered.")
             self.types[node] = self.SimpleType.OTHER
             self.mutating[node] = True  # Pessimistic assumption
-    
+
     def visit_TernaryOp(self, node):
         self.generic_visit(node)
         if node.iftrue is not None:
@@ -1551,7 +1591,7 @@ class ExpressionAnalyzer(NodeVisitor):
         elif node.iffalse is not None:
             self.types[node] = self.types[node.iffalse]
         self.mutating[node] = self.mutating[node.iftrue] or self.mutating[node.iffalse]
-    
+
     def visit_Typename(self, node):
         self.generic_visit(node)
         if node.type is not None:
@@ -1559,7 +1599,7 @@ class ExpressionAnalyzer(NodeVisitor):
             # <- Is this correct?
             self.types[node] = self.convert_type(node.type)
         self.mutating[node] = False
-    
+
     def visit_Cast(self, node):
         self.generic_visit(node)
         if node.to_type is not None:
@@ -1568,7 +1608,7 @@ class ExpressionAnalyzer(NodeVisitor):
             self.mutating[node] = self.mutating[node.expr]
         else:
             self.mutating[node] = False
-    
+
     def visit_ArrayRef(self, node):
         self.generic_visit(node)
         mutating = False
@@ -1582,26 +1622,26 @@ class ExpressionAnalyzer(NodeVisitor):
         if node.subscript is not None:
             mutating = mutating or self.mutating[node.subscript]
         self.mutating[node] = mutating
-    
+
     def visit_Assignment(self, node):
         self.generic_visit(node)
         if node.lvalue is not None:
             self.types[node] = self.types[node.lvalue]
         self.mutating[node] = True
-        
+
     def visit_Enum(self, node):
         self.generic_visit(node)
         if node.name is not None:
             # TODO double check: Enum's are always integer (integral) type I think?
             self.types[node] = self.SimpleType.INT
         self.mutating[node] = False
-    
+
     def visit_FuncCall(self, node):
         self.generic_visit(node)
         if node.name is not None:
             self.types[node] = self.get_func_type(node.name)
-        self.mutating[node] = True # Pessimistic assumption (e.g. globals)
-    
+        self.mutating[node] = True  # Pessimistic assumption (e.g. globals)
+
     def visit_Struct(self, node):
         if node.name is None:
             return
@@ -1611,7 +1651,7 @@ class ExpressionAnalyzer(NodeVisitor):
         else:
             self.types[node] = self.get_struct_type(node.name)
             self.mutating[node] = False
-    
+
     def visit_Union(self, node):
         if node.name is None:
             return
@@ -1621,14 +1661,21 @@ class ExpressionAnalyzer(NodeVisitor):
         else:
             self.types[node] = self.get_struct_type(node.name)
             self.mutating[node] = False
-    
+
     def visit_StructRef(self, node):
         self.generic_visit(node)
-        if node.type is not None and node.name is not None and node.field is not None and node.field.name is not None:
+        if (
+            node.type is not None
+            and node.name is not None
+            and node.field is not None
+            and node.field.name is not None
+        ):
             if node.type == ".":
                 struct_type = self.types[node.name]
                 if isinstance(struct_type, (Struct, Union)):
-                    self.types[node] = self.get_struct_field_type(struct_type, node.field.name)
+                    self.types[node] = self.get_struct_field_type(
+                        struct_type, node.field.name
+                    )
                 else:
                     self.types[node] = self.SimpleType.OTHER
             elif node.type == "->":
@@ -1636,28 +1683,30 @@ class ExpressionAnalyzer(NodeVisitor):
                 if isinstance(struct_type, (self.Ptr, self.Array)):
                     struct_type = struct_type.val
                 if isinstance(struct_type, (Struct, Union)):
-                    self.types[node] = self.get_struct_field_type(struct_type, node.field.name)
+                    self.types[node] = self.get_struct_field_type(
+                        struct_type, node.field.name
+                    )
                 else:
                     self.types[node] = self.SimpleType.OTHER
         mutating = False
         if node.name is not None:
             mutating = mutating or self.mutating[node.name]
-        if node.field is not None: # TODO can this be an expr? I don't think so?
+        if node.field is not None:  # TODO can this be an expr? I don't think so?
             mutating = mutating or self.mutating[node.field]
         self.mutating[node] = mutating
-        
+
     def visit_Constant(self, node):
         self.generic_visit(node)
         if node.type is not None:
             self.types[node] = self.convert_type(node.type)
         self.mutating[node] = False
-    
+
     def visit_ID(self, node):
         self.generic_visit(node)
         if node.name is not None:
             self.types[node] = self.get_var_type(node.name)
         self.mutating[node] = False
-    
+
     # TODO what is a CompoundLiteral? Do I need to account for it?
 
 
@@ -1667,24 +1716,24 @@ class FormattedCGenerator(CGenerator):
     # which is being extended - I'm just replacing some of its functions
     # to remove whitespace that is being generated.
     # See: https://github.com/eliben/pycparser/blob/master/pycparser/c_generator.py
-    
+
     def visit_FuncDef(self, node):
         decl = self.visit(node.decl)
         self.indent_level = 0
         body = self.visit(node.body)
         if node.param_decls:
-            params = ';\n'.join(self.visit(p) for p in node.param_decls)
-            return decl + '\n' + params + '; ' + body + ''
+            params = ";\n".join(self.visit(p) for p in node.param_decls)
+            return decl + "\n" + params + "; " + body + ""
         else:
-            return decl + ' ' + body + ''
-        
+            return decl + " " + body + ""
+
     def visit_If(self, node):
-        string = 'if ('
-        if node.cond: 
+        string = "if ("
+        if node.cond:
             string += self.visit(node.cond)
-        string += ') '
+        string += ") "
         string += self._generate_stmt(node.iftrue, add_indent=False)
         if node.iffalse:
-            string += self._make_indent() + 'else '
+            string += self._make_indent() + "else "
             string += self._generate_stmt(node.iffalse, add_indent=False)
         return string

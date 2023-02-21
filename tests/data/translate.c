@@ -12,4 +12,6 @@ int main() {
     char tempFileName4[] = (char *) {'.', 't', 'e', 'm', 'p', 'X', 'X', 'X', 'X', 'X', 'X', '\0'};
     char tempFileName5[];
     char tempFileName6[5];
+    char *myvar = malloc(sizeof(char) * 42);
+    free(myvar);
 }

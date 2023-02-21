@@ -1,4 +1,5 @@
 ## **Currently Known Bugs/Issues/Limitations**
+ - You may have written a program to exploit **undefined behaviour** that functions according to the compiler that you use. Note that **no guarantee** is provided that behaviour will be preserved in such cases. It is likely that any use of undefined behaviour will be corrupted due to obfuscation transformations and your program will hence break in these cases.
  - Due to many issues with pycparser handling these cases, the program does not currently support the use of **static assertions** and **pragmas**. Static assertions should be fine but often cause pycparser to crash for unknown reasons, and **pragmas** are ignored due to scope - the additional complexity of parsing every single pragma rule (e.g. setting a startup function) when handling identifier renaming (used in many obfuscation techniques) is too much for the scope of this project. Examples of these features are shown below.
    ```
    static_assert(sizeof(int) == 2 * sizeof(short), "The program requires an integer is the size of 2 shorts.");
