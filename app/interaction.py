@@ -5,10 +5,35 @@ system options (command-line arguments).
 """
 from .debug import print_error, log, delete_log_file, logprint
 from app import settings as cfg
-from pycparser import parse_file as pycparse_file
+from pycparser import parse_file as pycparse_file, c_ast
 from pycparser.c_ast import FileAST
+from pycparser.c_parser import CParser
+from pycparser.c_lexer import CLexer
 from typing import Iterable, Tuple, Callable
 import os, time, enum
+
+
+class PatchedParser(CParser):
+    def __init__(self) -> None:
+        super(PatchedParser, self).__init__(
+            lex_optimize=True,
+            lexer=CLexer,
+            lextab="pycparser.lextab",
+            yacc_optimize=True,
+            yacctab="yacctab",
+            yacc_debug=False,
+            taboutputdir="",
+        )
+
+    def p_labeled_statement_1(self, p):
+        """labeled_statement : TYPEID COLON pragmacomp_or_statement
+                             | ID COLON pragmacomp_or_statement """
+        p[0] = c_ast.Label(p[1], p[3], self._token_coord(p, 1))
+        
+    def p_jump_statement_1(self, p):
+        """ jump_statement  : GOTO ID SEMI 
+                            | GOTO TYPEID SEMI """
+        p[0] = c_ast.Goto(p[2], self._token_coord(p, 1))
 
 
 class CSource:
@@ -74,7 +99,8 @@ class CSource:
                 filepath,
                 use_cpp=True,
                 cpp_path="clang",
-                cpp_args=["-E", r"-Iutils/fake_libc_include"]
+                cpp_args=["-E", r"-Iutils/fake_libc_include"],
+                parser=PatchedParser()
                 # TODO add trigraph support?
             )
             fname = filepath.split("\\")[-1]
@@ -117,7 +143,7 @@ class CSource:
     @property
     def valid_parse(self) -> bool:
         """This boolean property describes whether a valid parse has been performed on
-        the C source file or not. """
+        the C source file or not."""
         return self.t_unit is not None
 
 
@@ -331,11 +357,11 @@ def cli_enum_select(
         action_name (str): The name of what you are doing with the selection,
         e.g. "opaque predicate insertion".
         custom_prompt (str | None, optional): A custom prompt to use instead
-        of the default generated from the given `type_name` and `action_name`. 
+        of the default generated from the given `type_name` and `action_name`.
         Defaults to None, in which case the generated prompt is used.
 
     Returns:
-        list[enum.Enum] | None: The list of selected enumerator values, or 
+        list[enum.Enum] | None: The list of selected enumerator values, or
         None if the user chose to quit the selection.
     """
     available = [s for s in enum_]
@@ -500,9 +526,10 @@ def display_version() -> bool:
     log("Retrieved and displayed name and version information for the software.")
     return False
 
+
 def disable_alloca() -> None:
     """Sets the config to disable use of `alloca()` calls to replace
-    variable length arrays in control flow flattening. """
+    variable length arrays in control flow flattening."""
     cfg.USE_ALLOCA = False
     log("Set option to disable alloca use by CFF in replacing VLAs.")
 
@@ -627,8 +654,8 @@ shared_options = [
         "Disables use of alloca() to replace Variable Length Arrays (VLA) in the program whilst\n"
         "control flow flattening, as this is not defined in the C standard and may not be available\n"
         "in all systems (though it is in most)",
-        []
-    )
+        [],
+    ),
 ]
 
 

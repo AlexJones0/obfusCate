@@ -139,3 +139,6 @@ out/
 
 # VScode
 .vscode/
+
+# YACC's parser table (for custom patched parser)
+yacctab.py
