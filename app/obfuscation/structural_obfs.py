@@ -484,23 +484,36 @@ class OpaqueAugmenter(NodeVisitor):
 
     def visit_If(self, node):
         self.test_add_predicate(node)
-        return self.generic_visit(node)
+        if node.iftrue is not None:
+            self.visit(node.iftrue)
+        if node.iffalse is not None:
+            self.visit(node.iffalse)
 
     def visit_While(self, node):
         self.test_add_predicate(node)
-        return self.generic_visit(node)
+        if node.stmt is not None:
+            self.visit(node.stmt)
 
     def visit_DoWhile(self, node):
         self.test_add_predicate(node)
-        return self.generic_visit(node)
+        if node.stmt is not None:
+            self.visit(node.stmt)
 
     def visit_For(self, node):
         self.test_add_predicate(node)
-        return self.generic_visit(node)
+        if node.init is not None:
+            self.visit(node.init)
+        if node.next is not None:
+            self.visit(node.next)
+        if node.stmt is not None:
+            self.visit(node.stmt)
 
     def visit_TernaryOp(self, node):
         self.test_add_predicate(node)
-        return self.generic_visit(node)
+        if node.iftrue is not None:
+            self.visit(node.iftrue)
+        if node.iffalse is not None:
+            self.visit(node.iffalse)
 
     def visit_ParamList(self, node):
         if node.params is None or self.parameters is None:
