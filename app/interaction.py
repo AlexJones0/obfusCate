@@ -500,6 +500,12 @@ def display_version() -> bool:
     log("Retrieved and displayed name and version information for the software.")
     return False
 
+def disable_alloca() -> None:
+    """Sets the config to disable use of `alloca()` calls to replace
+    variable length arrays in control flow flattening. """
+    cfg.USE_ALLOCA = False
+    log("Set option to disable alloca use by CFF in replacing VLAs.")
+
 
 def load_composition(supplied_args: Iterable[str]) -> bool:
     """Sets the file to load initial obfuscation transformation information from.
@@ -615,6 +621,14 @@ shared_options = [
         "Disables calculation of code complexity metrics for the obfuscated programs.",
         [],
     ),
+    SystemOpt(
+        disable_alloca,
+        ["-a", "--no-alloca"],
+        "Disables use of alloca() to replace Variable Length Arrays (VLA) in the program whilst\n"
+        "control flow flattening, as this is not defined in the C standard and may not be available\n"
+        "in all systems (though it is in most)",
+        []
+    )
 ]
 
 
