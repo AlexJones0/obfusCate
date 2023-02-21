@@ -1715,5 +1715,37 @@ class ExpressionAnalyzer(NodeVisitor):
             self.types[node] = self.get_var_type(node.name)
         self.mutating[node] = False
 
-    # TODO what is a CompoundLiteral? Do I need to account for it?
+    def visit_InitList(self, node):
+        self.generic_visit(node)
+        mutating = False
+        if node.exprs is not None:
+            # Type cannot be determined from the init list (e.g. an empty list)
+            # (Hence an init list can only be used in declarations)
+            for expr in node.exprs:
+                mutating = mutating or self.mutating[expr]
+        self.mutating[node] = mutating
 
+    def visit_ExprList(self, node):
+        self.generic_visit(node)
+        mutating = False
+        if node.exprs is not None:
+            # Type of an expr list cannot be sufficiently represented in this
+            # abstraction, but is not needed, so it is ignored.
+            for expr in node.exprs:
+                mutating = mutating or self.mutating[expr]
+        self.mutating[node] = mutating
+
+    def visit_CompoundLiteral(self, node):
+        self.generic_visit(node)
+        if node.type is not None:
+            self.types[node] = self.convert_type(node.type)
+        if node.init is not None:
+            self.mutating[node] = self.mutating[node.init]
+        else:
+            self.mutating[node] = False
+
+    def visit_NamedInitializer(self, node):
+        self.generic_visit(node)
+        if node.expr is not None:
+            self.types[node] = self.types[node.expr]
+            self.mutating[node] = True  # TODO check this?

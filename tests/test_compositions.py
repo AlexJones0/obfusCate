@@ -362,7 +362,7 @@ class TestObfuscationIntegration(unittest.TestCase):
         if exception_handled is not None or not result.valid_parse:
             debug.logprint(
                 (
-                    "Test {} - Failed [obfuscation error] ({}/{})\n"
+                    "FAIL Test {} - Failed [obfuscation error] ({}/{})\n"
                     "   Transform={},\n"
                     "   Example={},\n"
                     "   Seed={}{}"
@@ -387,7 +387,7 @@ class TestObfuscationIntegration(unittest.TestCase):
         if output is None:
             debug.logprint(
                 (
-                    "Test {} - Failed [compile/run error] ({}/{})\n"
+                    "FAIL Test {} - Failed [compile/run error] ({}/{})\n"
                     "   Transform={},\n"
                     "   Example={},\n"
                     "   Seed={}"
@@ -405,7 +405,7 @@ class TestObfuscationIntegration(unittest.TestCase):
         if output != expected_output:
             debug.logprint(
                 (
-                    "Test {} - Failed [correctness error] ({}/{})\n"
+                    "FAIL Test {} - Failed [correctness error] ({}/{})\n"
                     "   Transform={},\n"
                     "   Example={},\n"
                     "   Seed={}\n,"
@@ -426,7 +426,7 @@ class TestObfuscationIntegration(unittest.TestCase):
             return False
         passed += 1
         debug.logprint(
-            "Test {} - Passed ({}/{})".format(test, passed, num_tests), err=False
+            "INFO Test {} - Passed ({}/{})".format(test, passed, num_tests), err=False
         )
         return True
 
