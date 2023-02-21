@@ -253,6 +253,19 @@ class TestInteractionFunctions(unittest.TestCase):
         self.assertEqual(children[0][1].children()[0][1].name, "main")
         del source
 
+    def test_parse_patching(self) -> None:
+        """ Tests that the CSource constructor correctly uses the patched
+        parser instead of the normal pycparser parser if the relevant
+        option is set. Also tests that the PatchedParser does indeed
+        patch the label identifier issue as intended. """
+        cfg.USE_PATCHED_PARSER = False
+        source = CSource(os.path.join(os.getcwd(), "./tests/data/examples/cppref_name_space.c"))
+        self.assertFalse(source.valid_parse)
+        cfg.USE_PATCHED_PARSER = True
+        source = CSource(os.path.join(os.getcwd(), "./tests/data/examples/cppref_name_space.c"))
+        self.assertTrue(source.valid_parse)
+        del source
+
     def test_valid_parse_false(self) -> None:
         """Tests that the CSource.valid_parse property works correctly for a false case."""
         source = CSource(os.path.join(os.getcwd(), "./tests/data/invalid.c"))
@@ -866,6 +879,20 @@ class TestInteractionFunctions(unittest.TestCase):
         out = out.getvalue()
         self.assertEqual(out, "Program Name v1.2.3.4.5.6\n")
     
+    def test_disable_alloca_func(self) -> None:
+        """ Tests that the `disable_alloca` system option func works as
+        intended, setting the relevant config option. """
+        cfg.USE_ALLOCA = True
+        self.assertIsNone(disable_alloca())
+        self.assertFalse(cfg.USE_ALLOCA)
+    
+    def test_disable_patched_parser_func(self) -> None:
+        """ Tests that the `disable_patched_parser` system option func
+        works as intended, setting the relevant config option. """
+        cfg.USE_PATCHED_PARSER = True
+        self.assertIsNone(disable_patched_parser())
+        self.assertFalse(cfg.USE_PATCHED_PARSER)
+    
     def test_load_composition_func(self) -> None:
         """Tests that the `load_composition` system option func correctly
         parses provided system arguments for the composition file name, and 
@@ -972,11 +999,12 @@ class TestInteractionFunctions(unittest.TestCase):
     def test_default_options(self) -> None:
         """ Tests that the `shared_options` list of default system options 
         contains the following system options at bare minimum: --help, 
-        --version, --noLogs, --seed, --progress, --save-comp, --load-comp
-        and --no-metrics."""
+        --version, --noLogs, --seed, --progress, --save-comp, --load-comp,
+        --no-metrics, --no-alloca and --unpatch-parser"""
         names = sum([opt.names for opt in shared_options], [])
         targets = ["--help", "--version", "--noLogs", "--seed", "--progress",
-                   "--save-comp", "--load-comp", "--no-metrics"]
+                   "--save-comp", "--load-comp", "--no-metrics", "--no-alloca",
+                   "--unpatch-parser"]
         for target in targets:
             self.assertIn(target, names)
         

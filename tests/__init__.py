@@ -24,3 +24,5 @@ def reset_config():
     cfg.SAVE_COMPOSITION = False
     cfg.COMPOSITION = None
     cfg.SEED = None
+    cfg.USE_ALLOCA = True
+    cfg.USE_PATCHED_PARSER = True

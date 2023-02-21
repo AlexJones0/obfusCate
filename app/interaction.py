@@ -133,12 +133,13 @@ class CSource:
             filepath (str): The filepath of the file to be parsed.
         """
         try:
+            parser = PatchedParser() if cfg.USE_PATCHED_PARSER else None
             t_unit = pycparse_file(
                 filepath,
                 use_cpp=True,
                 cpp_path="clang",
                 cpp_args=["-E", r"-Iutils/fake_libc_include"],
-                parser=PatchedParser()
+                parser=parser
                 # TODO add trigraph support?
             )
             fname = filepath.split("\\")[-1]
@@ -572,6 +573,13 @@ def disable_alloca() -> None:
     log("Set option to disable alloca use by CFF in replacing VLAs.")
 
 
+def disable_patched_parser() -> None:
+    """Sets the config to disable the use of the custom PatchedParser() class
+    and instead makes the program use pycparcer's default CParser instead. """
+    cfg.USE_PATCHED_PARSER = False
+    log("Set opion to disabled patched parser use (now using pycparser default).")
+
+
 def load_composition(supplied_args: Iterable[str]) -> bool:
     """Sets the file to load initial obfuscation transformation information from.
 
@@ -690,10 +698,18 @@ shared_options = [
         disable_alloca,
         ["-a", "--no-alloca"],
         "Disables use of alloca() to replace Variable Length Arrays (VLA) in the program whilst\n"
-        "control flow flattening, as this is not defined in the C standard and may not be available\n"
-        "in all systems (though it is in most)",
+        "  control flow flattening, as this is not defined in the C standard and may not be\n"
+        "  available in all systems (though it is in most). ",
         [],
     ),
+    SystemOpt(
+        disable_patched_parser,
+        ["-u", "--unpatch-parser"],
+        "Unpatches the parser/lexer/grammar used by yacc, such that the default pycparser CParser\n"
+        "  class yacctable.py is used. Disabling the patch will mean you cannot use labels with\n"
+        "  the same name as defined types, but may fix any unknown issues that arise due to patching. ",
+        []
+    )
 ]
 
 
