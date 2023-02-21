@@ -731,7 +731,7 @@ class CyclomaticComplexityUnit(CodeMetricUnit):
         "as in the original paper.",
         "Avg. Cyclomatic M\u0305": "The mean cyclomatic number for all the functions in the\n"
         "program, where a new definition for unstructured programs has been used that considers\n"
-        "the full control flow graph (minus lazy operations in decision nodes), such that multiply\n"
+        "the full control flow graph (minus lazy operations in decision nodes), such that multiple\n"
         "exit (return) points, labels/gotos and unreachable code are all factored into calculations.",
         "Avg. Orig. M\u0305": "The mean cyclomatic number for all the functions in the\n"
         "program, where the original definition for structured programs has been used, simply\n"
