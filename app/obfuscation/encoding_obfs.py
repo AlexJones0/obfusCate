@@ -41,6 +41,10 @@ class StringEncodeTraverser(NodeVisitor):
 
     def __init__(self, style):
         self.style = style
+        self.__reset()
+        
+    def __reset(self):
+        self.in_init_list = False
 
     def encode_string(self, node):
         chars = []
@@ -73,10 +77,29 @@ class StringEncodeTraverser(NodeVisitor):
             else:
                 char_node = Constant("char", "'" + char + "'")
             chars.append(char_node)
+        if self.in_init_list or random.random() >= 0.75:
+            # Use string encoding
+            str_ = ""
+            if len(chars) == 0:
+                return Constant("string", '""')
+            if len(chars) == 1:
+                return Constant("string", '"{}"'.format(chars[0].value[1:-1]))
+            prev_closed = True
+            for char in chars:
+                if prev_closed:
+                    str_ += '"'
+                str_ += char.value[1:-1]
+                prev_closed = random.random() >= 0.5
+                if prev_closed:
+                    str_ += '"'
+            if not prev_closed:
+                str_ += '"'
+            return Constant("string", str_)
+        # Use array (initializer list) encoding
         chars.append(
             Constant("char", "'\\0'")
-        )  # TODO can also just use a direct string instead of a (char[]) cast?
-        return chars
+        )
+        return InitList(chars, None)
 
     def make_compound_literal(self, init_node):
         identifier_node = IdentifierType(["char"])
@@ -88,111 +111,136 @@ class StringEncodeTraverser(NodeVisitor):
     def visit_Decl(self, node):
         if node.init is not None:
             if isinstance(node.init, Constant) and node.init.type == "string":
-                chars = self.encode_string(node.init)
-                if chars is not None:
-                    node.init = InitList(chars, None)
-                    if isinstance(node.type, PtrDecl):
-                        node.type = ArrayDecl(node.type.type, None, None)
+                encoded = self.encode_string(node.init)
+                if encoded is not None:
+                    node.init = encoded
+                if isinstance(node.init, InitList) and isinstance(node.type, PtrDecl):
+                    # TODO is this 100% correct? Seems like it might not be;
+                    # may need to do some recursive changing? or maybe not?
+                    node.type = ArrayDecl(node.type.type, None, None)
         NodeVisitor.generic_visit(self, node)
 
     def visit_ExprList(self, node):
         for i, expr in enumerate(node.exprs):
             if isinstance(expr, Constant) and expr.type == "string":
-                chars = self.encode_string(expr)
-                if chars is not None:
-                    init_node = InitList(chars, None)
-                    node.exprs[i] = self.make_compound_literal(init_node)
+                encoded = self.encode_string(expr)
+                if encoded is not None:
+                    if isinstance(encoded, InitList):
+                        node.exprs[i] = self.make_compound_literal(encoded)
+                    else:
+                        node.exprs[i] = encoded
         NodeVisitor.generic_visit(self, node)
 
     def visit_InitList(self, node):
+        was_in_init_list = self.in_init_list
+        self.in_init_list = True
         for i, expr in enumerate(node.exprs):
             if isinstance(expr, Constant) and expr.type == "string":
-                chars = self.encode_string(expr)
-                if chars is not None:
-                    node.exprs[i] = InitList(chars, None)
+                encoded = self.encode_string(expr)
+                if encoded is not None:
+                    node.exprs[i] = encoded
         NodeVisitor.generic_visit(self, node)
+        self.in_init_list = was_in_init_list
 
     def visit_ArrayRef(self, node):
         if node.name is not None:
             if isinstance(node.name, Constant) and node.name.type == "string":
-                chars = self.encode_string(node.name)
-                if chars is not None:
-                    init_node = InitList(chars, None)
-                    node.name = self.make_compound_literal(init_node)
+                encoded = self.encode_string(node.name)
+                if encoded is not None:
+                    if isinstance(encoded, InitList):
+                        node.name = self.make_compound_literal(encoded)
+                    else:
+                        node.name = encoded
         NodeVisitor.generic_visit(self, node)
 
     def visit_NamedInitializer(self, node):
         if node.expr is not None:
             if isinstance(node.expr, Constant) and node.expr.type == "string":
-                chars = self.encode_string(node.expr)
-                if chars is not None:
-                    node.expr = InitList(chars, None)
+                encoded = self.encode_string(node.expr)
+                if encoded is not None:
+                    node.expr = encoded
         NodeVisitor.generic_visit(self, node)
 
     def visit_TernaryOp(self, node):
         if node.iftrue is not None:
             if isinstance(node.iftrue, Constant) and node.iftrue.type == "string":
-                chars = self.encode_string(node.iftrue)
-                if chars is not None:
-                    init_node = InitList(chars, None)
-                    node.iftrue = self.make_compound_literal(init_node)
+                encoded = self.encode_string(node.iftrue)
+                if encoded is not None:
+                    if isinstance(encoded, InitList):
+                        node.iftrue = self.make_compound_literal(encoded)
+                    else:
+                        node.iftrue = encoded
         if node.iffalse is not None:
             if isinstance(node.iffalse, Constant) and node.iffalse.type == "string":
-                chars = self.encode_string(node.iffalse)
-                if chars is not None:
-                    init_node = InitList(chars, None)
-                    node.iffalse = self.make_compound_literal(init_node)
+                encoded = self.encode_string(node.iffalse)
+                if encoded is not None:
+                    if isinstance(encoded, InitList):
+                        node.iffalse = self.make_compound_literal(encoded)
+                    else:
+                        node.iffalse = encoded
         NodeVisitor.generic_visit(self, node)
 
     def visit_BinaryOp(self, node):
         if node.left is not None:
             if isinstance(node.left, Constant) and node.left.type == "string":
-                chars = self.encode_string(node.left)
-                if chars is not None:
-                    init_node = InitList(chars, None)
-                    node.left = self.make_compound_literal(init_node)
+                encoded = self.encode_string(node.left)
+                if encoded is not None:
+                    if isinstance(encoded, InitList):
+                        node.left = self.make_compound_literal(encoded)
+                    else:
+                        node.left = encoded
         if node.right is not None:
             if isinstance(node.right, Constant) and node.right.type == "string":
-                chars = self.encode_string(node.right)
-                if chars is not None:
-                    init_node = InitList(chars, None)
-                    node.right = self.make_compound_literal(init_node)
+                encoded = self.encode_string(node.right)
+                if encoded is not None:
+                    if isinstance(encoded, InitList):
+                        node.right = self.make_compound_literal(encoded)
+                    else:
+                        node.right = encoded
         NodeVisitor.generic_visit(self, node)
 
     def visit_UnaryOp(self, node):
         if node.expr is not None:
             if isinstance(node.expr, Constant) and node.expr.type == "string":
-                chars = self.encode_string(node.expr)
-                if chars is not None:
-                    init_node = InitList(chars, None)
-                    node.expr = self.make_compound_literal(init_node)
+                encoded = self.encode_string(node.expr)
+                if encoded is not None:
+                    if isinstance(encoded, InitList):
+                        node.expr = self.make_compound_literal(encoded)
+                    else:
+                        node.expr = encoded
         NodeVisitor.generic_visit(self, node)
 
     def visit_If(self, node):
         if node.cond is not None:
             if isinstance(node.cond, Constant) and node.cond.type == "string":
-                chars = self.encode_string(node.cond)
-                if chars is not None:
-                    init_node = InitList(chars, None)
-                    node.cond = self.make_compound_literal(init_node)
+                encoded = self.encode_string(node.cond)
+                if encoded is not None:
+                    if isinstance(encoded, InitList):
+                        node.cond = self.make_compound_literal(encoded)
+                    else:
+                        node.cond = encoded
         NodeVisitor.generic_visit(self, node)
 
     def visit_While(self, node):
         if node.cond is not None:
             if isinstance(node.cond, Constant) and node.cond.type == "string":
-                chars = self.encode_string(node.cond)
-                if chars is not None:
-                    init_node = InitList(chars, None)
-                    node.cond = self.make_compound_literal(init_node)
+                encoded = self.encode_string(node.cond)
+                if encoded is not None:
+                    if isinstance(encoded, InitList):
+                        node.cond = self.make_compound_literal(encoded)
+                    else:
+                        node.cond = encoded
         NodeVisitor.generic_visit(self, node)
 
     def visit_DoWhile(self, node):
         if node.cond is not None:
             if isinstance(node.cond, Constant) and node.cond.type == "string":
-                chars = self.encode_string(node.cond)
-                if chars is not None:
-                    init_node = InitList(chars, None)
-                    node.cond = self.make_compound_literal(init_node)
+                encoded = self.encode_string(node.cond)
+                if encoded is not None:
+                    if isinstance(encoded, InitList):
+                        node.cond = self.make_compound_literal(encoded)
+                    else:
+                        node.cond = encoded
         NodeVisitor.generic_visit(self, node)
 
 
