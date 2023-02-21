@@ -6,11 +6,17 @@ and the insertion of new conditional opaque predicates into the program.
 """
 from .. import utils, interaction
 from ..debug import *
-from .utils import ObfuscationUnit, TransformType, generate_new_contents, \
-    NewVariableUseAnalyzer, TypeKinds
+from .utils import (
+    ObfuscationUnit,
+    TransformType,
+    generate_new_contents,
+    NewVariableUseAnalyzer,
+    TypeKinds,
+)
 from pycparser.c_ast import *
 from typing import Iterable, Tuple, Optional
 import random, json, copy, math, enum
+
 
 class OpaquePredicate:  # TODO use class as namespace or no?
     VALID_INT_TYPES = [
@@ -368,7 +374,9 @@ class OpaqueAugmenter(NodeVisitor):
         # LINKED_LIST = "Predicates constructed from intractable pointer aliasing on a linked list."
         # TODO above is not implemented yet
 
-    def __init__(self, styles: Iterable[Style], probability: float = 1.0, number: int = 1) -> None:
+    def __init__(
+        self, styles: Iterable[Style], probability: float = 1.0, number: int = 1
+    ) -> None:
         self.styles = styles
         self.probability = probability
         self.number = number
@@ -495,7 +503,7 @@ class OpaqueAugmenter(NodeVisitor):
 
     def visit_ParamList(self, node):
         if node.params is None or self.parameters is None:
-            return # No parameters or just parsing a signature.
+            return  # No parameters or just parsing a signature.
         for node in node.params:
             # Parsing out the names (and types) of parameter variables
             if not isinstance(node, Decl) or node.name is None:
@@ -522,14 +530,20 @@ class OpaqueAugmenter(NodeVisitor):
             return self.generic_visit(node)
         if not isinstance(node.type, TypeDecl) or node.type.type is None:
             return self.generic_visit(node)
-        if not isinstance(node.type.type, IdentifierType) or node.type.type.names is None or len(node.type.type.names) == 0:
-            return self.generic_visit(node) # Ignore pointer/array types; we don't use them
+        if (
+            not isinstance(node.type.type, IdentifierType)
+            or node.type.type.names is None
+            or len(node.type.type.names) == 0
+        ):
+            return self.generic_visit(
+                node
+            )  # Ignore pointer/array types; we don't use them
         typetype = node.type.type.names[-1]
-        if typetype in self.global_typedefs.keys(): 
+        if typetype in self.global_typedefs.keys():
             # Typedef to a typedef!
             self.global_typedefs[node.name] = self.global_typedefs[typetype]
-        else: # Typedef to some standard C type
-            self.global_typedefs[node.name] = typetype 
+        else:  # Typedef to some standard C type
+            self.global_typedefs[node.name] = typetype
         self.generic_visit(node)
 
     def visit_FuncDef(self, node):
@@ -711,8 +725,10 @@ class BugGenerator(NodeVisitor):
         # identical by random chance)
 
     def visit_Constant(self, node):
-        if node.value is not None and not self.in_case and (
-            not self.changed or random.random() < self.p_change_constants
+        if (
+            node.value is not None
+            and not self.in_case
+            and (not self.changed or random.random() < self.p_change_constants)
         ):
             if node.type is None:
                 pass
@@ -735,7 +751,7 @@ class BugGenerator(NodeVisitor):
                 self.changed = True
         self.generic_visit(node)
 
-    op_map = { # TODO check these over - can get weird with pointer math sometimes
+    op_map = {  # TODO check these over - can get weird with pointer math sometimes
         ">": ("<", "<=", "!=", "=="),
         ">=": ("<", "<=", "!=", "=="),
         "<": (">", ">=", "!=", "=="),
@@ -756,7 +772,7 @@ class BugGenerator(NodeVisitor):
             node.op = random.choice(self.op_map[node.op])
             self.changed = True
         self.generic_visit(node)
-    
+
     def visit_Case(self, node):
         was_in_case = self.in_case
         self.in_case = True
@@ -931,7 +947,7 @@ class OpaqueInserter(NodeVisitor):
         # TODO also check this doesn't break anything
         if not isinstance(stmt, Compound):
             stmt = Compound([stmt])
-            
+
         kind = random.choice(self.kinds)  # TODO do I make this proportional also?
         match kind:
             case self.Kind.CHECK:  # if (true) { your code }
@@ -1095,7 +1111,7 @@ class OpaqueInserter(NodeVisitor):
 
     def visit_ParamList(self, node):
         if node.params is None or self.parameters is None:
-            return # No parameters or just parsing a signature.
+            return  # No parameters or just parsing a signature.
         for node in node.params:
             # Parsing out the names (and types) of parameter variables
             if not isinstance(node, Decl) or node.name is None:
@@ -1122,14 +1138,20 @@ class OpaqueInserter(NodeVisitor):
             return self.generic_visit(node)
         if not isinstance(node.type, TypeDecl) or node.type.type is None:
             return self.generic_visit(node)
-        if not isinstance(node.type.type, IdentifierType) or node.type.type.names is None or len(node.type.type.names) == 0:
-            return self.generic_visit(node) # Ignore pointer/array types; we don't use them
+        if (
+            not isinstance(node.type.type, IdentifierType)
+            or node.type.type.names is None
+            or len(node.type.type.names) == 0
+        ):
+            return self.generic_visit(
+                node
+            )  # Ignore pointer/array types; we don't use them
         typetype = node.type.type.names[-1]
-        if typetype in self.global_typedefs.keys(): 
+        if typetype in self.global_typedefs.keys():
             # Typedef to a typedef!
             self.global_typedefs[node.name] = self.global_typedefs[typetype]
-        else: # Typedef to some standard C type
-            self.global_typedefs[node.name] = typetype 
+        else:  # Typedef to some standard C type
+            self.global_typedefs[node.name] = typetype
         self.generic_visit(node)
 
     def visit_FuncDef(self, node):
@@ -1423,7 +1445,11 @@ class ControlFlowFlattener(NodeVisitor):
         self.reset()
 
     def flatten_function(self, node):
-        if node.body is None or node.body.block_items is None or len(node.body.block_items) == 0:
+        if (
+            node.body is None
+            or node.body.block_items is None
+            or len(node.body.block_items) == 0
+        ):
             return
         while_label = self.analyzer.get_unique_identifier(
             node, TypeKinds.LABEL, node.body, node
@@ -1452,9 +1478,7 @@ class ControlFlowFlattener(NodeVisitor):
                     None,
                 )
             ]
-            switch_var_type = TypeDecl(
-                switch_variable, [], [], Enum(enumerator, None)
-            )
+            switch_var_type = TypeDecl(switch_variable, [], [], Enum(enumerator, None))
         else:
             new_statements = []
             switch_var_type = TypeDecl(switch_variable, [], [], IdentifierType(["int"]))
@@ -1821,11 +1845,17 @@ class ControlFlowFlattener(NodeVisitor):
             return self.generic_visit(node)
         # Perform identifier renaming if necessary to avoid typedef clashes
         for ident, kind in list(self.analyzer.get_stmt_definitions(stmt)):
-            if (ident, kind) in self.function_decls or (ident, kind) in self.unavailable_idents:
+            if (ident, kind) in self.function_decls or (
+                ident,
+                kind,
+            ) in self.unavailable_idents:
                 # Renaming required to avoid conflicts
                 num = 2
                 new_ident = ident
-                while (new_ident, kind) in self.function_decls or (new_ident, kind) in self.unavailable_idents:
+                while (new_ident, kind) in self.function_decls or (
+                    new_ident,
+                    kind,
+                ) in self.unavailable_idents:
                     new_ident = ident + str(num)
                     num += 1
                 self.analyzer.change_ident(stmt, ident, kind, new_ident)
@@ -1838,7 +1868,75 @@ class ControlFlowFlattener(NodeVisitor):
         self.pending_head = [typedef] + self.pending_head
         self.generic_visit(node)
 
+    def __get_array_size(self, node: Node) -> list[int] | None:
+        """TODO finish this docstring: given a declaration using some array
+        with unspecified dimensions,
+            e.g. char x[] = 'hello there.';
+        This calculates the array's size such that the declaration can
+        be moved to the start of the function."""
+        # TODO are there any more complex cases I may have to handle?
+        if node is None:
+            return None
+        if isinstance(node, InitList):
+            if node.exprs is None:
+                return [0]
+            cur_dim = len(node.exprs)
+            elem_dims = [self.__get_array_size(e) for e in node.exprs]
+            if all(x is None for x in elem_dims):
+                return [cur_dim]
+            # Coalesce None sizes
+            elem_dims = [[0] if x is None else x for x in elem_dims]
+            # Coalesce shapes to max dimension
+            max_dims = max(len(x) for x in elem_dims)
+            elem_dims = [x + [0] * (max_dims - len(x)) for x in elem_dims]
+            # Find and return max dimension sizes
+            return [cur_dim] + [max(col) for col in zip(*elem_dims)]
+        elif isinstance(node, CompoundLiteral):
+            if node.init is None:
+                return None
+            return self.__get_array_size(node.init)
+        elif isinstance(node, Constant):
+            if node.type is None or node.value is None:
+                return None
+            if node.type == "string":
+                return [len(node.value)]
+            else:
+                return []
+        return None
+
+    def __get_array_values(
+        self, node: Node, dims: list[int]
+    ) -> list[Tuple[Node, list[int]]] | None:
+        # TODO docstring
+        # TODO NOT currently used - remove if not needed!
+        if node is None:
+            return None
+        if isinstance(node, InitList):
+            if node.exprs is None or len(node.exprs) < dims[0]:
+                return None
+            exprs = node.exprs[: (dims[0] + 1)]
+            vals = [
+                (i, self.__get_array_values(e, dims[1:])) for i, e in enumerate(exprs)
+            ]
+            return [(x[0], [i] + x[1]) for i, x in vals if x is not None]
+        elif isinstance(node, CompoundLiteral):
+            if node.init is None:
+                return None
+            return self.__get_array_values(node.init, dims)
+        elif isinstance(node, Constant):
+            if node.type is None or node.value is None:
+                return None
+            if node.type == "string":
+                vals = min(len(node.value), dims[0])
+                if vals < dims[0]:
+                    return None
+                return [(Constant("char", node.value[i]), [i]) for i in range(vals)]
+            else:
+                return [(node, [])]
+        return None
+
     def visit_Decl(self, node):
+        # TODO modularise!
         if self.current_function is None:
             return
         # Retrieve the statement corresponding to the declaration
@@ -1867,13 +1965,36 @@ class ControlFlowFlattener(NodeVisitor):
                 self.function_decls.add((ident, kind))
         self.checked_stmts.add(stmt)
         # Create a relevant corresponding declaration at the start of the function
+        if (
+            node.type is not None
+            and isinstance(node.type, ArrayDecl)
+            and node.type.dim is None
+        ):
+            array_dims = self.__get_array_size(node.init)
+            node_type = copy.deepcopy(node.type)
+            arr_decl = node_type
+            for dim in array_dims:
+                arr_decl.dim = Constant("int", str(dim))
+                arr_decl = arr_decl.type
+                if arr_decl is None or not isinstance(arr_decl, ArrayDecl):
+                    log(
+                        "Unexpected array dimension error: name={} dims={} dim={}".format(
+                            node.name, array_dims, dim
+                        )
+                    )
+                    break
+            #arr_values = self.__get_array_values(node.type, array_dims)
+            # TODO is this needed?
+        else:
+            node_type = node.type
+            #arr_values = None
         decl = Decl(
             node.name,
             node.quals,
             node.align,
             node.storage,
             node.funcspec,
-            node.type,
+            node_type,
             None,
             node.bitsize,
         )
@@ -1887,6 +2008,7 @@ class ControlFlowFlattener(NodeVisitor):
         elif isinstance(
             node.init, InitList
         ):  # TODO does this fail on multi-dimensional init lists? Check. Probably.
+            # TODO can I use any of the array_dim stuff above for this?
             assign = []
             for i, expr in enumerate(node.init.exprs):
                 assign.append(
@@ -1894,6 +2016,21 @@ class ControlFlowFlattener(NodeVisitor):
                         "=", ArrayRef(ID(node.name), Constant("int", str(i))), expr
                     )
                 )
+        elif isinstance(node.init, Constant) and node.init.type == "string" and node.init.value is not None:
+            assign = []
+            for i, val in enumerate(node.init.value[1:-1]):
+                assign.append(
+                    Assignment(
+                        "=", ArrayRef(ID(node.name), Constant("int", str(i))), 
+                        Constant("char", "'{}'".format(val))
+                    )
+                )
+            assign.append(
+                Assignment(
+                    "=", ArrayRef(ID(node.name), Constant("int", str(len(node.init.value) - 2))),
+                    Constant("char", "'\\0'")
+                )
+            )
         else:
             assign = [Assignment("=", ID(node.name), node.init)]
         if isinstance(self.parent, Compound):
