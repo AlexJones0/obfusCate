@@ -2,7 +2,7 @@
 Implements classes and functions for handling input and output. 
 """
 from app import settings as config
-from .interaction import CSource
+from .interaction import CSource, PatchedGenerator
 from abc import ABC, abstractmethod
 from typing import Iterable, Optional, Tuple, Any
 from pycparser.c_ast import *
@@ -296,7 +296,7 @@ class CountUnit(CodeMetricUnit):
         self.add_metric("Stmts/Function", new_spf_str, float_delta(new_spf, old_spf))
 
     def preprocess_contents(self, source: CSource) -> str:
-        generator = c_generator.CGenerator()
+        generator = PatchedGenerator()
         contents = generator.visit(source.t_unit)
         return contents
 
@@ -1293,7 +1293,7 @@ class HalsteadComplexityUnit(CodeMetricUnit):
         HalsteadComplexityUnit.cached = metrics
 
     def __preprocess_contents(self, source: CSource) -> str:
-        generator = c_generator.CGenerator()
+        generator = PatchedGenerator()
         contents = generator.visit(source.t_unit)
         return contents
 

@@ -8,9 +8,8 @@ from .. import interaction
 from ..debug import *
 from pycparser.c_ast import *
 from pycparser.c_lexer import CLexer
-from pycparser.c_generator import CGenerator
 from typing import Optional, Tuple, Type
-import abc, enum, json, string, pycparser
+import abc, enum, json, string
 
 # TODO: clear down some of these old TODOs
 # TODO some problems when using obfuscations multiple times - only designed to be used once. Need cleanup
@@ -64,12 +63,13 @@ def generate_new_contents(source: interaction.CSource) -> str:
 
     Returns:
         (str) The generated file contents from the source's AST"""
+    source.t_unit.show()
     new_contents = ""
     for line in source.contents.splitlines():
         line_contents = line.strip()
         if line_contents.strip().startswith(("#", "%:", "??=")):
             new_contents += line + "\n"
-    generator = pycparser.c_generator.CGenerator(True)
+    generator = interaction.PatchedGenerator()
     new_contents += generator.visit(source.t_unit)
     return new_contents
 

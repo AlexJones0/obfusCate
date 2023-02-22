@@ -5,15 +5,13 @@ system options (command-line arguments).
 """
 from .debug import print_error, log, delete_log_file, logprint
 from app import settings as cfg
-from pycparser import parse_file as pycparse_file, c_ast
+from pycparser import parse_file as pycparse_file, c_generator, c_ast, c_parser, c_lexer
 from pycparser.c_ast import FileAST
-from pycparser.c_parser import CParser
-from pycparser.c_lexer import CLexer
 from typing import Iterable, Tuple, Callable
 import os, time, enum
 
 
-class PatchedParser(CParser):
+class PatchedParser(c_parser.CParser):
     """ Patches the behaviour of pycparser's CParser class to correctly parse 
     labels and gotos. By default, pycparser makes the assumption that it can 
     split identifier tokens into regular identifiers ('ID') and type identifiers
@@ -55,7 +53,7 @@ class PatchedParser(CParser):
     def __init__(self) -> None:
         super(PatchedParser, self).__init__(
             lex_optimize=True,
-            lexer=CLexer,
+            lexer=c_lexer.CLexer,
             lextab="pycparser.lextab",
             yacc_optimize=True,
             yacctab="yacctab",
@@ -72,6 +70,25 @@ class PatchedParser(CParser):
         """ jump_statement  : GOTO ID SEMI 
                             | GOTO TYPEID SEMI """
         p[0] = c_ast.Goto(p[2], self._token_coord(p, 1))
+
+
+class PatchedGenerator(c_generator.CGenerator):
+    """ A subclass that patches the behaviour of pycparser's default
+    CGenerator, fixing an issue where it occassionally forgets to
+    follow a compound literal expression statement with a semi-colon
+    (e.g. if the next statement is a label to a null statement at
+    the end of the function body). This causes incorrect generation,
+    and so this patch is required to generate valid C code. """
+
+    def _generate_stmt(self, n, add_indent=False):
+        """ The original CGenerator appears to forget that 
+        CompoundLiterals can appear in an expression context and so do not
+        have automatic semi-colons added, so we just detect this case and
+        add the missing semi-colon here for correct generation. """
+        val = super(PatchedGenerator, self)._generate_stmt(n, add_indent)
+        if type(n) == c_ast.CompoundLiteral:
+            return val[:-1] + ';\n'
+        return val
 
 
 class CSource:

@@ -12,6 +12,8 @@
         "stdio.h": "c",
         "time.h": "c",
         "cppref_arithmetic_op": "c",
-        "stdlib.h": "c"
+        "stdlib.h": "c",
+        "*--*": "log"
     }
+    
 }

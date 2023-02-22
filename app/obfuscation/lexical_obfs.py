@@ -709,7 +709,7 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
                 or line.strip().startswith("??=")
             ):
                 new_contents += line + "\n"
-        generator = pycparser.c_generator.CGenerator()
+        generator = interaction.PatchedGenerator()
         contents = generator.visit(source.t_unit)
         # Initialise lexer
         lexer = pycparser.c_lexer.CLexer(
