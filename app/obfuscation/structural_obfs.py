@@ -1976,6 +1976,16 @@ class ControlFlowFlattener(NodeVisitor):
         id_finder = ObjectFinder(ID, ["name"])
         id_finder.visit(node)
         return len(id_finder.objs) != 0
+    
+    def __get_init_list_exprs(self, node: Node) -> list[Node]:
+        if not isinstance(node, InitList):
+            return [node]
+        if node.exprs is None:
+            return []
+        exprs = []
+        for expr in node.exprs:
+            exprs += self.__get_init_list_exprs(expr)
+        return exprs
 
     def visit_Decl(self, node):
         # TODO modularise!
@@ -2062,7 +2072,11 @@ class ControlFlowFlattener(NodeVisitor):
             assign = []
         elif isinstance(
             node.init, InitList
-        ):  # TODO does this fail on multi-dimensional init lists? Check. Probably.
+        ):  
+            # TODO this probably fails on multi-dimensional init lists? 
+            # Should refactor so it doesn't? But that is horrible
+            # TODO could generalise with the dim value index stuff I 
+            # was trying to do before?
             assign = []
             # Parse out dimensions if not a variable-size array
             dims = []
@@ -2073,7 +2087,8 @@ class ControlFlowFlattener(NodeVisitor):
                     break
                 dims.append(elem_type.dim)
                 elem_type = elem_type.type
-            for i, expr in enumerate(node.init.exprs):
+            exprs = self.__get_init_list_exprs(node.init)
+            for i, expr in enumerate(exprs):
                 # If a multi-dimensional static array, calculate the indexing
                 # locations. If not, just use the iterator value.
                 if len(dims) >= 2:
