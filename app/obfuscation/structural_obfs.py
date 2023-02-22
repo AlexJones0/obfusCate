@@ -1976,7 +1976,7 @@ class ControlFlowFlattener(NodeVisitor):
         id_finder = ObjectFinder(ID, ["name"])
         id_finder.visit(node)
         return len(id_finder.objs) != 0
-    
+
     def __get_init_list_exprs(self, node: Node) -> list[Node]:
         if not isinstance(node, InitList):
             return [node]
@@ -2053,12 +2053,16 @@ class ControlFlowFlattener(NodeVisitor):
         cur_type = node_type
         while isinstance(cur_type, (ArrayDecl, PtrDecl)):
             cur_type = cur_type.type
-        if cur_type is not None and isinstance(cur_type, TypeDecl) and cur_type.quals is not None:
-            cur_type.quals = [q for q in node.quals if q != 'const']
+        if (
+            cur_type is not None
+            and isinstance(cur_type, TypeDecl)
+            and cur_type.quals is not None
+        ):
+            cur_type.quals = [q for q in node.quals if q != "const"]
         # TODO does the quals stuff below break anything?
         decl = Decl(
             node.name,
-            None if node.quals is None else [q for q in node.quals if q != 'const'],
+            None if node.quals is None else [q for q in node.quals if q != "const"],
             node.align,
             node.storage,
             node.funcspec,
@@ -2070,12 +2074,47 @@ class ControlFlowFlattener(NodeVisitor):
         # Replace the declaration with a corresponding assignment if appropriate
         if node.init is None:
             assign = []
-        elif isinstance(
-            node.init, InitList
-        ):  
-            # TODO this probably fails on multi-dimensional init lists? 
+        elif (
+            isinstance(node.init, InitList)
+            and isinstance(node.type, TypeDecl)
+            and isinstance(node.type.type, Union)
+        ):
+            # InitList for unions
+            # We only consider 1 element - can't have > 1 for unions, and we ignore 0.
+            assign = []
+            if node.init.exprs is not None and len(node.init.exprs) != 0:
+                first_field = node.type.type.decls[0].name
+                assign.append(
+                    Assignment(
+                        "=",
+                        StructRef(ID(node.name), ".", ID(first_field)),
+                        node.init.exprs[0],
+                    )
+                )
+        elif (
+            isinstance(node.init, InitList)
+            and isinstance(node.type, TypeDecl)
+            and isinstance(node.type.type, Struct)
+        ):
+            # InitList for structs
+            assign = []
+            decls = node.type.type.decls
+            if decls is None:
+                decls = []
+            if node.init.exprs is not None:
+                if len(node.init.exprs) > len(decls):
+                    exprs = node.init.exprs[:len(decls)]
+                else:
+                    exprs = node.init.exprs
+                for i, expr in enumerate(exprs):
+                    field = node.type.type.decls[i].name
+                    assign.append(
+                        Assignment("=", StructRef(ID(node.name), ".", ID(field)), expr)
+                    )
+        elif isinstance(node.init, InitList):
+            # TODO this probably fails on multi-dimensional init lists?
             # Should refactor so it doesn't? But that is horrible
-            # TODO could generalise with the dim value index stuff I 
+            # TODO could generalise with the dim value index stuff I
             # was trying to do before?
             assign = []
             # Parse out dimensions if not a variable-size array
@@ -2097,9 +2136,10 @@ class ControlFlowFlattener(NodeVisitor):
                     current_ref = ref
                     for dim in dims[::-1]:
                         current_ref.name = ArrayRef(
-                            None, BinaryOp("%",
-                                    BinaryOp("/", Constant("int", str(i)), prod),
-                                    dim)
+                            None,
+                            BinaryOp(
+                                "%", BinaryOp("/", Constant("int", str(i)), prod), dim
+                            ),
                         )
                         current_ref = current_ref.name
                         prod = BinaryOp("*", dim, prod)
@@ -2108,9 +2148,7 @@ class ControlFlowFlattener(NodeVisitor):
                 else:
                     # Otherwise, just reference the array by linear index
                     ref = ArrayRef(ID(node.name), Constant("int", str(i)))
-                assign.append(
-                    Assignment("=", ref, expr)
-                )
+                assign.append(Assignment("=", ref, expr))
         elif (
             isinstance(node.init, Constant)
             and node.init.type == "string"

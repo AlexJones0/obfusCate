@@ -615,7 +615,8 @@ class NewVariableUseAnalyzer(NodeVisitor):
                     and type_.values is not None
                     or isinstance(type_, (Struct, Union))
                     and type_.decls is not None
-                ):
+                    and type_.name is not None 
+                ): # TODO check new .name checks not break anything ^v
                     # Enum/Struct/Union definition
                     self.record_ident_def(
                         node, type_.name, [(type_, "name")], TypeKinds.STRUCTURE
@@ -624,7 +625,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
                         self.record_ident_usage(
                             node, type_.name, [(type_, "name")], TypeKinds.STRUCTURE
                         )
-                else:  # Enum/Struct/Union usage
+                elif type_.name is not None:  # Enum/Struct/Union usage
                     self.record_ident_usage(
                         node, type_.name, [(type_, "name")], TypeKinds.STRUCTURE
                     )
@@ -1267,10 +1268,12 @@ class VariableUseAnalyzer(NodeVisitor):
     def visit_IdentifierType(self, node):
         # TODO not sure why there can be multiple names here - need to check TODO
         if node.names is not None:
-            self.record_ident_usage(node, "names", TypeKinds.NONSTRUCTURE, altname=node.names[-1])
+            self.record_ident_usage(
+                node, "names", TypeKinds.NONSTRUCTURE, altname=node.names[-1]
+            )
             # TODO this attribute it surely not updated correctly?
-        #name = ".".join(node.names)
-        #if name in self.typedefs:
+        # name = ".".join(node.names)
+        # if name in self.typedefs:
         #    self.record_ident_usage(node, "names", TypeKinds.NONSTRUCTURE, altname=name)
         self.generic_visit(node)
 

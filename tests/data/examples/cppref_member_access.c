@@ -45,8 +45,10 @@ int main(void)
  
     const struct s sc;
  
-    union { int x; double d; } u = {1};
+    union { int x; double d; } u = { 1 };
     u.d = 0.1; // changes the active member of the union
+    struct { int x; double d; } stru = {3};
+    stru.d = 4.5;
 
     //// Program 5
     struct s s2={1}, *p4 = &s;
