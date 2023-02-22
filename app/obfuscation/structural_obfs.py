@@ -48,7 +48,6 @@ class OpaquePredicate:  # TODO use class as namespace or no?
     VALID_REAL_TYPES = ["float", "double", "long double"]
     VALID_INPUT_TYPES = VALID_INT_TYPES + VALID_REAL_TYPES
 
-    # TODO one of these (or somehow one of EITHER_PREDICATES??? is wrong sometimes - need to logic check).
     TRUE_PREDICATES = [
         # (x * x) >= 0
         lambda x: BinaryOp(
@@ -249,7 +248,8 @@ class OpaquePredicate:  # TODO use class as namespace or no?
     ]
 
     COMPARISON_OPS = [">", ">=", "<", "<=", "==", "!="]
-    BIN_ARITHMETIC_OPS = ["+", "-", "*", "/", "%"]
+    BIN_ARITHMETIC_OPS = ["+", "-", "*"]
+    BIN_DIV_OPS = ["/", "%"]
 
     EITHER_PREDICATES = [
         # x
@@ -279,6 +279,16 @@ class OpaquePredicate:  # TODO use class as namespace or no?
             random.choice(OpaquePredicate.COMPARISON_OPS),
             BinaryOp(random.choice(OpaquePredicate.BIN_ARITHMETIC_OPS), x, y),
             z,
+        ),
+        # y == 0 || x <op1> y <op2> z for some division operation <op1> and some comparison operation <op2>
+        lambda x, y, z: BinaryOp(
+            "||",
+            BinaryOp("==", y, Constant("int", "0")),
+            BinaryOp(
+                random.choice(OpaquePredicate.COMPARISON_OPS),
+                BinaryOp(random.choice(OpaquePredicate.BIN_DIV_OPS), x, y),
+                z,
+            ),
         ),
     ]
 
@@ -926,7 +936,7 @@ class OpaqueInserter(NodeVisitor):
                 )
         return predicate(*args)
 
-    def replace_labels(self, node): #comehere
+    def replace_labels(self, node):
         local_label_idents = {}
         self.label_finder.visit(node)
         # First find all labels, and rename them
@@ -1459,12 +1469,12 @@ class ControlFlowFlattener(NodeVisitor):
             # is not working with my identifier analysis with pointer types.
             # But I'm not necessarily sure what the benefit would be?
             enum = self.analyzer.get_new_identifier(exclude=exclude_set)
-            #enum = self.analyzer.get_unique_identifier(
+            # enum = self.analyzer.get_unique_identifier(
             #    self.current_function,
             #    TypeKinds.NONSTRUCTURE,
             #    function=self.current_function,
             #    exclude=exclude_set,
-            #)
+            # )
             self.numbers.add(enum)
             return ID(enum)
 
@@ -1921,6 +1931,20 @@ class ControlFlowFlattener(NodeVisitor):
         typedef = Typedef(node.name, node.quals, node.storage, node.type)
         self.pending_head.append(typedef)
         self.generic_visit(node)
+        # TODO: again, just modularise this logic
+        if isinstance(self.parent, Compound):
+            i = self.parent.block_items.index(node)
+            self.parent.block_items = (
+                self.parent.block_items[:i] + self.parent.block_items[(i + 1) :]
+            )
+        elif isinstance(self.parent, (Case, Default)):
+            i = self.parent.stmts.index(node)
+            self.parent.stmts = self.parent.stmts[:i] + self.parent.stmts[(i + 1) :]
+        elif isinstance(self.parent, ExprList):  # DeclList after transformation
+            i = self.parent.exprs.index(node)
+            self.parent.exprs = self.parent.exprs[:i] + self.parent.exprs[(i + 1) :]
+        else:
+            setattr(self.parent, self.attr, None)
 
     def __get_array_size(self, node: Node) -> list[int] | None:
         """TODO finish this docstring: given a declaration using some array
@@ -2228,7 +2252,7 @@ class ControlFlowFlattener(NodeVisitor):
             if not cfg.USE_ALLOCA:
                 self.frees.append(ID(node.name))
             self.needs_stdlib = True
-        # I do this in frees before returning as well - just make utility functions for inserting
+        # TODO I do this in frees before returning as well - just make utility functions for inserting
         # a node before/after/replacing a given node to cut down on repeated code?
         if isinstance(self.parent, Compound):
             i = self.parent.block_items.index(node)
@@ -2239,7 +2263,9 @@ class ControlFlowFlattener(NodeVisitor):
             )
         elif isinstance(self.parent, (Case, Default)):
             i = self.parent.stmts.index(node)
-            self.parent.stmts = self.parent.stmts[:i] + assign + self.parent.stmts[i:]
+            self.parent.stmts = (
+                self.parent.stmts[:i] + assign + self.parent.stmts[(i + 1) :]
+            )
         elif isinstance(self.parent, ExprList):  # DeclList after transformation
             i = self.parent.exprs.index(node)
             self.parent.exprs = (
