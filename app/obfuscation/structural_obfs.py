@@ -2050,9 +2050,6 @@ class ControlFlowFlattener(NodeVisitor):
             None,
             node.bitsize,
         )
-        if isinstance(node.init, InitList):
-            # TODO does this work with multi-dimensional arrays? Probably not
-            decl.type.dim = Constant("int", str(len(node.init.exprs)))
         self.pending_head.append(decl)
         # Replace the declaration with a corresponding assignment if appropriate
         if node.init is None:
