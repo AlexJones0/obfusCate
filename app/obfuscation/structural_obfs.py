@@ -1455,13 +1455,16 @@ class ControlFlowFlattener(NodeVisitor):
             return Constant("int", str(num))
         elif self.style == self.Style.ENUMERATOR:
             exclude_set = self.numbers.union(set(level[0] for level in self.levels))
-            # TODO: could use get_new_identifer for the set below instead?
-            enum = self.analyzer.get_unique_identifier(
-                self.current_function,
-                TypeKinds.NONSTRUCTURE,
-                function=self.current_function,
-                exclude=exclude_set,
-            )
+            # TODO: could switch back to the commented out below, but something
+            # is not working with my identifier analysis with pointer types.
+            # But I'm not necessarily sure what the benefit would be?
+            enum = self.analyzer.get_new_identifier(exclude=exclude_set)
+            #enum = self.analyzer.get_unique_identifier(
+            #    self.current_function,
+            #    TypeKinds.NONSTRUCTURE,
+            #    function=self.current_function,
+            #    exclude=exclude_set,
+            #)
             self.numbers.add(enum)
             return ID(enum)
 

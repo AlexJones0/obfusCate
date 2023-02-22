@@ -77,7 +77,7 @@ class StringEncodeTraverser(NodeVisitor):
             else:
                 char_node = Constant("char", "'" + char + "'")
             chars.append(char_node)
-        if self.in_init_list or random.random() >= 0.75:
+        if self.in_init_list or random.random() >= 0.5:
             # Use string encoding
             str_ = ""
             if len(chars) == 0:
@@ -88,8 +88,10 @@ class StringEncodeTraverser(NodeVisitor):
             for char in chars:
                 if prev_closed:
                     str_ += '"'
+                elif char.value[1] != '\\':
+                    str_ += '""'
                 str_ += char.value[1:-1]
-                prev_closed = random.random() >= 0.5
+                prev_closed = random.random() >= 0.75
                 if prev_closed:
                     str_ += '"'
             if not prev_closed:
