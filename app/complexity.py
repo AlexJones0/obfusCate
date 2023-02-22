@@ -1334,25 +1334,25 @@ class HalsteadComplexityUnit(CodeMetricUnit):
         new_vocabulary = new_uq_operators + new_uq_operands
         old_length = old_operators + old_operands
         new_length = new_operators + new_operands
-        if old_uq_operators != 0:
+        if old_uq_operators != 0 and old_uq_operands != 0:
             old_estim_len = int(
                 old_uq_operators * math.log2(old_uq_operators)
                 + old_uq_operands * math.log2(old_uq_operands)
             )
         else:
             old_estim_len = 'N/A'
-        if new_uq_operators != 0:
+        if new_uq_operators != 0 and new_uq_operands != 0:
             new_estim_len = int(
                 new_uq_operators * math.log2(new_uq_operators)
                 + new_uq_operands * math.log2(new_uq_operands)
             )
         else:
             new_estim_len = 'N/A'
-        if old_vocabulary != 0:
+        if old_vocabulary not in [0, 'N/A']:
             old_volume = old_length * math.log2(old_vocabulary)
         else:
             old_volume = 'N/A'
-        if new_vocabulary != 0:
+        if new_vocabulary not in [0, 'N/A']:
             new_volume = new_length * math.log2(new_vocabulary)
             new_volume_str = str(int(new_volume))
         else:
