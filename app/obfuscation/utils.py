@@ -415,7 +415,14 @@ class NewVariableUseAnalyzer(NodeVisitor):
         stmt_node = self.get_stmt_from_node(node)
         for location_set in self.definition_uses[(stmt_node, name, kind)]:
             for (change_node, attr) in location_set:
-                setattr(change_node, attr, new_name)
+                if isinstance(attr, tuple):
+                    attr_name = attr[0]
+                    cur_val = getattr(change_node, attr_name)
+                    for attr_index in attr[1:-1]:
+                        cur_val = cur_val[attr_index]
+                    cur_val[attr[-1]] = new_name
+                else:
+                    setattr(change_node, attr, new_name)
         # Update processed tracking variables accordingly to allow further analyzer usage
         if (name, kind) in self.stmt_usage[stmt_node]:
             self.stmt_usage[stmt_node].remove((name, kind))
@@ -709,11 +716,13 @@ class NewVariableUseAnalyzer(NodeVisitor):
     @stmt_wrapper
     def visit_IdentifierType(self, node):
         # TODO not sure why there can be multiple names here - need to check
-        name = ".".join(node.names)
+        if node.names is None or len(node.names) == 0:
+            return NodeVisitor.generic_visit(self, node)
+        name = node.names[-1]
         if name in self.typedefs:
             self.record_ident_usage(
-                node, name, [(node, "names")], TypeKinds.NONSTRUCTURE
-            )  # TODO need to account for 'names' attributes when renaming
+                node, name, [(node, ("names", -1))], TypeKinds.NONSTRUCTURE
+            )
         NodeVisitor.generic_visit(self, node)
 
     @stmt_wrapper
