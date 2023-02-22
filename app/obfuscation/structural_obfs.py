@@ -2040,9 +2040,15 @@ class ControlFlowFlattener(NodeVisitor):
             ptr_decl.type = arr_decl.type
         else:
             node_type = node.type
+        cur_type = node_type
+        while isinstance(cur_type, (ArrayDecl, PtrDecl)):
+            cur_type = cur_type.type
+        if cur_type is not None and isinstance(cur_type, TypeDecl) and cur_type.quals is not None:
+            cur_type.quals = [q for q in node.quals if q != 'const']
+        # TODO does the quals stuff below break anything?
         decl = Decl(
             node.name,
-            node.quals,
+            None if node.quals is None else [q for q in node.quals if q != 'const'],
             node.align,
             node.storage,
             node.funcspec,
