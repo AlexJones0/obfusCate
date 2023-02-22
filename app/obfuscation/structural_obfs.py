@@ -1979,7 +1979,7 @@ class ControlFlowFlattener(NodeVisitor):
 
     def visit_Decl(self, node):
         # TODO modularise!
-        if self.current_function is None:
+        if self.current_function is None or isinstance(self.parent, ParamList):
             return
         # Retrieve the statement corresponding to the declaration
         stmt = self.analyzer.get_stmt_from_node(node)
@@ -2057,13 +2057,38 @@ class ControlFlowFlattener(NodeVisitor):
         elif isinstance(
             node.init, InitList
         ):  # TODO does this fail on multi-dimensional init lists? Check. Probably.
-            # TODO can I use any of the array_dim stuff above for this?
             assign = []
+            # Parse out dimensions if not a variable-size array
+            dims = []
+            elem_type = node.type
+            while isinstance(elem_type, ArrayDecl) and elem_type.type is not None:
+                if elem_type.dim is None:
+                    dims = []
+                    break
+                dims.append(elem_type.dim)
+                elem_type = elem_type.type
             for i, expr in enumerate(node.init.exprs):
+                # If a multi-dimensional static array, calculate the indexing
+                # locations. If not, just use the iterator value.
+                if len(dims) >= 2:
+                    ref = ArrayRef(None, None)
+                    prod = Constant("int", "1")
+                    current_ref = ref
+                    for dim in dims[::-1]:
+                        current_ref.name = ArrayRef(
+                            None, BinaryOp("%",
+                                    BinaryOp("/", Constant("int", str(i)), prod),
+                                    dim)
+                        )
+                        current_ref = current_ref.name
+                        prod = BinaryOp("*", dim, prod)
+                    current_ref.name = ID(node.name)
+                    ref = ref.name
+                else:
+                    # Otherwise, just reference the array by linear index
+                    ref = ArrayRef(ID(node.name), Constant("int", str(i)))
                 assign.append(
-                    Assignment(
-                        "=", ArrayRef(ID(node.name), Constant("int", str(i))), expr
-                    )
+                    Assignment("=", ref, expr)
                 )
         elif (
             isinstance(node.init, Constant)
@@ -2153,6 +2178,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.generic_visit(node)
 
     def visit_DeclList(self, node):
+        # TODO - what is this doing - is this right; is it actually validly replacing the decls?
         expr_list = ExprList(node.decls)
         if isinstance(self.parent, Compound):
             index = self.parent.block_items.index(node)
