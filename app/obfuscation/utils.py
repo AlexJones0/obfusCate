@@ -27,9 +27,12 @@ import abc, enum, json, string
 
 
 class ObjectFinder(NodeVisitor):
-    def __init__(self, class_: Type, attrs: list[str]):
+    def __init__(self, classes: list[Type] | Type, attrs: list[str]):
         super(ObjectFinder, self).__init__()
-        self.class_ = class_
+        if isinstance(classes, (list, tuple, dict, set)):
+            self.classes = tuple(classes)
+        else:
+            self.classes = classes
         self.none_checks = attrs
         self.reset()
 
@@ -41,7 +44,7 @@ class ObjectFinder(NodeVisitor):
         self.attr = None
 
     def generic_visit(self, node: Node) -> None:
-        if isinstance(node, self.class_):
+        if isinstance(node, self.classes):
             if all(getattr(node, attr) is not None for attr in self.none_checks):
                 self.objs.add(node)
                 self.parents[node] = self.parent
@@ -63,7 +66,6 @@ def generate_new_contents(source: interaction.CSource) -> str:
 
     Returns:
         (str) The generated file contents from the source's AST"""
-    source.t_unit.show()
     new_contents = ""
     for line in source.contents.splitlines():
         line_contents = line.strip()

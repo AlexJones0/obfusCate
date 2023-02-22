@@ -830,7 +830,7 @@ class OpaqueInserter(NodeVisitor):
         self.kinds = kinds
         self.number = number
         self.bug_generator = BugGenerator(0.5, 0.4)
-        self.label_finder = ObjectFinder(Label, ["name"])
+        self.label_finder = ObjectFinder((Label, Goto), ["name"])
         self.reset()
 
     def reset(self):
@@ -926,12 +926,28 @@ class OpaqueInserter(NodeVisitor):
                 )
         return predicate(*args)
 
-    def replace_labels(self, node):
+    def replace_labels(self, node): #comehere
+        local_label_idents = {}
         self.label_finder.visit(node)
-        for label in self.label_finder.objs:
+        # First find all labels, and rename them
+        for obj in self.label_finder.objs:
+            if not isinstance(obj, Label):
+                continue
+            if obj.name in local_label_idents:
+                obj.name = local_label_idents[obj.name]
+                continue
             new_ident = self.analyzer.get_new_identifier(exclude=self.label_names)
+            local_label_idents[obj.name] = new_ident
             self.label_names.add(new_ident)
-            label.name = new_ident
+            obj.name = new_ident
+        # Then, for all goto's, only change the label names to those
+        # locally defined labels (don't change goto's to outside the
+        # given node's scope)
+        for obj in self.label_finder.objs:
+            if not isinstance(obj, Goto):
+                continue
+            if obj.name in local_label_idents:
+                obj.name = local_label_idents[obj.name]
         self.label_finder.reset()
 
     def generate_buggy(self, stmt):
