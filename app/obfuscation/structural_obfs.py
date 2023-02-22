@@ -1404,7 +1404,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.function_decls = None
         self.pending_head = []
         self.frees = []
-        self.malloced = False
+        self.needs_stdlib = False
         self.checked_stmts = None
         self.unavailable_idents = None
         self.numbers = set()
@@ -1418,7 +1418,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.analyzer = NewVariableUseAnalyzer(source.t_unit)
         self.analyzer.process()
         self.visit(source.t_unit)
-        if self.malloced and not utils.is_initialised(source, ["stdlib.h"]):
+        if self.needs_stdlib and not utils.is_initialised(source, ["stdlib.h"])[0]:
             # TODO could this break if the user already has functions used in these libraries? uh oh need to state this somewhere
             source.contents = "#include <stdlib.h>\n" + source.contents
         self.reset()
@@ -2103,7 +2103,7 @@ class ControlFlowFlattener(NodeVisitor):
                 decls = []
             if node.init.exprs is not None:
                 if len(node.init.exprs) > len(decls):
-                    exprs = node.init.exprs[:len(decls)]
+                    exprs = node.init.exprs[: len(decls)]
                 else:
                     exprs = node.init.exprs
                 for i, expr in enumerate(exprs):
@@ -2191,28 +2191,24 @@ class ControlFlowFlattener(NodeVisitor):
             else:
                 arr_size = node.type.dim
             # Create a malloc for the Variable Length Array (VLA)
-            assign = [
-                Assignment(
-                    "=",
-                    ID(node.name),
-                    FuncCall(
-                        ID("alloca" if cfg.USE_ALLOCA else "malloc"),
-                        ExprList(
-                            [
-                                BinaryOp(
-                                    "*",
-                                    UnaryOp("sizeof", elem_type),
-                                    arr_size,
-                                )
-                            ]
-                        ),
-                    ),
-                )
-            ] + assign
+            # TODO: note not 100% equivalent! Is there any way around?
+            alloc_func = FuncCall(
+                ID("alloca" if cfg.USE_ALLOCA else "malloc"),
+                ExprList(
+                    [
+                        BinaryOp(
+                            "*",
+                            UnaryOp("sizeof", elem_type),
+                            arr_size,
+                        )
+                    ]
+                ),
+            )
+            assign = [Assignment("=", ID(node.name), alloc_func)] + assign
             ### TODO TODO TODO: NOT CURRENTLY MULTIDIMENSIONAL ARRAY STUFF? IS THIS NEEDED?
             if not cfg.USE_ALLOCA:
                 self.frees.append(ID(node.name))
-            self.malloced = True
+            self.needs_stdlib = True
         # I do this in frees before returning as well - just make utility functions for inserting
         # a node before/after/replacing a given node to cut down on repeated code?
         if isinstance(self.parent, Compound):
@@ -2277,8 +2273,9 @@ class ControlFlowFlattenUnit(ObfuscationUnit):
         """switch (x) {\n"""
         """    abc: case 1: do_stuff(); break;\n"""
         """}\n\n"""
-        """WARNING: Currently requires to translate variable length arrays (VLAs) to MALLOCs (stored on heap\n"""
-        """instead of stack) - make note of this for memory allocation! """
+        """WARNING: Currently requires to translate variable length arrays (VLAs) to MALLOCs or ALLOCAs.\n"""
+        """This is mostly equivalent, but does have some semantic differences - e.g. sizeof() will give a\n"""
+        """different result. So, do not use this method with variable length arrays if you rely on sizeof()."""
     )  # TODO talk about this limitation of pycparser in my report - downside to switching / Open source!
     type = TransformType.STRUCTURAL
 
