@@ -9,7 +9,7 @@ from ..debug import *
 from pycparser.c_ast import *
 from pycparser.c_lexer import CLexer
 from typing import Optional, Tuple, Type
-import abc, enum, json, string
+import abc, enum, json, string, copy
 
 # TODO: clear down some of these old TODOs
 # TODO some problems when using obfuscations multiple times - only designed to be used once. Need cleanup
@@ -447,15 +447,13 @@ class NewVariableUseAnalyzer(NodeVisitor):
                 return scope[(name, kind)]
         return None
 
-    def __get_declname(self, node: Node) -> Tuple[str, TypeDecl] | None:
+    def __get_typedecl(self, node: Node) -> TypeDecl | None:
         if node is None:
             return None
         if isinstance(node, (PtrDecl, ArrayDecl)):
-            return self.__get_declname(node.type)
+            return self.__get_typedecl(node.type)
         elif isinstance(node, TypeDecl):
-            if node.declname is None:
-                return None
-            return (node.declname, node)
+            return node
         return None
 
     def record_ident_def(self, node, name, locations, kind, alt_scope=None):
@@ -540,9 +538,9 @@ class NewVariableUseAnalyzer(NodeVisitor):
         # Visit all children as normal except for the parameter list, as this will be
         # walked by the body to record the parameters inside the compound.
         if node.type is not None:
-            declname = self.__get_declname(node.type)
-            if declname is not None:
-                self.functions.add(declname[0])
+            typedecl = self.__get_typedecl(node.type)
+            if typedecl is not None and typedecl.declname is not None:
+                self.functions.add(typedecl.declname)
         for child in node.children():
             if child[0] != "args" or self.current_function is None:
                 self.visit(child[1])
@@ -578,10 +576,28 @@ class NewVariableUseAnalyzer(NodeVisitor):
         if node.name is not None:
             self.typedefs.add(node.name)
             attributes = [(node, "name")]
-            declname = self.__get_declname(node.type)
-            if declname is not None:
-                attributes.append((declname[1], "declname"))
+            typedecl = self.__get_typedecl(node.type)
+            if typedecl is not None and typedecl.declname is not None:
+                attributes.append((typedecl, "declname"))
             self.record_ident_def(node, node.name, attributes, TypeKinds.NONSTRUCTURE)
+        if node.type is not None:
+            typedecl = self.__get_typedecl(node.type)
+            if typedecl.declname is not None:
+                attributes = [(typedecl, "declname")]
+                if typedecl.type is not None:
+                    # TODO struct/union/enum types elsewhere? Can I just
+                    # put this into visit_Struct, visit_Enum and visit_Union
+                    # with relevant attribute checks?
+                    # TODO - where else can these be used apart from
+                    # typedef and decl? Surely some missing cases?
+                    if (
+                        isinstance(typedecl.type, (Struct, Union, Enum))
+                        and typedecl.type.name is not None
+                    ):
+                        attributes.append((typedecl.type, "name"))
+                self.record_ident_usage(
+                    node, typedecl.declname, attributes, TypeKinds.STRUCTURE
+                )
         NodeVisitor.generic_visit(self, node)
 
     @stmt_wrapper
@@ -601,9 +617,9 @@ class NewVariableUseAnalyzer(NodeVisitor):
                 self.current_function != "IGNORE"
             ):  # Regular parameter/function definition
                 attributes = [(node, "name")]
-                declname = self.__get_declname(node.type)
-                if declname is not None:
-                    attributes.append((declname[1], "declname"))
+                typedecl = self.__get_typedecl(node.type)
+                if typedecl is not None and typedecl.declname is not None:
+                    attributes.append((typedecl, "declname"))
                 # TODO is this right - apparently different for funcs and vars?
                 self.record_ident_def(
                     node, node.name, attributes, TypeKinds.NONSTRUCTURE
@@ -624,8 +640,8 @@ class NewVariableUseAnalyzer(NodeVisitor):
                     and type_.values is not None
                     or isinstance(type_, (Struct, Union))
                     and type_.decls is not None
-                    and type_.name is not None 
-                ): # TODO check new .name checks not break anything ^v
+                    and type_.name is not None
+                ):  # TODO check new .name checks not break anything ^v
                     # Enum/Struct/Union definition
                     self.record_ident_def(
                         node, type_.name, [(type_, "name")], TypeKinds.STRUCTURE

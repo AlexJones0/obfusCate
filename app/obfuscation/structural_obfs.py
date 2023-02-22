@@ -1919,7 +1919,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.checked_stmts.add(stmt)
         # Create a relevant corresponding typedef at the start of the function
         typedef = Typedef(node.name, node.quals, node.storage, node.type)
-        self.pending_head = [typedef] + self.pending_head
+        self.pending_head.append(typedef)
         self.generic_visit(node)
 
     def __get_array_size(self, node: Node) -> list[int] | None:
