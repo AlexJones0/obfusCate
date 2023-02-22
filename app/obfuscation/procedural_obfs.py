@@ -170,6 +170,8 @@ class FuncArgRandomiserTraverser(NodeVisitor):
         if node.args is None and self.extra > 0:
             node.args = ExprList([]) 
             # Convert empty function calls
+        elif node.args is None and self.extra == 0:
+            return NodeVisitor.generic_visit(self, node)
         new_args, mapping = self.func_args[fname]
         first_arg = new_args.params[0].type.type
         if isinstance(first_arg, IdentifierType) and first_arg.names[0] == "void":
