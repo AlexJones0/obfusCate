@@ -221,6 +221,21 @@ class AvailableForm(QFrame):
             self.layout.addWidget(transform_widget, 1)
             self.transforms.append(transform_widget)
         self.setLayout(self.layout)
+        self._generate_shortcuts()
+
+    def _generate_shortcuts(self):
+        cur_index = 0
+        for key in ["Ctrl", "Alt"]:
+            if cur_index >= len(self.transforms):
+                break
+            for i in range(10):
+                if cur_index >= len(self.transforms):
+                    break
+                shortcut_keypress = f"{key}+{(i+1)%10}"
+                t_shortcut = QShortcut(QKeySequence(shortcut_keypress), self)
+                t_widget = self.transforms[cur_index]
+                t_shortcut.activated.connect(t_widget.add_transformation)
+                cur_index += 1
 
 
 class SelectedTransformWidget(QWidget):
@@ -391,6 +406,17 @@ class CurrentForm(QFrame):
         self.remove_behaviour = self.RemoveBehaviour.SELECT_NEXT
         self.deselect_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_DESELECT), self)
         self.deselect_shortcut.activated.connect(self.deselect_transform)
+        self.select_next_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_SELECT_NEXT), self)
+        self.select_next_shortcut.activated.connect(self.select_next_transform)
+        self.select_prev_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_SELECT_PREV), self)
+        self.select_prev_shortcut.activated.connect(
+            lambda: self.select_next_transform(
+                base = lambda n: n - 1,
+                key = lambda i, n: (i - 1 + n) % n 
+            )
+        )
+        self.delete_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_DELETE), self)
+        self.delete_shortcut.activated.connect(self.remove_selected)
         self.setStyleSheet(
             """
             CurrentForm{
@@ -564,6 +590,28 @@ class CurrentForm(QFrame):
             self.current_widget.deselect()
         self.current_transform = self.selected[self.selected_widgets.index(widget)]
         self.current_widget = widget
+        if self.__options_form_reference is not None:
+            self.__options_form_reference.load_transform(self.current_transform)
+
+    def select_next_transform(self, base: Callable | None = None, key: Callable | None = None) -> None:
+        if len(self.selected) == 0:
+            return
+        if self.current_transform is None:
+            if base is None:
+                new_index = 0
+            else:
+                new_index = base(len(self.selected))
+        else:
+            self.current_transform.load_gui_values()
+            self.current_widget.deselect()
+            if key is None:
+                key = lambda i, n: (i + 1) % n
+            index = self.selected.index(self.current_transform)
+            new_index = key(index, len(self.selected))
+        self.current_transform = self.selected[new_index]
+        self.current_widget = self.selected_widgets[new_index]
+        self.current_widget.select()
+        self.scroll_widget.ensureWidgetVisible(self.current_widget, yMargin=1)
         if self.__options_form_reference is not None:
             self.__options_form_reference.load_transform(self.current_transform)
 
@@ -850,6 +898,10 @@ class GeneralOptionsForm(QFrame):
         super(GeneralOptionsForm, self).__init__(parent)
         self.obfuscate_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_OBFUSCATE), self)
         self.obfuscate_shortcut.activated.connect(self.obfuscate)
+        self.save_obfs_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_SAVE_OBFS), self)
+        self.save_obfs_shortcut.activated.connect(self.save_obfuscated)
+        self.save_comp_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_SAVE_COMP), self)
+        self.save_comp_shortcut.activated.connect(self.save_composition)
         self.__transforms_reference = transforms_func
         self.__set_transforms_func = set_transforms_func
         self.__load_selected_gui_reference = load_gui_vals_func
@@ -1267,6 +1319,11 @@ class MainWindow(QMainWindow):
         palette = self.palette()
         palette.setColor(self.backgroundRole(), QColor("#1D1E1A"))
         self.setPalette(palette)
+        # Initialise shortcuts
+        self.fullscreen_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_FULLSCREEN), self)
+        self.fullscreen_shortcut.activated.connect(self.toggle_fullscreen)
+        self.windowed_size = self.size()
+        self.window_pos = self.pos()
         # Initialise window widgets
         self.obfuscate_widget = ObfuscateWidget(self)
         self.setCentralWidget(self.obfuscate_widget)
@@ -1277,6 +1334,15 @@ class MainWindow(QMainWindow):
     def show(self, *args, **kwargs) -> None:
         super(MainWindow, self).show(*args, **kwargs)
         self.obfuscate_widget.update_namelabels()
+
+    def toggle_fullscreen(self) -> None:
+        if self.isFullScreen():
+            self.showNormal()
+            self.resize(self.windowed_size)
+            return self.move(self.window_pos)
+        self.windowed_size = self.size()
+        self.window_pos = self.pos()
+        self.showFullScreen()
 
 
 def handle_gui() -> bool:

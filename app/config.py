@@ -9,9 +9,9 @@ class Config(object):
 
     NAME = "obfusCate"
     VERSION = "v0.17.4"
-    LOG_PATH = ".\\logs\\"
-    COMP_PATH = ".\\compositions\\auto\\"
-    TEMP_FILE_PATH = ".\\obfuscate_temp.c"
+    LOG_PATH = "./logs/"
+    COMP_PATH = "./compositions/auto/"
+    TEMP_FILE_PATH = "./obfuscate_temp.c"
     LOG_FILE = ""
     LOGS_ENABLED = True
     CALCULATE_COMPLEXITY = True
@@ -26,10 +26,21 @@ class Config(object):
     USE_PATCHED_PARSER = True
 
 class GuiDefaults(object):
+    """ Stores important default values used by GUI code throughout the program,
+    including lists of font families to use for rendering different text (in what
+    order), shortcut keypress sequences, and standardized CSS to give the
+    program a cohesive style. """
+    
     DEFAULT_FONT = ["Consolas", "Fira Code", "Jetbrains Mono", "Courier New", "monospace"]
     CODE_FONT = ["Jetbrains Mono", "Fira Code", "Consolas", "Courier New", "monospace"]
     SHORTCUT_DESELECT = "Esc"
+    SHORTCUT_SELECT_NEXT = "Ctrl+Space"
+    SHORTCUT_SELECT_PREV = "Ctrl+B"
     SHORTCUT_OBFUSCATE = "Ctrl+R"
+    SHORTCUT_DELETE = "Ctrl+D"
+    SHORTCUT_SAVE_OBFS = "Ctrl+S"
+    SHORTCUT_SAVE_COMP = "Shift+S"
+    SHORTCUT_FULLSCREEN = "F11"
     GENERAL_TOOLTIP_CSS = """ 
         QToolTip { 
             background-color: #AAAAAA; 
