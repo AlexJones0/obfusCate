@@ -583,7 +583,7 @@ class GuiInsertOpaqueUnit(InsertOpaqueUnit):
 
     def edit_gui(self, parent: QWidget) -> None:
         layout = QVBoxLayout(parent)
-        layout.setContentsMargins(0, 10, 0, 30)
+        layout.setContentsMargins(0, 10, 0, 10)
         scroll_widget = QScrollArea(parent)
         scroll_widget.setStyleSheet(
             """

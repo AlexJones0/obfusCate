@@ -32,7 +32,7 @@ def help_menu() -> bool:
         "information on usage and options, see below.\n\n"
         "Usage: python {} [input_c_file] [output_file] [options]\n\n"
         "Options:\n"
-    ).format(__file__.split("\\")[-1])
+    ).format(__file__.split("\\").split("/")[-1])
     max_len = max([len(str(opt)) for opt in interaction.shared_options])
     for option in interaction.shared_options:
         option_str = str(option)
@@ -159,7 +159,7 @@ class TransformWidget(QWidget):
         self.buttons_widget.layout.setSpacing(0)
         self.info_symbol = QLabel(self)
         self.info_symbol.setPixmap(
-            QIcon(".\\app\\graphics\\info.png").pixmap(QSize(21, 21))
+            QIcon("./app/graphics/icons/info.png").pixmap(QSize(21, 21))
         )
         self.info_symbol.setToolTip(class_.extended_description)
         QToolTip.setFont(QFont(Df.DEFAULT_FONT, 13))
@@ -175,7 +175,7 @@ class TransformWidget(QWidget):
                 background: none;
             }"""
         )
-        self.add_symbol.setIcon(QIcon(".\\app\\graphics\\plus.png"))
+        self.add_symbol.setIcon(QIcon("./app/graphics/icons/plus.png"))
         self.add_symbol.setIconSize(QSize(22, 22))
         self.add_symbol.clicked.connect(self.add_transformation)
         self.buttons_widget.layout.addWidget(self.add_symbol, 1)
@@ -205,6 +205,7 @@ class AvailableForm(QFrame):
         )
         self.layout = QVBoxLayout(self)
         self.layout.setSpacing(8)
+        self.setContentsMargins(5, 0, 5, 0)
         self.title_label = QLabel("Available Obfuscations", self)
         self.title_label.setFont(QFont(Df.DEFAULT_FONT, 14))
         self.title_label.setStyleSheet("QLabel{color: white;}")
@@ -331,24 +332,17 @@ class TransformOptionsForm(QFrame):
                 padding: 6px; 
             }"""
         )
-        self.setMinimumHeight(250)
         self.layout = QVBoxLayout(self)
-        self.layout.setSpacing(0)
-        self.layout.setContentsMargins(5, 0, 5, 5)
+        self.layout.setSpacing(2)
+        self.layout.setContentsMargins(5, 0, 5, 4)
         self.title_label = QLabel("Transform Options", self)
         self.title_label.setFont(QFont(Df.DEFAULT_FONT, 14))
         self.title_label.setStyleSheet("QLabel{color: white;}")
         self.layout.addWidget(
-            self.title_label, 1, alignment=Qt.AlignmentFlag.AlignHCenter
+            self.title_label, 1, alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop
         )
         self.options = QFrame(self)
-        self.options.setMinimumHeight(200)
-        self.layout.addWidget(self.options, 9)
-        # TODO seems to be an issue - if you click on the label text the button doesn't work
-        # but if you click on any other part of the back it does? Need to troubleshoot this
-        # TODO above *may* (or may not) have something to do with having source editor text highlighted?
-        # TODO also maybe it is getting _covered_ by some other widget which is taking the click?
-        # TODO ^^ seems to be relatively consistent on removing ControlFlow?
+        self.layout.addWidget(self.options, 1, alignment=Qt.AlignmentFlag.AlignTop)
         self.remove_button = QPushButton("Remove Transform", self)
         self.remove_button.setFont(QFont(Df.DEFAULT_FONT, 12))
         self.remove_button.setStyleSheet(
@@ -372,16 +366,14 @@ class TransformOptionsForm(QFrame):
             self.remove_button.hide()
             self.layout.removeWidget(self.options)
             self.options = QFrame()
-            self.options.setMinimumHeight(200)
-            self.layout.insertWidget(1, self.options)
+            self.layout.insertWidget(1, self.options, alignment=Qt.AlignmentFlag.AlignTop)
             # TODO figure out how to handle resetting default behaviour
             return
         self.remove_button.show()
         self.layout.removeWidget(self.options)
         self.options = QFrame()
-        self.options.setMinimumHeight(200)
         transform.edit_gui(self.options)
-        self.layout.insertWidget(1, self.options)
+        self.layout.insertWidget(1, self.options, alignment=Qt.AlignmentFlag.AlignTop)
 
 
 class CurrentForm(QFrame):
@@ -412,7 +404,7 @@ class CurrentForm(QFrame):
         )
         self.layout = QVBoxLayout(self)
         self.layout.setSpacing(8)
-        self.setMinimumHeight(250)
+        self.setContentsMargins(5, 0, 5, 0)
         self.title_label = QLabel("Current Obfuscations", self)
         self.title_label.setFont(QFont(Df.DEFAULT_FONT, 14))
         self.title_label.setStyleSheet("QLabel{color: white;}")
@@ -633,15 +625,16 @@ class MetricsForm(QFrame):
                 padding: 6px; 
             }"""
         )
-        self.setMinimumSize(250, 250)
+        self.setMinimumWidth(250)
         self.layout = QVBoxLayout(self)
-        self.layout.setSpacing(0)
+        self.layout.setSpacing(2)
+        self.setContentsMargins(5, 8, 5, 15)
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.title_label = QLabel("Obfuscation Metrics", self)
         self.title_label.setFont(QFont(Df.DEFAULT_FONT, 14))
         self.title_label.setStyleSheet("QLabel{color: white;}")
         self.layout.addWidget(
-            self.title_label, 1, alignment=Qt.AlignmentFlag.AlignHCenter
+            self.title_label, alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop
         )
         self.scroll_widget = QScrollArea(self)
         self.scroll_widget.setStyleSheet(
@@ -669,13 +662,13 @@ class MetricsForm(QFrame):
             }"""
         )
         self.metric_widget.layout = QVBoxLayout(self.metric_widget)
-        self.metric_widget.layout.setContentsMargins(5, 5, 8, 5)
+        self.metric_widget.layout.setContentsMargins(5, 2, 8, 5)
         self.metric_widget.layout.setSpacing(12)
         # self.metric_widget.setSizePolicy(
         #    QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
         # ) # TODO keep or remove this?
         self.scroll_widget.setWidget(self.metric_widget)
-        self.layout.addWidget(self.scroll_widget, 9)
+        self.layout.addWidget(self.scroll_widget)
         self.setLayout(self.layout)
         if cfg.CALCULATE_COMPLEXITY:
             self.load_metrics(None, None)
@@ -720,10 +713,17 @@ class MetricsForm(QFrame):
                 self.checkbox_map[key] = self.checkbox_map[key].isChecked()
         QToolTip.setFont(QFont(Df.DEFAULT_FONT, 13))
         for i in reversed(range(self.metric_widget.layout.count())):
-            widget = self.metric_widget.layout.itemAt(i).widget()
+            item = self.metric_widget.layout.itemAt(i)
+            widget = item.widget()
+            if widget is None:
+                self.metric_widget.layout.removeItem(item)
+                continue
             self.metric_widget.layout.removeWidget(widget)
             widget.setParent(None)
+        self.metric_widget.layout
         metrics = CodeMetricUnit.__subclasses__()
+        # TODO maybe add note about missing prerequisites if
+        # pre-requisite metrics are not enabled?
         while len(metrics) != 0:
             processed = []
             for metric in metrics:
@@ -832,6 +832,7 @@ class MetricsForm(QFrame):
                 return
             for metric in processed:
                 metrics.remove(metric)
+        self.metric_widget.layout.addStretch()
 
 
 class GeneralOptionsForm(QFrame):
@@ -875,7 +876,6 @@ class GeneralOptionsForm(QFrame):
                 font-weight: bold;
             }"""
         )
-        self.setMinimumHeight(200)  # TODO remove if not correct?
         self.seed = config.SEED
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -965,7 +965,7 @@ class GeneralOptionsForm(QFrame):
         self.__source_form_reference.add_source(source)
 
     def load_composition(self) -> None:
-        compositions_path = os.path.join(os.getcwd(), "compositions\\")
+        compositions_path = os.path.join(os.getcwd(), "compositions/")
         if not os.path.exists(compositions_path):
             os.mkdir(compositions_path)
         dialog = QFileDialog(self)
@@ -999,7 +999,7 @@ class GeneralOptionsForm(QFrame):
             f.write(self.__obfuscated_form_reference.toPlainText())
 
     def save_composition(self) -> None:
-        compositions_path = os.path.join(os.getcwd(), "compositions\\")
+        compositions_path = os.path.join(os.getcwd(), "compositions/")
         if not os.path.exists(compositions_path):
             os.mkdir(compositions_path)
         file, _ = QFileDialog.getSaveFileName(
@@ -1157,13 +1157,13 @@ class ObfuscateWidget(QWidget):
         self.top_layout.addStretch(0)
         self.top_widget.setLayout(self.top_layout)
         self.source_namelabel = NameLabel(
-            QIcon(".\\app\\graphics\\C.png"),
+            QIcon("./app/graphics/icons/C.png"),
             QSize(14, 14),
             "/source.c",
             self.top_widget,
         )
         self.obfuscated_namelabel = NameLabel(
-            QIcon(".\\app\\graphics\\lock.png"),
+            QIcon("./app/graphics/icons/lock.png"),
             QSize(14, 14),
             "/obfuscated.c",
             self.top_widget,
@@ -1261,7 +1261,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(parent)
         # Set window title and icon information
         self.setWindowTitle(config.NAME + " " + config.VERSION)
-        self.setWindowIcon(QIcon(".\\app\\graphics\\logo.png"))
+        self.setWindowIcon(QIcon("./app/graphics/icons/logo.png"))
         self.setAutoFillBackground(True)
         # Set default palette colour information
         palette = self.palette()
@@ -1282,7 +1282,7 @@ class MainWindow(QMainWindow):
 def handle_gui() -> bool:
     # Patch: If on windows, change the python window application user model
     # ID so that the icon is displayed correctly in the taskbar.
-    if ctypes.windll is not None and ctypes.windll.shell32 is not None:
+    if hasattr(ctypes, "windll") and ctypes.windll is not None and ctypes.windll.shell32 is not None:
         app_id = config.NAME + "." + config.VERSION[1:]
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
 
@@ -1301,6 +1301,12 @@ def handle_gui() -> bool:
         return args
 
     app = QApplication(sys.argv)
+    # TODO installation note - I currently assume you are running from the directory root.
+    # I could either note this in the installation, or figure out some way to determine
+    # where the program root is and use that (e.g. by settinga an environment variable).
+    # TODO turns out I can just get this with 
+    # CURRENT_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
+    QFontDatabase.addApplicationFont('./app/graphics/fonts/Jetbrains-Mono/JetBrainsMono-Regular.ttf')
     window = MainWindow()
 
     # Read file and display parse errors
