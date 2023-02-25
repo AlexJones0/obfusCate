@@ -408,15 +408,22 @@ class CurrentForm(QFrame):
         self.deselect_shortcut.activated.connect(self.deselect_transform)
         self.select_next_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_SELECT_NEXT), self)
         self.select_next_shortcut.activated.connect(self.select_next_transform)
+        self.alt_select_next_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_ALT_SELECT_NEXT), self)
+        self.alt_select_next_shortcut.activated.connect(self.select_next_transform)
         self.select_prev_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_SELECT_PREV), self)
-        self.select_prev_shortcut.activated.connect(
-            lambda: self.select_next_transform(
+        get_prev_func = lambda: self.select_next_transform(
                 base = lambda n: n - 1,
                 key = lambda i, n: (i - 1 + n) % n 
             )
-        )
+        self.select_prev_shortcut.activated.connect(get_prev_func)
+        self.alt_select_prev_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_ALT_SELECT_PREV), self)
+        self.alt_select_prev_shortcut.activated.connect(get_prev_func)
         self.delete_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_DELETE), self)
         self.delete_shortcut.activated.connect(self.remove_selected)
+        self.move_up_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_MOVE_UP), self)
+        self.move_up_shortcut.activated.connect(self.move_transform_up)
+        self.move_down_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_MOVE_DOWN), self)
+        self.move_down_shortcut.activated.connect(self.move_transform_down)
         self.copy_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_COPY), self)
         self.copy_shortcut.activated.connect(self.copy_transform)
         self.paste_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_PASTE), self)
@@ -656,6 +663,27 @@ class CurrentForm(QFrame):
             if self.__options_form_reference is not None:
                 self.__options_form_reference.load_transform(self.current_transform)
 
+    def move_transform_up(self):
+        if self.current_transform is None:
+            return
+        length = len(self.selected)
+        index = (length + self.selected.index(self.current_transform) - 1) % length
+        self.scroll_content.layout.removeWidget(self.current_widget)
+        self.scroll_content.layout.insertWidget(index, self.current_widget)
+        self.move_transform(index, self.current_widget)
+        QTimer.singleShot(0, functools.partial(self.scroll_widget.ensureWidgetVisible, self.current_widget, 50, self.current_widget.height()))
+        
+    
+    def move_transform_down(self):
+        if self.current_transform is None:
+            return
+        index = (self.selected.index(self.current_transform) + 1) % len(self.selected)
+        self.scroll_content.layout.removeWidget(self.current_widget)
+        self.scroll_content.layout.insertWidget(index, self.current_widget)
+        self.move_transform(index, self.current_widget)
+        QTimer.singleShot(0, functools.partial(self.scroll_widget.ensureWidgetVisible, self.current_widget, 50, self.current_widget.height()))
+        
+
     def copy_transform(self):
         self.transform_clipboard = (self.current_transform.__class__, self.current_transform.to_json())
     
@@ -678,7 +706,7 @@ class CurrentForm(QFrame):
             self.selected_widgets[i].number = i + 1
         self.select_transform(transform_widget)
         transform_widget.select()
-        QTimer.singleShot(0, functools.partial(self.scroll_widget.ensureWidgetVisible, transform_widget, 50, 1))
+        QTimer.singleShot(0, functools.partial(self.scroll_widget.ensureWidgetVisible, transform_widget, 50, transform_widget.height()))
 
     def get_transforms(self):
         return self.selected

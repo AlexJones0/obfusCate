@@ -33,14 +33,18 @@ class GuiDefaults(object):
     
     DEFAULT_FONT = ["Consolas", "Fira Code", "Jetbrains Mono", "Courier New", "monospace"]
     CODE_FONT = ["Jetbrains Mono", "Fira Code", "Consolas", "Courier New", "monospace"]
-    SHORTCUT_DESELECT = "Esc"
-    SHORTCUT_SELECT_NEXT = "Ctrl+Space"
-    SHORTCUT_SELECT_PREV = "Ctrl+B"
     SHORTCUT_OBFUSCATE = "Ctrl+R"
     SHORTCUT_DELETE = "Ctrl+D"
     SHORTCUT_SAVE_OBFS = "Ctrl+S"
     SHORTCUT_SAVE_COMP = "Shift+S"
     SHORTCUT_FULLSCREEN = "F11"
+    SHORTCUT_DESELECT = "Esc"
+    SHORTCUT_SELECT_PREV = "Up"
+    SHORTCUT_SELECT_NEXT = "Down"
+    SHORTCUT_ALT_SELECT_PREV = "Ctrl+B"  # Allows selecting even from text editor
+    SHORTCUT_ALT_SELECT_NEXT = "Ctrl+Space"  # Allows selecting even from text editor
+    SHORTCUT_MOVE_UP = "Ctrl+Up"
+    SHORTCUT_MOVE_DOWN = "Ctrl+Down"
     SHORTCUT_COPY = "Ctrl+C"
     SHORTCUT_PASTE = "Ctrl+V"
     GENERAL_TOOLTIP_CSS = """ 
