@@ -10,7 +10,7 @@ from .config import GuiDefaults as Df
 from app import settings as cfg
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
-from PyQt6.QtCore import Qt, QSize, QMimeData, QDir, QCoreApplication
+from PyQt6.QtCore import Qt, QSize, QMimeData, QDir, QCoreApplication, QTimer
 from typing import Type, Tuple, Callable, Any
 from copy import deepcopy
 import functools, sys, os, ctypes
@@ -244,7 +244,7 @@ class SelectedTransformWidget(QWidget):
         class_: Type[obfs.ObfuscationUnit],
         number: int,
         select_func: Callable,
-        parent: QWidget = None,
+        parent: QWidget | None = None,
     ) -> None:
         super(SelectedTransformWidget, self).__init__(parent)
         self.select_func = select_func
@@ -417,6 +417,10 @@ class CurrentForm(QFrame):
         )
         self.delete_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_DELETE), self)
         self.delete_shortcut.activated.connect(self.remove_selected)
+        self.copy_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_COPY), self)
+        self.copy_shortcut.activated.connect(self.copy_transform)
+        self.paste_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_PASTE), self)
+        self.paste_shortcut.activated.connect(self.paste_transform)
         self.setStyleSheet(
             """
             CurrentForm{
@@ -430,6 +434,7 @@ class CurrentForm(QFrame):
         )
         self.layout = QVBoxLayout(self)
         self.layout.setSpacing(8)
+        self.transform_clipboard = None
         self.setContentsMargins(5, 0, 5, 0)
         self.title_label = QLabel("Current Obfuscations", self)
         self.title_label.setFont(QFont(Df.DEFAULT_FONT, 14))
@@ -550,7 +555,6 @@ class CurrentForm(QFrame):
         transform_widget = SelectedTransformWidget(
             class_, number, self.select_transform, self
         )
-        transform_widget.height()
         self.scroll_content.layout.addWidget(
             transform_widget, alignment=Qt.AlignmentFlag.AlignTop
         )
@@ -635,12 +639,16 @@ class CurrentForm(QFrame):
             if self.current_transform is not None and self.current_widget is not None:
                 index = self.selected.index(self.current_transform)
                 self.remove_transform(self.current_transform)
-                if len(self.selected) <= index:
+                if len(self.selected) == 0:
                     self.current_transform = None
                     self.current_widget = None
-                else:
+                elif len(self.selected) > index:
                     self.current_transform = self.selected[index]
                     self.current_widget = self.selected_widgets[index]
+                    self.current_widget.select()
+                else:
+                    self.current_transform = self.selected[index-1]
+                    self.current_widget = self.selected_widgets[index-1]
                     self.current_widget.select()
             else:
                 self.current_transform = None
@@ -648,12 +656,38 @@ class CurrentForm(QFrame):
             if self.__options_form_reference is not None:
                 self.__options_form_reference.load_transform(self.current_transform)
 
+    def copy_transform(self):
+        self.transform_clipboard = (self.current_transform.__class__, self.current_transform.to_json())
+    
+    def paste_transform(self):
+        if self.transform_clipboard is None:
+            return
+        transform_class, transform_json = self.transform_clipboard
+        if self.current_transform is None:
+            new_index = 0
+        else:
+            new_index = self.selected.index(self.current_transform) + 1
+        new_transform = transform_class.from_json(transform_json)
+        transform_widget = SelectedTransformWidget(
+            new_transform.__class__, new_index + 1, self.select_transform, self
+        )
+        self.scroll_content.layout.insertWidget(new_index, transform_widget, alignment=Qt.AlignmentFlag.AlignTop)
+        self.selected = self.selected[:new_index] + [new_transform] + self.selected[new_index:]
+        self.selected_widgets = self.selected_widgets[:new_index] + [transform_widget] + self.selected_widgets[new_index:]
+        for i in range(new_index+1, len(self.selected)):
+            self.selected_widgets[i].number = i + 1
+        self.select_transform(transform_widget)
+        transform_widget.select()
+        QTimer.singleShot(0, functools.partial(self.scroll_widget.ensureWidgetVisible, transform_widget, 50, 1))
+
     def get_transforms(self):
         return self.selected
 
     def load_selected_values(self):
         if self.current_transform is not None:
             self.current_transform.load_gui_values()
+
+    
 
     def add_options_form(self, options_form: TransformOptionsForm) -> None:
         self.__options_form_reference = options_form

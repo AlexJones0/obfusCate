@@ -41,6 +41,8 @@ class GuiDefaults(object):
     SHORTCUT_SAVE_OBFS = "Ctrl+S"
     SHORTCUT_SAVE_COMP = "Shift+S"
     SHORTCUT_FULLSCREEN = "F11"
+    SHORTCUT_COPY = "Ctrl+C"
+    SHORTCUT_PASTE = "Ctrl+V"
     GENERAL_TOOLTIP_CSS = """ 
         QToolTip { 
             background-color: #AAAAAA; 
