@@ -80,9 +80,9 @@ The following steps are all that is needed for installation:
     > py -m pip install -r requirements.txt
     ```
 
-    to install the required python modules. *Hopefully*, installation of the *libclang* module will automatically install clang on your system if it is not already installed. If not, see the [Debugging](#3-debugging) section for possible help.
+    to install the required python modules. *Hopefully*, installation of the *libclang* module will automatically install clang on your system if it is not already installed. If not, see the [Debugging section](#3-debugging) for possible help.
 
-3. Everything needed to run the project should now be installed! You can see the [usage section](#4-usage) to see how you are intended to run the program!
+3. Everything needed to run the project should now be installed! You can see the [Usage section](#4-usage) to see how you are intended to run the program!
 
 *Note:* Alternatively, you can just try running some install scripts I have set up that will try and determine your python executable alias for you - but there is no guarantees that these will work for your OS! On Windows open Powershell / Windows Terminal / cmd and run `./install.bat`, and on Linux / Mac open a terminal and run `./install.sh`. This should complete this installation process for you.
 

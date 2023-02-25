@@ -763,6 +763,46 @@ class TestObfuscationCLIFunctions(unittest.TestCase):
         out = out.getvalue()
         self.assertTrue(cfg.CALCULATE_COMPLEXITY)
     
+    def test_cli_no_alloca_sysarg(self) -> None:
+        """ Tests that the CLI correctly sets the option to disable alloca usage
+        when the no alloca system arguments are given."""
+        no_alloca_args = ["-a", "--no-alloca"]
+        for arg in no_alloca_args:
+            reset_config()
+            sys.argv = ["script.py", "./tests/data/minimal.c", "-p", arg, "-S", "123"]
+            out = io.StringIO()
+            with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+                handle_CLI()
+            out = out.getvalue()
+            self.assertFalse(cfg.USE_ALLOCA)
+        reset_config()
+        sys.argv = ["script.py", ".tests/data/minimal.c"]
+        out = io.StringIO()
+        with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+            handle_CLI()
+        out = out.getvalue()
+        self.assertTrue(cfg.USE_ALLOCA)
+    
+    def test_cli_unpatch_parser_sysarg(self) -> None:
+        """ Tests that the CLI correctly sets the option to use the unpatched
+        parser version when the unpatch parser system arguments are given. """
+        unpatch_args = ["-u", "--unpatch-parser"]
+        for arg in unpatch_args:
+            reset_config()
+            sys.argv = ["script.py", "./tests/data/minimal.c", "-p", arg, "-S", "123"]
+            out = io.StringIO()
+            with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+                handle_CLI()
+            out = out.getvalue()
+            self.assertFalse(cfg.USE_PATCHED_PARSER)
+        reset_config()
+        sys.argv = ["script.py", ".tests/data/minimal.c"]
+        out = io.StringIO()
+        with patch("builtins.input", side_effect=["quit"]), redirect_stdout(out):
+            handle_CLI()
+        out = out.getvalue()
+        self.assertTrue(cfg.USE_PATCHED_PARSER)
+    
     def test_cli_skip_sysarg(self) -> None:
         """ Tests that the CLI correctly sets the option to skip the selection
         interface when the skip system arguments are given. """
@@ -783,7 +823,7 @@ class TestObfuscationCLIFunctions(unittest.TestCase):
             handle_CLI()
         out = out.getvalue()
         self.assertFalse(cfg.SKIP_MENUS)
-
+    
 
 if __name__ == "__main__":
     unittest.main()
