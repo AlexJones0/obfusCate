@@ -259,9 +259,7 @@ class IdentifierTraverser(NodeVisitor):
         NodeVisitor.generic_visit(self, node)
     
     def visit_Typedef(self, node):
-        if node.name is not None:
-            if node.name in self.idents:
-                node.name = self.idents[node.name]
+        self.scramble_ident(node)
         NodeVisitor.generic_visit(self, node)
 
     def visit_ID(self, node):
@@ -329,7 +327,6 @@ class IdentifierRenameUnit(ObfuscationUnit):
 
     def transform(self, source: interaction.CSource) -> interaction.CSource:
         if self.minimise_idents:
-            # TODO identifier minimisation breaking on AOCday6 example - WHY!?
             transformer = NewNewIdentifierRenamer(self.style, True)
             transformer.transform(source)
         else:

@@ -693,6 +693,7 @@ class NewNewVariableUseAnalyzer(NodeVisitor):
         self._current_definitions = []
         self._current_function = None
         self._current_compound = None
+        self._current_struct = None
         self._current_stmt = None
 
         # Misc. variables related to the Analyzer's state
@@ -1192,7 +1193,7 @@ class NewNewVariableUseAnalyzer(NodeVisitor):
         old_ident_def = (stmt_node, name, namespace)
         new_ident_def = (stmt_node, new_name, namespace)
         self.definition_uses[new_ident_def] = self.definition_uses[old_ident_def]
-        del self.definition_uses[old_ident_def]
+        self.definition_uses.pop(old_ident_def)
     
     def update_funcspecs(self) -> None:
         """ Performs a backfill of function specifications, updating any incomplete
@@ -1253,7 +1254,7 @@ class NewNewVariableUseAnalyzer(NodeVisitor):
             labels = self.labels[self._current_function]
             for label in labels:
                 if label.name == name:
-                    return label
+                    return self.get_stmt_from_node(label)
             return None
         for i, scope in enumerate(self._current_definitions[::-1]):
             if (name, namespace) in scope:
@@ -1438,7 +1439,7 @@ class NewNewVariableUseAnalyzer(NodeVisitor):
         self._record_definition(node, node.name, locations, NameSpace.ORDINARY)
         # Add the type identifier usage, if one exists
         if has_declname:
-            locations = [(typedecl, "declname")]
+            locations = [(node, "name"), (typedecl, "declname")]
             if isinstance(typedecl.type, (Struct, Union, Enum)) and typedecl.type.name is not None:
                 # TODO: is any struct/union/enum types elsewhere?
                 # Can I just put this into visit_Struct, visit_Enum and visit_Union
@@ -1447,8 +1448,7 @@ class NewNewVariableUseAnalyzer(NodeVisitor):
                 if isinstance(typedecl.type, (Struct, Union)) and typedecl.type.decls is not None:
                     self._record_definition(node, typedecl.type.name, type_locs, NameSpace.TAG)
             else:
-                namespace = NameSpace.ORDINARY
-                self._record_usage(node, typedecl.declname, locations, namespace)
+                self._record_usage(node, typedecl.declname, locations, NameSpace.ORDINARY)
         NodeVisitor.generic_visit(self, node)
     
     def _record_var_func_decl(self, node: Decl) -> None:
@@ -1457,7 +1457,10 @@ class NewNewVariableUseAnalyzer(NodeVisitor):
         typedecl = self._get_typedecl(node.type)
         if typedecl is not None and typedecl.declname is not None:
             locations.append((typedecl, "declname"))
-        self._record_definition(node, node.name, locations, NameSpace.ORDINARY)
+        if self._current_struct is None:
+            self._record_definition(node, node.name, locations, NameSpace.ORDINARY)
+        else:
+            self._record_definition(node, node.name, locations, (NameSpace.MEMBER, self._current_struct))
     
     def _record_tag_decl(self, node: Decl) -> None:
         """ Records definitions of enums/structs/unions (tag namespace) idents
@@ -1584,12 +1587,15 @@ class NewNewVariableUseAnalyzer(NodeVisitor):
         for (name, namespace), node in self._current_definitions[-1].items():
             if isinstance(namespace, Tuple) and namespace[0] == NameSpace.MEMBER:
                 # If already a member (i.e. struct in a struct), pass through
-                self._current_definitions[-2][name, namespace] = node
+                self._current_definitions[-2][(name, namespace)] = node
+                if namespace[1] == struct: 
+                    # If a member of this struct, record as a mamber
+                    members.add(name) 
             else:
                 # If not already a member, put identifiers in the member namespace
                 new_namespace = (NameSpace.MEMBER, struct)
                 members.add(name)
-                self._current_definitions[-2][name, new_namespace] = node
+                self._current_definitions[-2][(name, new_namespace)] = node
                 self.definition_uses[(node, name, new_namespace)] = self.definition_uses.pop((node, name, namespace))
                 self.stmt_definitions[node].remove((name, namespace))
                 self.stmt_definitions[node].add((name, new_namespace))
@@ -1602,8 +1608,11 @@ class NewNewVariableUseAnalyzer(NodeVisitor):
         if node.name is not None:
             locs = [(node, "name")]
             self._record_usage(node, node.name, locs, NameSpace.TAG)
+        prev_struct = self._current_struct
+        self._current_struct = node
         self._current_definitions.append({})
         NodeVisitor.generic_visit(self, node)
+        self._current_struct = prev_struct
         self._wrap_struct_definitions(node)
         self._current_definitions = self._current_definitions[:-1]
     
@@ -1614,8 +1623,11 @@ class NewNewVariableUseAnalyzer(NodeVisitor):
         if node.name is not None:
             locs = [(node, "name")]
             self._record_usage(node, node.name, locs, NameSpace.TAG)
+        prev_struct = self._current_struct
+        self._current_struct = node
         self._current_definitions.append({})
         NodeVisitor.generic_visit(self, node)
+        self._current_struct = prev_struct
         self._wrap_struct_definitions(node)
         self._current_definitions = self._current_definitions[:-1]
     
@@ -1632,12 +1644,13 @@ class NewNewVariableUseAnalyzer(NodeVisitor):
     def visit_Label(self, node: Label) -> None:
         """ Visits a Label node, recording the label occurence and the
         corresponding identifier definition. """
-        if node.stmt is not None:
+        if node.stmt is not None: # TODO is this right?
             self._record_stmt(node.stmt)
         if node.name is not None:
             locs = [(node, "name")]
-            # TODO removed alt_scope here - will that affect anything?
-            self._record_definition(node, node.name, locs, NameSpace.LABEL)
+            self._record_definition(node, node.name, locs, NameSpace.LABEL, 
+                                    alt_scope=self._current_definitions[1])
+            #comehere
             self.labels[self._current_function].add(node)
         NodeVisitor.generic_visit(self, node)
     
@@ -1963,7 +1976,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
         self.definition_uses[(stmt_node, new_name, kind)] = self.definition_uses[
             (stmt_node, name, kind)
         ]
-        del self.definition_uses[(stmt_node, name, kind)]
+        self.definition_uses.pop((stmt_node, name, kind))
 
     def is_stmt(self, stmt_node):
         return stmt_node in self.stmts
