@@ -8,8 +8,8 @@
             "name": "Python: Current File",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/obf_cli.py",
-            "args": ["./tests/data/fibonacci_recursive.c", "./out/obfs.c"],
+            "program": "${workspaceFolder}/obf_gui.py",
+            "args": ["./tests/data/anon_struct.c", "--load-comp", "./compositions/minimal_idents.cobf"],
             "console": "integratedTerminal",
             "justMyCode": true
         }

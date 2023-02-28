@@ -2,19 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int*** f();
-int *****g();
-double h();
-
-int main() {
-    int*** x = f();
-    int***** y = g();
-    printf("%f\n", ***x + y[0][0][0][0][0] * h());
-    free(x);
-    free(y);
-}
-
- int*** f() {
+int*** f() {
     int *x = malloc(sizeof(int));
     int **xp = malloc(sizeof(int*));
     int ***xpp = malloc(sizeof(int**));
@@ -40,4 +28,12 @@ int *****g() {
 
 double h() {
     return 4.9632;
+}
+
+int main() {
+    int*** x = f();
+    int***** y = g();
+    printf("%f\n", ***x + y[0][0][0][0][0] * h());
+    free(x);
+    free(y);
 }

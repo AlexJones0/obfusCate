@@ -2,11 +2,12 @@
 
 //////
 void foo (void) { return; } // ordinary name space, file scope
+enum bar {    // ordinary name space, file scope
+    RED       // ordinary name space, file scope
+};
 struct foo {      // tag name space, file scope
     int foo;      // member name space for this struct foo, file scope
-    enum bar {    // tag name space, file scope
-        RED       // ordinary name space, file scope
-    } bar;        // member name space for this struct foo, file scope
+    enum bar bar; // member name space for this struct foo, file scope
     struct foo* p; // OK: uses tag/file scope name "foo"
 };
 enum bar x; // OK: uses tag/file-scope bar

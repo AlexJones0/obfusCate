@@ -6,7 +6,7 @@ arguments).
 """
 from .. import interaction
 from ..debug import *
-from .utils import ObfuscationUnit, TransformType, generate_new_contents, NewVariableUseAnalyzer
+from .utils import ObfuscationUnit, TransformType, generate_new_contents, NewNewVariableUseAnalyzer
 from pycparser.c_ast import *
 from typing import Optional
 import random, string, json
@@ -55,7 +55,7 @@ class FuncArgRandomiserTraverser(NodeVisitor):
         self.func_args = dict()
         self.walk_num = 1
         self.current_func = None
-        self.analyzer = NewVariableUseAnalyzer()
+        self.analyzer = NewNewVariableUseAnalyzer()
 
     def get_extra_args(self, idents):
         extra_args = []
@@ -192,12 +192,16 @@ class FuncArgRandomiserTraverser(NodeVisitor):
         NodeVisitor.generic_visit(self, node)
 
     def visit_FileAST(self, node):
-        self.analyzer.load(node)
-        self.analyzer.process()
         NodeVisitor.generic_visit(self, node)
         self.walk_num += 1
         NodeVisitor.generic_visit(self, node)
         self.reset()
+        
+    def transform(self, source: interaction.CSource) -> None:
+        self.analyzer.load(source)
+        self.analyzer.process()
+        self.visit(source.t_unit)
+        
 
 
 class FuncArgumentRandomiseUnit(ObfuscationUnit):
@@ -223,7 +227,7 @@ class FuncArgumentRandomiseUnit(ObfuscationUnit):
         self.traverser = FuncArgRandomiserTraverser(extra_args, randomise)
 
     def transform(self, source: interaction.CSource) -> interaction.CSource:
-        self.traverser.visit(source.t_unit)
+        self.traverser.transform(source)
         new_contents = generate_new_contents(source)
         return interaction.CSource(source.fpath, new_contents, source.t_unit)
 

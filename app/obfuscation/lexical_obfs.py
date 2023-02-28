@@ -9,64 +9,22 @@ macro encoding.
 from .. import interaction
 from ..debug import *
 from .utils import ObfuscationUnit, TransformType, generate_new_contents, TypeKinds, \
-    VariableUseAnalyzer
+    VariableUseAnalyzer, NewNewVariableUseAnalyzer
 from pycparser.c_ast import *
 from typing import Optional
 import pycparser, random, string, json, enum
 
 
 class NewNewIdentifierRenamer:
-    """Traverses the program AST looking for non-external identifiers (except main),
-    transform them to some random scrambled identifier."""
+    """..."""
 
     def __init__(self, style: "IdentifierTraverser.Style", minimise_idents: bool):
         self.new_idents_set = set()
         self.new_idents = []
-        self.current_struct = None
-        self.struct_ident_index = 0
         self.style = style
-
-    # comehere TODO finish
-
-
-class IdentifierRenamer:
-    """Traverses the program AST looking for non-external identifiers (except main),
-    transforming them to some random scrambled identifier."""
-
-    def __init__(self, style: "IdentifierTraverser.Style", minimise_idents: bool):
-        self.style = style
-        self.minimise_idents = minimise_idents
-        self.reset()
-
-    def reset(self):
-        self.mappings = [
-            {
-                TypeKinds.NONSTRUCTURE: {
-                    "main": "main",
-                },
-                TypeKinds.STRUCTURE: {},
-                TypeKinds.LABEL: {},
-                "fields": {},
-            }
-        ]
-        self.reverse = [
-            {
-                TypeKinds.NONSTRUCTURE: {
-                    "main": "main",
-                },
-                TypeKinds.STRUCTURE: {},
-                TypeKinds.LABEL: {},
-            }
-        ]
-        self.new_idents_set = set()  # Maintain a set for fast checking
-        self.new_idents = (
-            []
-        )  # Maintain a list for ordering (try and re-use when possible)
-        self.current_struct = None
-        self.struct_ident_index = 0
-        self.analyzer = VariableUseAnalyzer()
         self._random_source = random.randint(0, 2**16)
-
+        
+    # TODO modularise later
     def generate_new_ident(self):
         new_ident = ""
         while len(new_ident) == 0 or new_ident in self.new_idents_set:
@@ -108,177 +66,59 @@ class IdentifierRenamer:
                     new_ident = bin(hash_val)[2:]
                     new_ident = "0" * (num_chars - len(new_ident)) + new_ident
                     new_ident = new_ident.replace("1", "l").replace("0", "I")
-            # TODO figure out if salvageable or scrap
-            """elif self.style == IdentifierTraverser.Style.REALISTIC:
-                chosen_ident = random.choice(REALISTIC_VAR_NAMES)
-                cur_num = 1
-                new_ident = chosen_ident
-                while new_ident in self.new_idents_set:
-                    cur_num += 1
-                    new_ident = chosen_ident + str(cur_num)"""
         self.new_idents_set.add(new_ident)
         self.new_idents.append(new_ident)
         return new_ident
-
-    def get_current_mapping(self, ident, kind):
-        for scope in self.mappings[::-1]:
-            if ident in scope[kind]:
-                return scope[kind][ident]
-        return None
-
-    def get_current_reverse(self, new_ident, kind):
-        for scope in self.reverse[::-1]:
-            if new_ident in scope[kind]:
-                return scope[kind][new_ident]
-        return None
-
-    def transform_idents(self, scope):
-        # TODO this method also breaks on while/fors with iterators in the condition:
-        #   > if I have two loops with i then i should count as being delcared inside the scope
-        #     but it's currently declared outside, meaning that only the latest i naming
-        #     is used, generating broken code.
-        scope_info = self.analyzer.info[scope]
-        self.mappings.append(
-            {
-                TypeKinds.NONSTRUCTURE: {},
-                TypeKinds.STRUCTURE: {},
-                TypeKinds.LABEL: {},
-                "fields": {},
-            }
-        )
-        self.reverse.append(
-            {
-                TypeKinds.NONSTRUCTURE: {},
-                TypeKinds.STRUCTURE: {},
-                TypeKinds.LABEL: {},
-            }
-        )
-        for ASTnode, idents in scope_info["idents"].items():
-            for info in idents:
-                attr, kind, structure, is_definition = info
-                name = getattr(ASTnode, attr)
-                if isinstance(name, list):  # TODO - is this correct? <--- NO
-                    name = ".".join(name) 
-                    # TODO - breaks on ptrs etc. if expected str but found ID
-                if is_definition:
-                    if name == "main":
-                        continue
-                    if structure is not None and not isinstance(structure, Enum):
-                        if structure != self.current_struct:
-                            self.current_struct = structure
-                            self.mappings[-1]["fields"][None] = {}
-                            self.struct_ident_index = 0
-                        if self.struct_ident_index >= len(self.new_idents):
-                            # Out of idents, must generate more
-                            new_ident = self.generate_new_ident()
-                        else:  # Fetch the next available ident and use it
-                            new_ident = self.new_idents[self.struct_ident_index]
-                        self.struct_ident_index += 1
-                        setattr(ASTnode, attr, new_ident)
-                        struct_name = (
-                            structure if isinstance(structure, str) else structure.name
-                        )
-                        if self.struct_ident_index <= 1:
-                            self.mappings[-1]["fields"][struct_name] = {}
-                        self.mappings[-1]["fields"][struct_name][name] = new_ident
-                        continue
-
-                    # Otherwise, we check what idents are defined in the current scope,
-                    # and which idents are used from this point forward
-                    # TODO I'm pretty sure this is WILDLY inefficient, need to figure out a way
-                    # to compute this information per-statement in one pass so that this is O(n) and not O(n^2)
-                    # TODO - could I also do it by maintaining a list of used/defined for each scope
-                    # and just modifying as I go??? Maybe a decent idea?
-                    current_stmt = self.analyzer.get_stmt(ASTnode)
-                    scope_defs = self.analyzer.get_scope_definitions(
-                        scope, None, current_stmt
-                    )
-                    current_defs = self.analyzer.get_definitions_at_stmt(
-                        current_stmt, scope
-                    )
-                    used_after = self.analyzer.get_usage_from_stmt(current_stmt, scope)
-                    still_used = current_defs.intersection(used_after)
-                    found_reuse = False
-                    for new_ident in self.new_idents:
-                        curr_mapping = self.get_current_reverse(new_ident, kind)
-                        ident = (curr_mapping, kind)
-                        if curr_mapping is None or (
-                            ident not in scope_defs and ident not in still_used
-                        ):
-                            # We found an ident that hasn't been used for this kind, or that has been used
-                            # for this kind but is no longer needed (and not defined in this scope), so
-                            # we can repurpose it.
-                            setattr(ASTnode, attr, new_ident)
-                            self.mappings[-1][kind][name] = new_ident
-                            self.reverse[-1][kind][new_ident] = name
-                            found_reuse = True
-                            break
-                    if found_reuse:
-                        continue
-
-                    # At this point we are not in a structure, have used all mappings for this kind, and have tried
-                    # and failed to re-use every mapping, so we must define a new mapping
-                    new_ident = self.generate_new_ident()
-                    self.mappings[-1][kind][name] = new_ident
-                    self.reverse[-1][kind][new_ident] = name
-                    setattr(ASTnode, attr, new_ident)
-                else:  # Is a reference to some identifier
-                    if structure is not None and not isinstance(structure, Enum):
-                        if isinstance(structure, tuple) and isinstance(
-                            structure[0], StructRef
-                        ):
-                            if structure[1] == "name":
-                                new_ident = self.get_current_mapping(name, kind)
-                                if new_ident is not None:
-                                    setattr(ASTnode, attr, new_ident)
-                                continue
-                            # TODO anything I do here will likely break under pointers :(((
-                            # need to somehow make it traverse pointerdecls and arraydecls at the right point?
-                            structname = ".".join(
-                                self.analyzer.types[
-                                    structure[0].name.name
-                                ].type.type.names
-                            )
-                            oldname = self.get_current_reverse(
-                                structname, TypeKinds.STRUCTURE
-                            )  # TODO this could cause some errors? because not accounting for type aliasing?
-                            if (
-                                oldname is None
-                            ):  # TODO BAD TEMPORARY FIX FOR NOW. WILL BREAK SOME STUFF
-                                oldname = self.get_current_reverse(
-                                    structname, TypeKinds.NONSTRUCTURE
-                                )
-                            mapping = self.get_current_mapping(oldname, "fields")
-                            if mapping is None or name not in mapping:
-                                continue
-                            setattr(
-                                ASTnode, attr, mapping[name]
-                            )  # TODO names - could cause issue - need to make a list again maybe? Not sure
-                            continue
-                        if isinstance(structure, (NamedInitializer,)):
-                            continue  # TODO figure out what to do!?!?!?
-                            # Need to figure out a way to get the struct type for minimal mapping
-                        if isinstance(structure, StructRef):
-                            continue
-                        mapping = self.get_current_mapping(structure.name, "fields")
-                        if mapping is None or name not in mapping:
-                            continue
-                        setattr(ASTnode, attr, mapping[name])
-                        continue
-                    new_ident = self.get_current_mapping(name, kind)
-                    if new_ident is not None:
-                        setattr(ASTnode, attr, new_ident)
-
-        for child, _ in scope_info["children"]:
-            self.transform_idents(child)
-        self.mappings = self.mappings[:-1]
-        self.reverse = self.reverse[:-1]
-
+        
     def transform(self, source: interaction.CSource) -> None:
-        self.analyzer.input(source)
-        self.analyzer.process()
-        self.transform_idents(None)  # Perform DFS, transforming idents
-        self.reset()
+        analyzer = NewNewVariableUseAnalyzer()
+        analyzer.load(source)
+        analyzer.process()
+        skip_idents = set(["main"])
+        # Identifier renaming pass 1 - renames to temporary names
+        # to avoid minimisation problems due to name clashes with
+        # existing variables
+        definition_uses = list(analyzer.definition_uses.keys())
+        count = 0
+        for def_use in definition_uses:
+            if def_use[1] in skip_idents:
+                continue
+            analyzer.change_ident(*def_use, "obfusCate_tempvarname{}".format(count))
+            count += 1
+        # Identifier renaming pass 2 - performs actual greedy
+        # minimised identifier renaming
+        definition_uses = list(analyzer.definition_uses.keys())
+        members_defined = {}
+        for def_use in definition_uses:
+            if def_use[1] in skip_idents:
+                continue
+            definition_node, prev_ident, namespace = def_use
+            function = analyzer.get_stmt_func(definition_node)
+            required = analyzer.get_required_identifiers(
+                definition_node,
+                namespace,
+                None,
+                function
+            )
+            required = required.difference(set((prev_ident, namespace)))
+            if isinstance(namespace, tuple) and definition_node in members_defined:
+                members = members_defined[definition_node]
+                required = required.union(set(x[0] for x in members if x[1] == namespace))
+            new_ident = None
+            for ident in self.new_idents:
+                if ident not in required:
+                    new_ident = ident
+                    break
+            if new_ident is None:
+                new_ident = self.generate_new_ident()
+            if isinstance(namespace, tuple):
+                if definition_node not in members_defined:
+                    members_defined[definition_node] = set()
+                members_defined[definition_node].add((new_ident, namespace))
+            #print("TRANSFORM:", self.new_idents, namespace if not isinstance(namespace, tuple) else namespace[0], def_use[1], "->", new_ident, required) 
+            # TODO IMPORTANT remove when done testing
+            analyzer.change_ident(*def_use, new_ident)
+        analyzer.update_funcspecs()
 
 
 class IdentifierTraverser(NodeVisitor):
@@ -302,7 +142,7 @@ class IdentifierTraverser(NodeVisitor):
         self._new_idents = set()
         self._scopes = list()
         self._random_source = random.randint(0, 2**16)
-        self._typedecl_node_cache = set()
+        self._scrambled_node_cache = set()
 
     def get_new_ident(
         self, ident
@@ -347,19 +187,18 @@ class IdentifierTraverser(NodeVisitor):
                     new_ident = bin(hash_val)[2:]
                     new_ident = "0" * (num_chars - len(new_ident)) + new_ident
                     new_ident = new_ident.replace("1", "l").replace("0", "I")
-            # TODO salvage or remove
-            """elif self.style == self.Style.REALISTIC:
-                chosen_ident = random.choice(REALISTIC_VAR_NAMES)
-                cur_num = 1
-                new_ident = chosen_ident
-                while new_ident in self._new_idents:
-                    cur_num += 1
-                    new_ident = chosen_ident + str(cur_num)"""
         self._new_idents.add(new_ident)
         self.idents[ident] = new_ident
         return new_ident
 
     def scramble_ident(self, node):
+        if node in self._scrambled_node_cache:
+            # Work around for pycparser annoyingly
+            # using the same reference for anonymous struct
+            # types for decl lists, causing double-renaming
+            # issues. We check a cache to ensure this doesn't happen.
+            return 
+        self._scrambled_node_cache.add(node)
         if hasattr(node, "name") and node.name is not None:
             if node.name not in self.idents:
                 self.get_new_ident(node.name)
@@ -386,6 +225,10 @@ class IdentifierTraverser(NodeVisitor):
         self.scramble_ident(node)
         NodeVisitor.generic_visit(self, node)
 
+    def visit_Struct(self, node):
+        self.scramble_ident(node)
+        NodeVisitor.generic_visit(self, node)
+
     def visit_Union(self, node):
         self.scramble_ident(node)
         NodeVisitor.generic_visit(self, node)
@@ -408,18 +251,17 @@ class IdentifierTraverser(NodeVisitor):
         NodeVisitor.generic_visit(self, node)
 
     def visit_TypeDecl(self, node):
-        if node in self._typedecl_node_cache:
-            # Work around for pycparser annoyingly
-            # using the same reference for anonymous struct
-            # types for decl lists, causing double-renaming
-            # issues. We check a cache to ensure this doesn't happen.
-            return
-        self._typedecl_node_cache.add(node)
         if node.declname is not None:
             if node.declname not in self.idents:
                 self.get_new_ident(node.declname)
             node.declname = self.idents[node.declname]
             self._scopes[-1].add(node.declname)
+        NodeVisitor.generic_visit(self, node)
+    
+    def visit_Typedef(self, node):
+        if node.name is not None:
+            if node.name in self.idents:
+                node.name = self.idents[node.name]
         NodeVisitor.generic_visit(self, node)
 
     def visit_ID(self, node):
@@ -432,9 +274,10 @@ class IdentifierTraverser(NodeVisitor):
         NodeVisitor.generic_visit(self, node)
 
     def visit_IdentifierType(self, node):
-        for i, name in enumerate(node.names):
+        if node.names is not None and len(node.names) > 0:
+            name = node.names[-1]
             if name in self.idents:
-                node.names[i] = self.idents[name]
+                node.names[-1] = self.idents[name]
         NodeVisitor.generic_visit(self, node)
 
     def visit_Pragma(self, node):  # TODO maybe warn on pragma?
@@ -471,20 +314,24 @@ class IdentifierRenameUnit(ObfuscationUnit):
         """random variable names, names that use only underscore characters, and minimal length names.\n"""
         """The other optional input allows you to enable identifier minimisation, where names are greedily\n"""
         """reused whenever possible to achieve the maximal overlap between names, such that obfuscation is\n"""
-        """achieved by giving many different constructs the same symbolic name."""
+        """achieved by giving many different constructs the same symbolic name.\n\n"""
+        """WARNING: The `minimised identifiers` option does not currently work with function signatures\n"""
+        """(those without bodies). Whilst the program will work in some cases, there are no guarantees.\n\n"""
+        """WARNING: The 'minimised identifiers' option also cannot be used with nested tag scope (e.g. a\n"""
+        """struct/union/enum inside a struct/union etc.) - again, this may work in some cases but is never\n""" 
+        """guaranteed. """
     )
     type = TransformType.LEXICAL
 
     def __init__(self, style, minimise_idents):
         self.style = style
         self.minimise_idents = minimise_idents
-        self.transformer = IdentifierRenamer(style, minimise_idents)
 
     def transform(self, source: interaction.CSource) -> interaction.CSource:
         if self.minimise_idents:
             # TODO identifier minimisation breaking on AOCday6 example - WHY!?
-            transformer = IdentifierRenamer(self.style, True)
-            transformer.transform(source.t_unit)
+            transformer = NewNewIdentifierRenamer(self.style, True)
+            transformer.transform(source)
         else:
             traverser = IdentifierTraverser(self.style, False)
             traverser.visit(source.t_unit)

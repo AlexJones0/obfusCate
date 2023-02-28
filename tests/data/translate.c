@@ -1,6 +1,6 @@
 const char *QUIT_SYNONYMS[]      = {"quit",      "1",  "exit", 0};
 void ***g();
-void ***f() {};
+void ***f(int a, int b, int c) {};
 
 int main() {
     int ***x;

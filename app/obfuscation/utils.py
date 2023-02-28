@@ -8,8 +8,15 @@ from .. import interaction
 from ..debug import *
 from pycparser.c_ast import *
 from pycparser.c_lexer import CLexer
-from typing import Optional, Tuple, Type
+from typing import Optional, Tuple, Type, Any, Iterable
 import abc, enum, json, string, copy
+
+
+# TODO - split this long utils file into several files
+# e.g. "utils.py" (for ObjectFinder, generate_new_contents, TransformType, ObfuscationUnit, IdentityUnit)
+#      "identifier_analysis.py" (for NewNewVariableAnalyzer)
+#      "expression_analysis.py" (for ExpressionAnalyzer)
+
 
 # TODO: clear down some of these old TODOs
 # TODO some problems when using obfuscations multiple times - only designed to be used once. Need cleanup
@@ -172,6 +179,456 @@ class IdentityUnit(ObfuscationUnit):
         return "Identity()"
 
 
+
+class ExpressionAnalyzer(NodeVisitor):
+    class SimpleType(Enum):
+        INT = 0
+        REAL = 1
+        OTHER = 2
+
+    class Ptr:
+        def __init__(self, val):
+            self.val = val
+
+        def __eq__(self, other):
+            return type(self) == type(other) and self.val == other.val
+
+    class Array:
+        def __init__(self, val):
+            self.val = val
+
+        def __eq__(self, other):
+            return type(self) == type(other) and self.val == other.val
+
+    # TODO centralise these and combine with the opaque predicate types to reduce repetition
+    VALID_INT_TYPES = [
+        "int8_t",
+        "uint8_t",
+        "int16_t",
+        "uint16_t",
+        "int32_t",
+        "uint32_t",
+        "int64_t",
+        "uint64_t",
+        "char",
+        "unsigned char",
+        "signed char",
+        "unsigned int",
+        "signed int",
+        "int",
+        "unsigned short",
+        "unsigned short int",
+        "signed short",
+        "signed short int",
+        "short",
+        "short int",
+        "unsigned long",
+        "unsigned long int",
+        "signed long",
+        "signed long int",
+        "long",
+        "long int",
+        "unsigned long long",
+        "unsigned long long int",
+        "signed long long",
+        "signed long long int",
+        "long long",
+        "long long int",
+        "size_t",
+        "_Bool",
+    ]
+    VALID_REAL_TYPES = ["float", "double", "long double"]
+
+    def __init__(self, t_unit: FileAST) -> None:
+        super(ExpressionAnalyzer, self).__init__()
+        self.t_unit = t_unit
+        self.reset()
+
+    def reset(self):
+        self.type_aliases = []  # Stack of scopes of defined type aliases
+        self.structs = []  # Stack of scopes of defined structs/union
+        self.defined = []  # Stack of scopes of defined variables
+        self.functions = {}
+        self.params = {}
+        self.in_param_list = False
+        self.types = {None: self.SimpleType.OTHER}
+        self.mutating = {None: False}
+        self.processed = False
+
+    def load(self, t_unit: FileAST) -> None:
+        self.t_unit = t_unit
+        self.processed = False
+
+    def process(self) -> None:
+        self.visit(self.t_unit)
+        self.processed = True
+
+    def is_type(self, expr: Node, type_) -> bool:
+        if expr not in self.types:
+            return type_ is None
+        return self.types[expr] == type_
+    
+    def get_type(self, expr: Node) -> SimpleType | Ptr | Array | Struct | Union | None:
+        if expr not in self.types:
+            return None
+        return self.types[expr]
+
+    def is_mutating(self, expr: Node) -> bool:
+        if expr not in self.mutating:
+            return False
+        return self.mutating[expr]
+
+    def get_type_alias(self, name):
+        for scope in self.type_aliases[::-1]:
+            if name in scope:
+                return scope[name]
+        return None
+
+    def get_var_type(self, name):
+        for scope in self.defined[::-1]:
+            if name in scope:
+                return scope[name]
+        return None
+
+    def get_struct_type(self, name):
+        for scope in self.structs[::-1]:
+            if name in scope:
+                return scope[name]
+        return None
+
+    def get_struct_field_type(self, struct, field):
+        for decl in struct.decls:
+            if decl.name is not None and decl.name == field and decl.type is not None:
+                return self.convert_type(decl.type)
+        return None
+
+    def standard_coalesce_types(self, types):
+        if any([t == self.SimpleType.OTHER for t in types]):
+            return self.SimpleType.OTHER
+        elif any([t == self.SimpleType.REAL for t in types]):
+            return self.SimpleType.REAL
+        elif all([isinstance(t, self.Array) for t in types]):
+            # TODO not right but idk what it should be
+            return self.Array(self.standard_coalesce_types([t.val for t in types]))
+        elif any([isinstance(t, self.Ptr) for t in types]):
+            # TODO also not 100% sure if this is correct - seems to be?
+            vals = [t.val if isinstance(t, self.Ptr) else t for t in types]
+            return self.Ptr(self.standard_coalesce_types(vals))
+        else:
+            return self.SimpleType.INT
+
+    def get_func_type(self, name):
+        if name in self.functions:
+            return self.functions[name]
+        return self.SimpleType.OTHER
+
+    def visit_FileAST(self, node):
+        self.type_aliases.append({})
+        self.structs.append({})
+        self.defined.append({})
+        self.generic_visit(node)
+        self.defined = self.defined[:-1]
+        self.structs = self.structs[:-1]
+        self.type_aliases = self.type_aliases[:-1]
+
+    def visit_Compound(self, node):
+        self.type_aliases.append({})
+        self.structs.append({})
+        if self.params is not None and len(self.params) != 0:
+            self.defined.append(self.params)
+            self.params = {}
+        else:
+            self.defined.append({})
+        self.generic_visit(node)
+        self.defined = self.defined[:-1]
+        self.structs = self.structs[:-1]
+        self.type_aliases = self.type_aliases[:-1]
+
+    def visit_ParamList(self, node):
+        self.params = {}
+        self.in_param_list = True
+        self.generic_visit(node)
+        self.in_param_list = False
+
+    def convert_type(self, node):
+        if isinstance(node, PtrDecl):
+            return self.Ptr(self.convert_type(node.type))
+        elif isinstance(node, ArrayDecl):
+            return self.Array(self.convert_type(node.type))
+        elif isinstance(node, (TypeDecl, Typename)):
+            return self.convert_type(node.type)
+        elif isinstance(node, (IdentifierType, str)):
+            # TODO whill names (plural) cause a problem here?
+            if isinstance(node, IdentifierType):
+                if node.names is None or len(node.names) == 0:
+                    return self.SimpleType.OTHER
+                name = "".join(node.names)
+            else:
+                name = node
+            if name in self.VALID_INT_TYPES:
+                return self.SimpleType.INT
+            elif name in self.VALID_REAL_TYPES:
+                return self.SimpleType.REAL
+            alias = self.get_type_alias(name)
+            if alias is not None:
+                return alias
+            return self.SimpleType.OTHER
+        elif isinstance(node, (Struct, Union)):
+            if node.decls is not None:
+                return node
+            if node.name is None:
+                return self.SimpleType.OTHER
+            struct = self.get_struct_type(node.name)
+            if struct is not None:
+                return struct
+            return self.SimpleType.OTHER
+        else:
+            return self.SimpleType.OTHER
+
+    def visit_FuncDef(self, node):
+        if (
+            node.decl is not None
+            and node.decl.name is not None
+            and node.decl.type is not None
+            and node.decl.type.type is not None
+        ):
+            self.functions[node.decl.name] = self.convert_type(node.decl.type.type)
+        self.generic_visit(node)
+
+    def visit_Typedef(self, node):
+        if node.name is not None and node.type is not None:
+            self.type_aliases[-1][node.name] = self.convert_type(node.type)
+        self.generic_visit(node)
+
+    def visit_Decl(self, node):
+        if node.name is not None and node.type is not None:
+            if self.in_param_list:
+                self.params[node.name] = self.convert_type(node.type)
+                self.types[node] = self.params[node.name]
+            else:
+                self.defined[-1][node.name] = self.convert_type(node.type)
+                self.types[node] = self.defined[-1][node.name]
+        else:
+            self.types[node] = self.SimpleType.OTHER
+        self.mutating[node] = True
+        self.generic_visit(node)
+
+    def visit_UnaryOp(self, node):
+        self.generic_visit(node)
+        if node.expr is None or node.op is None:
+            return
+        if node.op in ["--", "p--", "++", "p++"]:
+            self.types[node] = self.types[node.expr]
+            self.mutating[node] = True
+        elif node.op in ["-", "+", "~"]:
+            self.types[node] = self.types[node.expr]
+            self.mutating[node] = self.mutating[node.expr]
+        elif node.op == "!":
+            self.types[node] = self.SimpleType.INT
+            self.mutating[node] = self.mutating[node.expr]
+        elif node.op in ["_Sizeof", "sizeof", "alignof", "_Alignof"]:
+            self.types[node] = self.SimpleType.INT
+            if node.expr in self.mutating:
+                self.mutating[node] = self.mutating[node.expr]
+            else:  # getting size/alignment of a TypeDecl
+                self.mutating[node] = False
+        elif node.op == "&":
+            self.types[node] = self.Ptr(self.types[node.expr])
+            self.mutating[node] = self.mutating[node.expr]
+        elif node.op == "*":
+            expr_type = self.types[node.expr]
+            if isinstance(expr_type, (self.Array, self.Ptr)):
+                self.types[node] = expr_type.val
+            else:
+                self.types[node] = expr_type
+            self.mutating[node] = self.mutating[node.expr]
+        else:
+            log(f"Unknown unary operator {node.op} encountered.")
+            self.types[node] = self.SimpleType.OTHER
+            self.mutating[node] = True  # Pessimistic Assumption
+
+    def visit_BinaryOp(self, node):
+        self.generic_visit(node)
+        if node.left is None or node.right is None or node.op is None:
+            return
+        if node.op in ["+", "-", "*", "/"]:
+            left_type = self.types[node.left]
+            right_type = self.types[node.right]
+            self.types[node] = self.standard_coalesce_types([left_type, right_type])
+            self.mutating[node] = self.mutating[node.left] or self.mutating[node.right]
+        elif node.op in ["%", "<<", ">>", "<", "<=", ">", ">=", "==", "!=", "&&", "||"]:
+            self.types[node] = self.SimpleType.INT
+            self.mutating[node] = self.mutating[node.left] or self.mutating[node.right]
+        elif node.op in ["&", "|", "^"]:
+            # TODO (double check) from what I can tell, must be integers?
+            self.types[node] = self.SimpleType.INT
+            self.mutating[node] = self.mutating[node.left] or self.mutating[node.right]
+        else:
+            log(f"Unknown binary operator {node.op} encountered.")
+            self.types[node] = self.SimpleType.OTHER
+            self.mutating[node] = True  # Pessimistic assumption
+
+    def visit_TernaryOp(self, node):
+        self.generic_visit(node)
+        if node.iftrue is not None:
+            self.types[node] = self.types[node.iftrue]
+        elif node.iffalse is not None:
+            self.types[node] = self.types[node.iffalse]
+        self.mutating[node] = self.mutating[node.iftrue] or self.mutating[node.iffalse]
+
+    def visit_Typename(self, node):
+        self.generic_visit(node)
+        if node.type is not None:
+            # TODO patchwork change from self.types[node.type]
+            # <- Is this correct?
+            self.types[node] = self.convert_type(node.type)
+        self.mutating[node] = False
+
+    def visit_Cast(self, node):
+        self.generic_visit(node)
+        if node.to_type is not None:
+            self.types[node] = self.types[node.to_type]
+        if node.expr is not None:
+            self.mutating[node] = self.mutating[node.expr]
+        else:
+            self.mutating[node] = False
+
+    def visit_ArrayRef(self, node):
+        self.generic_visit(node)
+        mutating = False
+        if node.name is not None:
+            arr_type = self.types[node.name]
+            if isinstance(arr_type, (self.Array, self.Ptr)):
+                self.types[node] = arr_type.val
+            else:
+                self.types[node] = arr_type
+            mutating = mutating or self.mutating[node.name]
+        if node.subscript is not None:
+            mutating = mutating or self.mutating[node.subscript]
+        self.mutating[node] = mutating
+
+    def visit_Assignment(self, node):
+        self.generic_visit(node)
+        if node.lvalue is not None:
+            self.types[node] = self.types[node.lvalue]
+        self.mutating[node] = True
+
+    def visit_Enum(self, node):
+        self.generic_visit(node)
+        if node.name is not None:
+            # TODO double check: Enum's are always integer (integral) type I think?
+            self.types[node] = self.SimpleType.INT
+        self.mutating[node] = False
+
+    def visit_FuncCall(self, node):
+        self.generic_visit(node)
+        if node.name is not None and node.name.name is not None:
+            self.types[node] = self.get_func_type(node.name.name)
+        self.mutating[node] = True  # Pessimistic assumption (e.g. globals)
+
+    def visit_Struct(self, node):
+        # TODO removed name none check here for anon tags - is fine?
+        if node.decls is not None:
+            self.structs[-1][node.name] = node
+            self.types[node] = node
+            self.mutating[node] = True
+        else:
+            self.types[node] = self.get_struct_type(node.name)
+            self.mutating[node] = False
+
+    def visit_Union(self, node):
+        # TODO removed name none check here for anon tags - is fine?
+        if node.decls is not None:
+            self.structs[-1][node.name] = node
+            self.types[node] = node
+            self.mutating[node] = True
+        else:
+            self.types[node] = self.get_struct_type(node.name)
+            self.mutating[node] = False
+
+    def visit_StructRef(self, node):
+        self.generic_visit(node)
+        if (
+            node.type is not None
+            and node.name is not None
+            and node.field is not None
+            and node.field.name is not None
+        ):
+            if node.type == ".":
+                struct_type = self.types[node.name]
+                if isinstance(struct_type, (Struct, Union)):
+                    self.types[node] = self.get_struct_field_type(
+                        struct_type, node.field.name
+                    )
+                else:
+                    self.types[node] = self.SimpleType.OTHER
+            elif node.type == "->":
+                struct_type = self.types[node.name]
+                if isinstance(struct_type, (self.Ptr, self.Array)):
+                    struct_type = struct_type.val
+                if isinstance(struct_type, (Struct, Union)):
+                    self.types[node] = self.get_struct_field_type(
+                        struct_type, node.field.name
+                    )
+                else:
+                    self.types[node] = self.SimpleType.OTHER
+        mutating = False
+        if node.name is not None:
+            mutating = mutating or self.mutating[node.name]
+        if node.field is not None:  # TODO can this be an expr? I don't think so?
+            mutating = mutating or self.mutating[node.field]
+        self.mutating[node] = mutating
+
+    def visit_Constant(self, node):
+        self.generic_visit(node)
+        if node.type is not None:
+            self.types[node] = self.convert_type(node.type)
+        self.mutating[node] = False
+
+    def visit_ID(self, node):
+        self.generic_visit(node)
+        if node.name is not None:
+            self.types[node] = self.get_var_type(node.name)
+        self.mutating[node] = False
+
+    def visit_InitList(self, node):
+        self.generic_visit(node)
+        mutating = False
+        if node.exprs is not None:
+            # Type cannot be determined from the init list (e.g. an empty list)
+            # (Hence an init list can only be used in declarations)
+            for expr in node.exprs:
+                mutating = mutating or self.mutating[expr]
+        self.mutating[node] = mutating
+
+    def visit_ExprList(self, node):
+        self.generic_visit(node)
+        mutating = False
+        if node.exprs is not None:
+            # Type of an expr list cannot be sufficiently represented in this
+            # abstraction, but is not needed, so it is ignored.
+            for expr in node.exprs:
+                mutating = mutating or self.mutating[expr]
+        self.mutating[node] = mutating
+
+    def visit_CompoundLiteral(self, node):
+        self.generic_visit(node)
+        if node.type is not None:
+            self.types[node] = self.convert_type(node.type)
+        else:
+            self.types[node] = self.SimpleType.OTHER
+        if node.init is not None:
+            self.mutating[node] = self.mutating[node.init]
+        else:
+            self.mutating[node] = False
+
+    def visit_NamedInitializer(self, node):
+        self.generic_visit(node)
+        if node.expr is not None:
+            self.types[node] = self.types[node.expr]
+            self.mutating[node] = True  # TODO check this?
+
+
 # TODO a lot of ident parsing is done in the wrong order through the AST, which will
 # give random stuff in the wrong order - not a huge deal but would be nice to fix
 
@@ -181,6 +638,1070 @@ class TypeKinds(enum.Enum):
     STRUCTURE = 0  # TODO turns out this should be 'tag'
     LABEL = 1
     NONSTRUCTURE = 2  # TODO turns out this should be 'ordinary'/'other'
+
+
+class NameSpace(enum.Enum):
+    LABEL = 0
+    TAG = 1
+    MEMBER = 2
+    ORDINARY = 3
+
+
+Scope = Compound | FileAST
+Identifier = Tuple[str,NameSpace]
+Location = Tuple[Node, str | Tuple[str, ...]]
+
+
+class NewNewVariableUseAnalyzer(NodeVisitor):
+    
+    def __init__(self, source: interaction.CSource | None = None) -> None:
+        """A constructor for the variable use analyzer, initialising
+        variables and data structures used during and after analysis.
+
+        Args:
+            source (interaction.CSource | None, optional): The source file
+            to analyze. Defaults to None, where it can be passed in later 
+            using the `load()` function.
+        """
+        # Construct membership sets/dicts
+        self.stmts = set()  # Set of all program statements
+        self.idents = set()  # Set of all _defined_ program idents
+        self.functions = set()  # Set of all functions
+        self.typedefs = set()  # Set of all types that have been typedef'd
+        self.funcspecs = {} # Dict mapping functions to all their function specifications
+        self.labels = {}  # Dict mapping a function to all its labels.
+        self.gotos = {}  # Dict mapping a function to all its gotos (so they can 
+                         # be backfilled with labels)
+        self.struct_members = {}  # Dict mapping a struct/union to all of its
+                                  # members, so that they can be uniquely identified
+        
+        # Dicts for identifying statement identifier definitions and usage
+        self.stmt_usage = {}  # Dict of identifier usage in stmts
+        self.stmt_definitions = {}  # Dict of identifier definitions in stmts
+        self.definition_uses = {}  # Dictionary mapping (statement, ident, namespace)
+                                  #  triples to all locations that use it.
+        
+        # Program structure tree dicts for easy traversal
+        self.compound_children = {}  # Maps compound to child compounds
+        self.compound_parent = {}  # Maps all compounds to their parent compound
+        self.stmt_compound_map = {}  # Maps all stmt nodes to the compound they are part of
+        self.compound_stmt_map = {}  # Maps all compounds to the statements they contain
+        self.node_stmt_map = {}  # Maps all AST nodes to the statement they are part of
+        self.stmt_func_map = {}  # Maps all stmt nodes to the function they are part of
+        
+        # Variables for tracking current state while analyzing
+        self._current_definitions = []
+        self._current_function = None
+        self._current_compound = None
+        self._current_stmt = None
+
+        # Misc. variables related to the Analyzer's state
+        self.source = source
+        self.processed = False
+        self.expression_analyzer = ExpressionAnalyzer(source.t_unit if source is not None else None)
+
+    def _stmt_wrapper(func: Callable) -> Callable:
+        """A wrapper for node traversal functions that checks whether the node
+        is a statement, and based on the result, updates a variety of statement
+        tracking values (dicts for traversing the program structure as well as 
+        tracking of the current statement).
+
+        Args:
+            func (Callable): The function to be wrapped
+
+        Returns:
+            Callable: The wrapped function
+        """
+        def wrapper(self, node: Node, *args, **kwargs) -> Any:
+            is_stmt = self.is_stmt(node)
+            if is_stmt:
+                prev_stmt = self._current_stmt
+                self._current_stmt = node
+                self.stmt_compound_map[node] = self._current_compound
+                self.stmt_func_map[node] = self._current_function
+                if self._current_compound is not node:
+                    self.compound_stmt_map[self._current_compound].append(node)
+            self.node_stmt_map[node] = self._current_stmt
+            result = func(self, node, *args, **kwargs)
+            if is_stmt:
+                self._current_stmt = prev_stmt
+            return result
+        
+        return wrapper
+    
+    def load(self, source: interaction.CSource) -> None:
+        """Loads the given source file, readying it to be analysed.
+
+        Args:
+            source (interaction.CSource): The source file to load.
+        """
+        self.source = source
+        self.expression_analyzer.load(source.t_unit)
+        self.processed = False
+    
+    def process(self) -> None:
+        """ Processes the currently loaded source file, analyzing it. """
+        if self.source is None or self.processed:
+            return
+        self.expression_analyzer.process()
+        self.visit(self.source.t_unit)
+        self.processed = True
+        
+    def get_stmt_definitions(self, stmt: Node) -> list[Identifier]:
+        """ Returns a list of identifier definitions made in a statement as are 
+        known to the analyzer.
+
+        Args:
+            stmt (Node): The AST root node of the statement subtree.
+
+        Returns:
+            list[Identifier]: A list of identifiers (name and namespace pairs).
+        """
+        return self.stmt_definitions[stmt]
+    
+    def get_stmt_usage(self, stmt: Node) -> list[Identifier]:
+        """ Returns a list of identifier usages made in a statement as are
+        known to the analyzer.
+
+        Args:
+            stmt (Node): The AST root node of the statement subtree.
+
+        Returns:
+            list[Identifier]: A list of identifiers (name and namespace pairs).
+        """
+        return self.stmt_usage[stmt]
+    
+    def get_stmt_compound(self, stmt: Node) -> Scope:
+        """ Returns the scope (compound or FileAST) that a given statement
+        is located in as is known to the analyzer.
+
+        Args:
+            stmt (Node): The AST root node of the statement subtree.
+
+        Returns:
+            Scope: The Compound or FileAST the statement is a child of.
+        """
+        return self.stmt_compound_map[stmt]
+
+    # TODO replaced `get_func_from_stmt` with this
+    #  -- Propagate these changes to the rest of my program
+    def get_stmt_func(self, stmt: Node) -> FuncDef | None:
+        """ Returns the function that a given statement is located in
+        as is known to the analyzer.
+
+        Args:
+            stmt (Node): The AST root node of the statement subtree.
+
+        Returns:
+            FuncDef | None: The function the statement is in, or None if
+            the statement is not in a function.
+        """
+        return self.stmt_func_map[stmt]
+
+    def get_stmt_from_node(self, ast_node: Node) -> Node:
+        """ Returns the root AST node of the statement that the provided AST
+        node is located within, as is known to the analyzer.
+
+        Args:
+            ast_node (Node): The AST node to get the statement of.
+
+        Returns:
+            Node: The root AST node of the containing statement.
+        """
+        return self.node_stmt_map[ast_node]
+
+    def is_stmt(self, ast_node: Node) -> bool:
+        """ Returns whether the given AST node is the root AST node of some
+        statement in the program body or not, as is known to the analyzer.
+
+        Args:
+            stmt_node (Node): The AST node to check.
+
+        Returns:
+            bool: True if the AST node is a statement node, False otherwise.
+        """
+        return ast_node in self.stmts
+    
+    def get_compounds_in_subtree(self, compound: Scope) -> list[Compound]:
+        """ Returns a list of all compounds that are descendants of the given
+        compound in the compound's AST subtree, utilising a BFS approach.
+
+        Args:
+            compound (Scope): The compound to get the descendents of.
+
+        Returns:
+            list[Compound]: A list of Compound nodes in the given compound's AST subtree.
+        """
+        compounds = []
+        frontier = [compound]
+        while len(frontier) > 0:
+            compound = frontier[0]
+            frontier = frontier[1:]
+            compounds.append(compound)
+            for child, _ in self.compound_children[compound]:
+                frontier.append(child)
+        return compounds
+    
+    # TODO removed self.get_functions() - will this cause problems?
+    
+    def _coalesce_indexes(self, compound: Scope, from_stmt : Node | None, to_stmt: Node | None) -> Tuple[int,int]:
+        """This function coalesces statment `from_index` and `to_index` values given
+        a compound. If the values are null, then the start index (0) and end index + 1
+        (len(compound)) are used respectively. Otherwise, the index of the given
+        statement is found.
+
+        Args:
+            compound (Scope): The compound object to coalesce indexes of.
+            from_stmt (Node | None): The statement to index from, if any.
+            to_stmt (Node | None): The statement to index to (inclusive), if any.
+
+        Returns:
+            Tuple[int,int]: A tuple (from_index, to_index) for the given values.
+        """
+        if from_stmt is None:
+            from_index = 0
+        else:
+            from_index = self.compound_stmt_map[compound].index(from_stmt)
+        if to_stmt is None:
+            to_index = len(self.compound_stmt_map[compound])
+        else:
+            to_index = self.compound_stmt_map[compound].index(to_stmt) + 1
+        return (from_index, to_index)
+    
+    def get_scope_definitions(self, compound: Scope, from_stmt: Node | None = None, to_stmt: Node | None = None) -> list[Identifier]:
+        """ Gets all identifier definitions of statements within a scope,
+        optionally only finding definitions between a certain statement and
+        another statement in the compound.
+
+        Args:
+            compound (Scope): The Compound/FileAST to search within. 
+            from_stmt (Node | None, optional): The AST root node of the
+            subtree of the statement to start from. Defaults to None, 
+            indicating the first statement in the scope.
+            to_stmt (Node | None, optional): The AST root node of the
+            subtree of the statement to end at (inclusive). Defaults to
+            None, indicating the last statement in the scope. 
+
+        Returns:
+            list[Identifier]: A list of identifiers (name and namespace pairs).
+        """
+        from_index, to_index = self._coalesce_indexes(compound, from_stmt, to_stmt)
+        definitions = set()
+        for i in range(from_index, to_index):
+            stmt = self.compound_stmt_map[compound][i]
+            definitions = definitions.union(self.stmt_definitions[stmt])
+        return definitions
+    
+    def get_scope_usage(self, compound: Scope, from_stmt: Node | None = None, to_stmt: Node | None = None) -> list[Identifier]:
+        """ Gets all identifier usages of statements within a scope,
+        optionally only finding usages between a certain statement and
+        another statement in the compound.
+
+        Args:
+            compound (Scope): The Compound/FileAST to search within. 
+            from_stmt (Node | None, optional): The AST root node of the
+            subtree of the statement to start from. Defaults to None, 
+            indicating the first statement in the scope.
+            to_stmt (Node | None, optional): The AST root node of the
+            subtree of the statement to end at (inclusive). Defaults to
+            None, indicating the last statement in the scope. 
+
+        Returns:
+            list[Identifier]: A list of identifiers (name and namespace pairs).
+        """
+        from_index, to_index = self._coalesce_indexes(compound, from_stmt, to_stmt)
+        usage = set()
+        for i in range(from_index, to_index):
+            stmt = self.compound_stmt_map[compound][i]
+            usage = usage.union(self.stmt_usage[stmt])
+        return usage
+
+    def get_nested_scope_definitions(self, compound: Scope, from_stmt: Node | None = None, to_stmt: Node | None = None) -> list[Identifier]:
+        """ Gets all identifier definitions of statements within an entire scope 
+        subtree, finding definitions within its scope and all its child scopes. 
+        Optionally will only recursively find definitions between given statements.
+
+        Args:
+            compound (Scope): The Compound or FileAST to search within.
+            from_stmt (Node | None, optional): The AST root node of 
+            the subtree of the statement to search from. Defaults to None,
+            indicating the first statement in the scope.
+            to_stmt (Node | None, optional): The AST root node of the
+            subtree of the statement to search up to (inclusive). Defaults to 
+            None,  indicating the last statement in the scope.
+
+        Returns:
+            list[Identifier]: A list of identifiers (name and namespace pairs).
+        """
+        definitions = self.get_scope_definitions(compound, from_stmt, to_stmt)
+        from_index, to_index = self._coalesce_indexes(compound, from_stmt, to_stmt)
+        for child, stmt_node in self.compound_children[compound]:
+            index = self.compound_stmt_map[compound].index(stmt_node)
+            if index < from_index or index > to_index:
+                continue
+            child_definitions = self.get_nested_scope_definitions(child)
+            definitions = definitions.union(child_definitions)
+        return definitions 
+
+    def get_nested_scope_usage(self, compound: Scope, from_stmt: Node | None = None, to_stmt: Node | None = None) -> list[Identifier]:
+        """ Gets all identifier usages of statements within an entire scope 
+        subtree, finding usages within its scope and all its child scopes. 
+        Optionally will only recursively find usages between given statements.
+
+        Args:
+            compound (Scope): The Compound or FileAST to search within.
+            from_stmt (Node | None, optional): The AST root node of 
+            the subtree of the statement to search from. Defaults to None,
+            indicating the first statement in the scope.
+            to_stmt (Node | None, optional): The AST root node of the
+            subtree of the statement to search up to (inclusive). Defaults to 
+            None,  indicating the last statement in the scope.
+
+        Returns:
+            list[Identifier]: A list of identifiers (name and namespace pairs).
+        """
+        usages = self.get_scope_usage(compound, from_stmt, to_stmt)
+        from_index, to_index = self._coalesce_indexes(compound, from_stmt, to_stmt)
+        for child, stmt_node in self.compound_children[compound]:
+            index = self.compound_stmt_map[compound].index(stmt_node)
+            if index < from_index or index > to_index:
+                continue
+            child_usages = self.get_nested_scope_usage(child)
+            usages = usages.union(child_usages)
+        return usages
+        
+    def _get_scope_path(self, compound: Scope) -> list[Scope]:
+        scope_path = [compound]
+        while compound is not None:
+            compound = self.compound_parent[compound]
+            scope_path.append(compound) 
+        scope_path = scope_path[:-1]
+        return scope_path
+        
+    def get_definitions_at_stmt(self, stmt: Node, compound: Scope | None = None) -> list[Identifier]:
+        """ Given a statement, this will find all the identifiers that
+        are currently defined by the end of that statement (inclusive).
+
+        Args:
+            stmt (Node): The AST root node of the subtree of the statement
+            to search up to.
+            compound (Scope | None, optional): The compound containing the 
+            given statement. Defaults to None, which will make the analyzer
+            manually retrieve it. This option can be used to avoid repeat
+            calculations if you already know the scope.
+
+        Returns:
+            list[Identifier]: A list of identifiers (name and namespace pairs).
+        """
+        # Retrieve scope information
+        if compound is None:
+            compound = self.get_stmt_compound(stmt)
+        scope_path = self._get_scope_path(compound)
+        if len(scope_path) == 1:
+            return self.get_scope_definitions(scope_path[0], None, stmt)
+
+        # Compute definitions for each scope up to the statement, and union
+        definitions = set()
+        for i, scope in [s for s in enumerate(scope_path)][-1:0:-1]:
+            child = scope_path[i - 1]
+            compound_stmt = [c[1] for c in self.compound_children[scope] if c[0] == child]
+            if len(compound_stmt) == 0:
+                compound_stmt = None
+            else:
+                compound_stmt = compound_stmt[0]
+            scope_defs = self.get_scope_definitions(scope, None, compound_stmt)
+            definitions = definitions.union(scope_defs)
+        
+        # Handle last (i.e. current) scope
+        scope_defs = self.get_scope_definitions(scope_path[0], None, stmt)
+        definitions = definitions.union(scope_defs)
+        return definitions
+            
+    def get_usage_from_stmt(self, stmt: Node, compound: Scope | None = None) -> list[Identifier]:
+        """ Given a statement, this will find all the identifiers that
+        are used in and after the end of that statement (towards the 
+        end of the statement's scope).
+
+        Args:
+            stmt (Node): The AST root node of the subtree of the statement
+            to search up from (inclusive).
+            compound (Scope | None, optional): The compound containing the 
+            given statement. Defaults to None, which will make the analyzer
+            manually retrieve it. This option can be used to avoid repeat
+            calculations if you already know the scope.
+
+        Returns:
+            list[Identifier]: A list of identifiers (name and namespace pairs).
+        """
+        if compound is None:
+            compound = self.get_stmt_compound(stmt)
+        return self.get_nested_scope_usage(compound, stmt, None)
+    
+    def get_required_identifiers(self, node: Node, namespace: NameSpace, compound: Scope | None = None, function: FuncDef | None = None, include_after: bool = False) -> set[Identifier]:
+        """Retrieves a list of identifiers that are required to stay defined at 
+        the given AST node, of the specified namespace group. This includes:
+            - Those defined in the same scope, which cannot be redefined
+              (except any other struct members defined in the *same statement*,
+              which have to be handled seperately).
+            - Those used in descendant scopes from the statement onwards.
+            - Any label identifiers within the same function
+
+        Args:
+            node (Node): The AST node of the point in the program to search from.
+            namespace (NameSpace): The namespace group of idents being checked for.
+            compound (Scope | None, optional): The compound (scope) the node is 
+            located within. Defaults to None, where it is calculated.
+            function (FuncDef | None, optional): The function the node is
+            located within, if any. Defaults to None, where it is calculated.
+            include_after (bool): Whether to include identifiers defined in the
+            same scope that come after this statement or not. Defaults to False
+
+        Returns:
+            list[Identifier]: A list of identifiers (name and namespace pairs).
+        """
+        stmt = self.get_stmt_from_node(node)
+        defined = set(self.get_usage_from_stmt(stmt))
+        #print("USAGE:", set((x[0], x[1][0]) if isinstance(x[1], Tuple) else x for x in defined)) # TODO IMPORTANT COMEHERE REMOVE
+        if compound is None:
+            compound = self.get_stmt_compound(stmt)
+        if include_after:
+            scope_definitions = self.get_scope_definitions(compound)
+        else:
+            scope_definitions = self.get_scope_definitions(compound, None, stmt)
+        defined = defined.union(scope_definitions)
+        #print("IN SCOPE:", set((x[0], x[1][0]) if isinstance(x[1], Tuple) else x for x in scope_definitions)) # TODO IMPORTANT COMEHERE REMOVE
+        if function is None:
+            function = self.get_stmt_func(stmt)
+        if function is not None:
+            defined = defined.union(
+                set((n.name, NameSpace.LABEL) for n in self.labels[function])
+            )
+        members_defined = self.get_stmt_definitions(stmt)
+        members_defined = set(x for x in members_defined if isinstance(x[1], Tuple))
+        defined = defined.difference(members_defined)
+        defined = set(x[0] for x in defined if x[1] == namespace)
+        return defined
+
+    def _find_new_ident(self, exclude: Iterable[str]) -> str:
+        """Given a list of identifiers to avoid, this function will iteratively 
+        attempt to generate a new identifier that is not in this list (or a keyword).
+
+        Args:
+            exclude (Iterable[str]): The list of identifier names to avoid.
+
+        Returns:
+            str: The newly generated identifier.
+        """
+        keywords = set([kw.lower() for kw in CLexer.keywords])
+        new_ident = "a"
+        count = 0
+        num_letters = len(string.ascii_letters)
+        while new_ident in exclude or new_ident.lower() in keywords:
+            count += 1
+            new_ident = ""
+            cur_num = count
+            while cur_num >= 0:
+                new_ident += string.ascii_letters[cur_num % num_letters]
+                cur_num = cur_num // num_letters
+                if cur_num == 0:
+                    break
+        return new_ident
+            
+    # TODO swapped get_unique_identifier and get_new_identifier names 
+    #  -- Propagate this to the rest of my codebase!
+    def get_new_identifier(self, node: Node, namespace: NameSpace, compound: Scope | None = None, function: FuncDef | None = None, exclude: Iterable[str] | None = None) -> str:
+        """Given an AST node and a namespace (identifier type), this function gets a new
+        identifier to use that will not conflict with existing identifiers defined 
+        before / at / from this node. Note that these will not necessarily be unique
+        and may shadow an existing identifier.
+
+        Args:
+            node (Node): The AST node to search from.
+            namespace (NameSpace): The namespace (type/group) of the new identifier.
+            compound (Scope | None, optional): The scope containing the node. Defaults to 
+            None, where it is automatically calculated.
+            function (FuncDef | None, optional): The function containing the node. 
+            Defaults to None, where it is automatically calculated if such a function exists.
+            exclude (Iterable[Identifier] | None, optional): A list of additional identifiers
+            to exclude. Defaults to None.
+
+        Returns:
+            str: The new identifier that can be used at this node.
+        """
+        disallowed = self.get_required_identifiers(node, namespace, compound, function)
+        if exclude is not None:
+            disallowed = disallowed.union(set(exclude))
+        return self._find_new_ident(disallowed)
+    
+    def get_unique_identifier(self, exclude: Iterable[str] | None = None) -> str:
+        """ Generates an entirely new unique identifier that is not used anywhere
+        else in the program, for any namespace.
+
+        Args:
+            exclude (Iterable[str] | None, optional): An optional list of additional
+            identifiers to exclude from generating. Defaults to None.
+
+        Returns:
+            str: The new unique identifier that does not exist in the program.
+        """
+        exclude = [] if exclude is None else exclude
+        exclude = self.idents.union(set(exclude))
+        return self._find_new_ident(exclude)
+    
+    def change_ident(self, node: Node, name: str, namespace: NameSpace, new_name: str) -> None:
+        """ Changes a specific instance (definition) of an identifier to use
+        a different name, updating all of that identifier's usages throughout
+        the program to propagate and cascade this change. Also updates the analyzer
+        tracking structures to allow further analyzer use.  
+
+        Args:
+            node (Node): The AST node where the identifier was defined.
+            name (str): The old name of the identifier.
+            namespace (NameSpace): The namespace of the identifier.
+            new_name (str): The new name to use for the identifier, replacing the old name.
+        """
+        # Update AST attributes for all locations referring to this specific
+        # definition, to propagate identifier changes.
+        stmt_node = self.get_stmt_from_node(node)
+        if isinstance(stmt_node, FuncDef) and name in self.funcspecs:
+            self.funcspecs[new_name] = self.funcspecs[name]
+            self.funcspecs[name] = None
+        for (change_node, attr) in self.definition_uses[(stmt_node, name, namespace)]:
+            if isinstance(attr, tuple):
+                attr_name = attr[0]
+                cur_obj = getattr(change_node, attr_name)
+                for attr_index in attr[1:-1]:
+                    cur_obj = cur_obj[attr_index]
+                cur_obj[attr[-1]] = new_name
+            else:
+                setattr(change_node, attr, new_name)
+        # Update processed tracking variables accordingly to allow further analysis
+        ident = (name, namespace)
+        new_ident = (new_name, namespace)
+        if ident in self.stmt_usage[stmt_node]:
+            self.stmt_usage[stmt_node].remove(ident)
+            self.stmt_usage[stmt_node].add(new_ident)
+        if ident in self.stmt_definitions[stmt_node]:
+            self.stmt_definitions[stmt_node].remove(ident)
+            self.stmt_definitions[stmt_node].add(new_ident)
+        for (node, _) in self.definition_uses[(stmt_node, name, namespace)]:
+            other_stmt_node = self.get_stmt_from_node(node)
+            if ident in self.stmt_usage[other_stmt_node]:
+                self.stmt_usage[other_stmt_node].remove(ident)
+                self.stmt_usage[other_stmt_node].add(new_ident)
+        old_ident_def = (stmt_node, name, namespace)
+        new_ident_def = (stmt_node, new_name, namespace)
+        self.definition_uses[new_ident_def] = self.definition_uses[old_ident_def]
+        del self.definition_uses[old_ident_def]
+    
+    def update_funcspecs(self) -> None:
+        """ Performs a backfill of function specifications, updating any incomplete
+        function specifications to the final, changed specifications of their full
+        function definitions after all analysis and changing of identifiers has been
+        completed. Defined as a seperate function rather than an implicit behaviour
+        to help reduce programming complexity somewhat.
+        """
+        for func_name, funcspecs in self.funcspecs.items():
+            if funcspecs is None:
+                continue
+            new_func_spec = None
+            func_spec_found = False
+            for node in self.source.t_unit.ext:
+                if isinstance(node, FuncDef) and node.decl.name == func_name:
+                    new_func_spec = node.decl.type.args
+                    func_spec_found = True
+                    break
+            if not func_spec_found:
+                continue
+            for funcspec in funcspecs:
+                funcspec.type.args = copy.deepcopy(new_func_spec)
+                funcspec.name = func_name
+                typedecl = self._get_typedecl(funcspec.type.type)
+                if typedecl is not None:
+                    typedecl.declname = func_name
+    
+    def _record_stmt(self, stmt_node: Node) -> None:
+        """ Records a node as a statement, updating analysis tracking
+        values and structures to reflect this fact.
+
+        Args:
+            stmt_node (Node): The root node of the subtree corresponding to
+            a statement.
+        """
+        self.stmts.add(stmt_node)
+        self.stmt_usage[stmt_node] = set()
+        self.stmt_definitions[stmt_node] = set()
+        self.node_stmt_map[stmt_node] = stmt_node
+        self.stmt_func_map[stmt_node] = self._current_function
+    
+    # TODO changed _current_definitions to only store node (not locations
+    #   -- Might need to remember to propagate some parts of this change
+    def _get_last_definition(self, name: str, namespace: NameSpace) -> Node | None:
+        """ Given an identifier (name and namespace), this function iterates
+        backwards through the current list of scoped definitions to find which
+        definition that applies to, returning the definition node.
+
+        Args:
+            name (str): The name of the identifier
+            namespace (NameSpace): The namespace of the identifier
+
+        Returns:
+            Node | None: The AST node of the last definition of the identifier.
+            None if no such definition exists in the current scope stack. 
+        """
+        if namespace == NameSpace.LABEL:
+            labels = self.labels[self._current_function]
+            for label in labels:
+                if label.name == name:
+                    return label
+            return None
+        for i, scope in enumerate(self._current_definitions[::-1]):
+            if (name, namespace) in scope:
+                return scope[(name, namespace)]
+        return None
+    
+    def _get_typedecl(self, node: Node) -> TypeDecl | None:
+        """ Recursively iterates through the type attributes of AST nodes in
+        order to traverse pointer declaration or array declaration components
+        and find the base type declaration.
+
+        Args:
+            node (Node): The node to get the typedecl of.
+
+        Returns:
+            TypeDecl | None: The typedecl if one exists, or None otherwise.
+        """
+        if node is None:
+            return None
+        if isinstance(node, (PtrDecl, ArrayDecl)):
+            return self._get_typedecl(node.type)
+        elif isinstance(node, TypeDecl):
+            return node
+        return None
+    
+    def _record_definition(self, node: Node, name: str, locations: list[Location], namespace: NameSpace, alt_scope: Scope | None = None) -> None:
+        """ Records an instance of an identifier definition at a given AST 
+        node, such that this can be tracked and used by the analyzer.
+
+        Args:
+            node (Node): The AST node where the definition occurred.
+            name (str): The name of the identifier that was defined.
+            locations (list[Location]): A list of locations (nodes and 
+            their attributes) where the definition occurs, such that the 
+            identifier can be updated by changing these attributes.
+            namespace (NameSpace): The namespace of the defined identifier.
+            alt_scope (Scope | None, optional): An alternate scope to use
+            instead of the top of the current scope stack. Defaults to None.
+            Useful if parsing out of order (e.g. parameter declarations).
+        """
+        node = self.get_stmt_from_node(node)
+        if alt_scope is None:
+            scope = self._current_definitions[-1]
+        else:
+            scope = alt_scope
+        scope[(name, namespace)] = node
+        self.definition_uses[(node, name, namespace)] = locations
+        self.stmt_definitions[node].add((name, namespace))
+        self.idents.add(name)
+        
+    def _record_usage(self, node: Node, name: str, locations: list[Location], namespace: NameSpace) -> None:
+        """ Records an instance of an identifier's usage at a given
+        AST node, such that this can be tracked and used by the analyzer. 
+
+        Args:
+            node (Node): The AST node where the usage occurred.
+            name (str): The name of the identifier that was used.
+            locations (list[Location]): A list of locations (nodes and 
+            their attributes) where the usage occurs, such that the 
+            identifier can be updated by changing these attributes.
+            namespace (NameSpace): The namespace of the used identifier.
+        """
+        node = self.get_stmt_from_node(node)
+        last_def = self._get_last_definition(name, namespace)
+        if last_def is not None:
+            def_ = (last_def, name, namespace)
+            self.definition_uses[def_] = self.definition_uses[def_] + locations
+        self.stmt_usage[node].add((name, namespace))
+        
+    def visit_FileAST(self, node: FileAST) -> None:
+        """ Visits a FileAST node, recording it as a scope. """
+        # Record the scope information
+        self._current_definitions.append({})
+        self.compound_children[node] = set()
+        self.compound_parent[node] = None # The FileAST has no parent
+        self.stmt_compound_map[node] = node
+        self.compound_stmt_map[node] = []
+        self._current_compound = node
+        # Record children as statements
+        if node.ext is not None:
+            for child in node.ext:
+                self._record_stmt(child)
+        # Visit the node as normal
+        self.generic_visit(node)
+        self._current_definitions = self._current_definitions[:-1]
+    
+    @_stmt_wrapper
+    def visit_Compound(self, node: Compound, params: ParamList | None = None) -> None:
+        """ Visits a Compound node, recording it as both a statement in its 
+        current scope, and a scope itself. Optionally takes parameters as an 
+        argument, which should be used if the compound is a function body, 
+        where the declaration of the parameters should occur _inside_ the 
+        succeeding compound.
+
+        Args:
+            node (Compound): The Compound AST node to traverse.
+            params (ParamList | None, optional): The ParamList of the relevant 
+            function if this compound is a function body. Defaults to None.
+        """
+        # Record the scope information
+        self._current_definitions.append({})
+        self.compound_children[node] = set()
+        self.compound_children[self._current_compound].add((node, self._current_stmt))
+        self.compound_parent[node] = self._current_compound
+        self.stmt_compound_map[node] = node
+        self.compound_stmt_map[node] = []
+        prev_compound = self._current_compound
+        self._current_compound = node
+        
+        # Record any parameters, if given
+        if params is not None:
+            self._record_stmt(params)
+            scope_stmt = self._current_stmt
+            self._current_stmt = params
+            self.generic_visit(params)
+            self._current_stmt = scope_stmt
+        
+        # Record all children as statements
+        for child in node.children():
+            self._record_stmt(child[1])
+        
+        # Walk the AST as normal
+        NodeVisitor.generic_visit(self, node)
+        self._current_definitions = self._current_definitions[:-1]
+        self._current_compound = prev_compound
+    
+    @_stmt_wrapper
+    def visit_FuncDecl(self, node: FuncDecl) -> None:
+        """ Visits a FuncDecl node, recording the declared function. Avoids
+        traversing the parameter list, so that it is traversed in the function
+        body where one exists. If one doesn't exist (a signature), this can
+        be backfilled. """
+        # Visit all children as normal except the parameter list,
+        # as that gets walked by the compound body instead.
+        for child in node.children():
+            if child[0] != 'args' or self._current_function is None:
+                self.visit(child[1])
+        if node.type is not None:
+            typedecl = self._get_typedecl(node.type)
+            if typedecl is not None and typedecl.declname is not None:
+                self.functions.add(typedecl.declname)
+                locs = [(typedecl, "declname")]
+                self._record_usage(typedecl, typedecl.declname, locs, NameSpace.ORDINARY)
+
+    
+    @_stmt_wrapper
+    def visit_FuncDef(self, node: FuncDef) -> None:
+        """ Visits a FuncDef node, recording the function signature,
+        and passing parameters to be parsed by the function body 
+        where possible. """
+        # Log information for the function and its block
+        prev_function = self._current_function
+        if node.body is not None:
+            self._current_function = node
+            self.labels[node] = set()
+            self.gotos[node] = set()
+        # Augment the following compound with parameter definitions
+        for child in node.children():
+            if child[0] != "body":
+                self.visit(child[1])
+        self.visit_Compound(node.body, params=node.decl.type.args)
+        # Track goto usage of labels (as these are an out-of-order
+        # intra-function reference)
+        for goto in self.gotos[node]:
+            locs = [(goto, "name")]
+            self._record_usage(goto, goto.name, locs, NameSpace.LABEL)
+        self._current_function = prev_function
+    
+    @_stmt_wrapper
+    def visit_Typedef(self, node: Typedef) -> None:
+        """ Visits a Typedef node, recording the typedef as well as any 
+        relevant identifier definitions/usages. """
+        if node.name is None or node.type is None:
+            return NodeVisitor.generic_visit(self, node)
+        # Add the name identifier definition
+        self.typedefs.add(node.name)
+        locations = [(node, "name")]
+        typedecl = self._get_typedecl(node.type)
+        has_declname = typedecl is not None and typedecl.declname is not None
+        if has_declname:
+            locations.append((typedecl, "declname"))
+        self._record_definition(node, node.name, locations, NameSpace.ORDINARY)
+        # Add the type identifier usage, if one exists
+        if has_declname:
+            locations = [(typedecl, "declname")]
+            if isinstance(typedecl.type, (Struct, Union, Enum)) and typedecl.type.name is not None:
+                # TODO: is any struct/union/enum types elsewhere?
+                # Can I just put this into visit_Struct, visit_Enum and visit_Union
+                # with relevant attribute checks?
+                type_locs = [(typedecl.type, "name")]
+                if isinstance(typedecl.type, (Struct, Union)) and typedecl.type.decls is not None:
+                    self._record_definition(node, typedecl.type.name, type_locs, NameSpace.TAG)
+            else:
+                namespace = NameSpace.ORDINARY
+                self._record_usage(node, typedecl.declname, locations, namespace)
+        NodeVisitor.generic_visit(self, node)
+    
+    def _record_var_func_decl(self, node: Decl) -> None:
+        """ Records a regular function/variable/parameter declaration definition. """
+        locations = [(node, "name")]
+        typedecl = self._get_typedecl(node.type)
+        if typedecl is not None and typedecl.declname is not None:
+            locations.append((typedecl, "declname"))
+        self._record_definition(node, node.name, locations, NameSpace.ORDINARY)
+    
+    def _record_tag_decl(self, node: Decl) -> None:
+        """ Records definitions of enums/structs/unions (tag namespace) idents
+        in Decl AST nodes. """
+        # Parse type declaration for structs/unions/enums, account for pointers etc.
+        #node.show() # TODO important comehere remove when done testing!
+        types = []
+        cur_node = node
+        while cur_node.type is not None and isinstance(cur_node.type, (PtrDecl, ArrayDecl)):
+            types.append(cur_node.type)
+            cur_node = cur_node.type
+        if isinstance(cur_node.type, (Enum, Struct, Union)):
+            types.append(cur_node.type)
+        for i, type_ in enumerate(types):
+            if (isinstance(type_, Enum) and type_.values is not None) or (isinstance(type_, (Struct, Union)) and type_.decls is not None and type_.name is not None):
+                locs = [(type_, "name")]
+                self._record_definition(node, type_.name, locs, NameSpace.TAG)
+                if i == 1:  # Edge case where declaring & using at the same time
+                    self._record_usage(node, type_.name, locs, NameSpace.TAG)
+            elif isinstance(type_, (Enum, Struct, Union)) and type_.name is not None:
+                locs = [(type_, "name")]
+                self._record_definition(node, type_.name, locs, NameSpace.TAG)
+    
+    def _record_funcspec_decl(self, node: Decl) -> None:
+        """ Records definitions of function specifications, including
+        within function bodies. """
+        if node.type is None or node.name is None:
+            return
+        if isinstance(node.type, FuncDecl) and (self._current_function is None or node.name != self._current_function.decl.name):
+            # A function specification has been found
+            if node.name in self.funcspecs:
+                self.funcspecs[node.name].add(node)
+            else:
+                self.funcspecs[node.name] = set([node])
+            
+    
+    def _record_initializer_decl(self, node: Decl) -> None:
+        """ Records definitions of elements in Initializer Lists 
+        and Named Initializers / Designated Initializers. """
+        decl_type = self.expression_analyzer.get_type(node)
+        if not isinstance(decl_type, (Struct, Union)) or not isinstance(node.init, InitList) or node.init.exprs is None:
+            return NodeVisitor.generic_visit(self, node)
+        self.visit(node.type)
+        for expr in node.init.exprs:
+            if not isinstance(expr, NamedInitializer) or len(expr.name) == 0:
+                self.visit(expr)
+                continue
+            # TODO COMEHERE IMPORTANT: HANDLE CASE WHERE more than one name, i.e.
+            # .struct.structmember1.structmember2.structmember3 = "abc";
+            name = expr.name[-1].name
+            locs = [(expr.name[-1], "name")]
+            self._record_usage(node, name, locs, (NameSpace.MEMBER, decl_type))
+            self.visit_ID(expr.name[-1], record=False)
+            self.visit(expr.expr)
+    
+    @_stmt_wrapper
+    def visit_Decl(self, node: Decl) -> None:
+        """ Visits a Decl node, recording any identifier definitions or usages
+        that have occurred within the declaration. """
+        if node.name is not None and self._current_function != "IGNORE":
+            self._record_var_func_decl(node)
+        self._record_tag_decl(node)
+        self._record_funcspec_decl(node)
+        if node.name is None or node.type is None or node.init is None:
+            return NodeVisitor.generic_visit(self, node)
+        self._record_initializer_decl(node)
+    
+    @_stmt_wrapper
+    def visit_CompoundLiteral(self, node: CompoundLiteral) -> None:
+        """ TODO DOCSTRING """
+        type_ = self.expression_analyzer.get_type(node)
+        if not isinstance(type_, (Struct, Union)) or not isinstance(node.init, InitList) or node.init.exprs is None:
+            return NodeVisitor.generic_visit(self, node)
+        self.visit(node.type)
+        for expr in node.init.exprs:
+            if not isinstance(expr, NamedInitializer) or len(expr.name) == 0:
+                self.visit(expr)
+                continue
+            # TODO COMEHERE IMPORTANT: HANDLE CASE WHERE more than one name, i.e.
+            # .struct.structmember1.structmember2.structmember3 = "abc";
+            name = expr.name[-1].name
+            locs = [(expr.name[-1], "name")]
+            self._record_usage(node, name, locs, (NameSpace.MEMBER, type_))
+            self.visit_ID(expr.name[-1], record=False)
+            self.visit(expr.expr)
+    
+    def visit_ParamList(self, node: ParamList) -> None:
+        """ TODO DOCSTRING"""
+        if self._current_function is None:
+            # TODO check if this is still needed
+            prev_function = self._current_function
+            self._current_function = "IGNORE"
+            self.generic_visit(node)
+            self._current_function = prev_function
+        else:
+            self.generic_visit(node)
+
+    @_stmt_wrapper
+    def visit_Enumerator(self, node: Enumerator) -> None:
+        """ Visits an Enumerator node, recording the identifier definition. """
+        if node.name is not None:
+            locs = [(node, "name")]
+            self._record_definition(node, node.name, locs, NameSpace.ORDINARY)
+            # TODO is this namespace correct? I think so but...?
+        self.generic_visit(node)
+    
+    def _wrap_struct_definitions(self, struct: Struct | Union) -> None:
+        """ Wraps any definitions inside a struct/union by annotating
+        their definitions with the 'MEMBER' namespace for that struct/union,
+        and moving them to the enclosing parent scope of the struct/union.
+        This allows for correct field usage analysis.
+
+        Args:
+            struct (Struct | Union): The struct/union whose field declaration
+            definitions are being wrapped.
+        """
+        if len(self._current_definitions) <= 1:
+            return
+        if struct not in self.struct_members or self.struct_members[struct] is None:
+            members = set()
+            self.struct_members[struct] = members
+        else:
+            members = self.struct_members[struct]
+        for (name, namespace), node in self._current_definitions[-1].items():
+            if isinstance(namespace, Tuple) and namespace[0] == NameSpace.MEMBER:
+                # If already a member (i.e. struct in a struct), pass through
+                self._current_definitions[-2][name, namespace] = node
+            else:
+                # If not already a member, put identifiers in the member namespace
+                new_namespace = (NameSpace.MEMBER, struct)
+                members.add(name)
+                self._current_definitions[-2][name, new_namespace] = node
+                self.definition_uses[(node, name, new_namespace)] = self.definition_uses.pop((node, name, namespace))
+                self.stmt_definitions[node].remove((name, namespace))
+                self.stmt_definitions[node].add((name, new_namespace))
+        self._current_definitions[-1] = []
+    
+    @_stmt_wrapper
+    def visit_Union(self, node: Union) -> None:
+        """ Visits a Union node, recording the structure occurrence. """
+        # TODO can I put this here? Can I think of an edge case?
+        if node.name is not None:
+            locs = [(node, "name")]
+            self._record_usage(node, node.name, locs, NameSpace.TAG)
+        self._current_definitions.append({})
+        NodeVisitor.generic_visit(self, node)
+        self._wrap_struct_definitions(node)
+        self._current_definitions = self._current_definitions[:-1]
+    
+    @_stmt_wrapper
+    def visit_Struct(self, node: Struct) -> None:
+        """ Visits a Struct node, recording the structure occurrence. """
+        # TODO can I put this here? Can I think of an edge case?
+        if node.name is not None:
+            locs = [(node, "name")]
+            self._record_usage(node, node.name, locs, NameSpace.TAG)
+        self._current_definitions.append({})
+        NodeVisitor.generic_visit(self, node)
+        self._wrap_struct_definitions(node)
+        self._current_definitions = self._current_definitions[:-1]
+    
+    @_stmt_wrapper
+    def visit_Enum(self, node: Enum) -> None:
+        """ Visits an Enum node, recording the structure occurrence. """
+        # TODO can I put this here? Can I think of an edge case?
+        if node.name is not None:
+            locs = [(node, "name")]
+            self._record_usage(node, node.name, locs, NameSpace.TAG)
+        NodeVisitor.generic_visit(self, node)
+        
+    @_stmt_wrapper
+    def visit_Label(self, node: Label) -> None:
+        """ Visits a Label node, recording the label occurence and the
+        corresponding identifier definition. """
+        if node.stmt is not None:
+            self._record_stmt(node.stmt)
+        if node.name is not None:
+            locs = [(node, "name")]
+            # TODO removed alt_scope here - will that affect anything?
+            self._record_definition(node, node.name, locs, NameSpace.LABEL)
+            self.labels[self._current_function].add(node)
+        NodeVisitor.generic_visit(self, node)
+    
+    @_stmt_wrapper
+    def visit_ID(self, node: ID, record: bool = True) -> None:
+        """Visits an ID node, recording the identifier usage. This optionally allows
+        you to disable recording the identifier, in case it is not an ordinary
+        identifier (e.g. it is a struct field/member name).
+
+        Args:
+            node (ID): The ID (identifier) node to traverse.
+            record (bool, optional): Whether to record the identifier as an
+            ordinary namespace identifier usage or not. Defaults to True.
+        """
+        if record and node.name is not None:
+            locs = [(node, "name")]
+            self._record_usage(node, node.name, locs, NameSpace.ORDINARY)
+        NodeVisitor.generic_visit(self, node)
+    
+    @_stmt_wrapper
+    def visit_IdentifierType(self, node: IdentifierType) -> None:
+        """ Visits an IdentifierType node, recording the identifier usage
+        if the name is a typedef. """
+        if node.names is None or len(node.names) == 0:
+            return NodeVisitor.generic_visit(self, node)
+        name = node.names[-1]
+        if name in self.typedefs:
+            locs = [(node, ("names", -1))]
+            self._record_usage(node, name, locs, NameSpace.ORDINARY)
+            # TODO again is ordinary correct or can this be e.g. struct?
+            # TODO seems too specific.
+        NodeVisitor.generic_visit(self, node)
+    
+    @_stmt_wrapper
+    def visit_StructRef(self, node: StructRef) -> None:
+        """ Visits a StructRef node, recording the structure information
+        so that its identifiers can be parsed correctly. """
+        # Fetch the corresponding member definition from the tag that matches
+        # the expression's type
+        if node.name is not None and node.field is not None and node.field.name is not None:
+            struct_type = self.expression_analyzer.get_type(node.name)
+            if struct_type is not None and node.type == "->" and isinstance(struct_type, ExpressionAnalyzer.Ptr) and isinstance(struct_type.val, (Struct, Union)):
+                struct_type = struct_type.val
+            if struct_type is not None and isinstance(struct_type, (Struct, Union)):
+                members = self.struct_members[struct_type]
+                if node.field.name in members:
+                    locs = [(node.field, "name")]
+                    self._record_usage(node, node.field.name, locs, (NameSpace.MEMBER, struct_type))
+        self.visit(node.name)
+        self.visit_ID(node.field, record=False)
+    
+    @_stmt_wrapper
+    def visit_Goto(self, node: Goto) -> None:
+        """ Visits a Goto node, recording the label identifier usage. """
+        if node.name is not None:
+            self.gotos[self._current_function].add(node)
+        NodeVisitor.generic_visit(self, node)
+    
+    @_stmt_wrapper
+    def generic_visit(self, node: Node) -> None:
+        """ Visits any generic node in the AST, recording the current
+        statement for each AST node. """
+        self.node_stmt_map[node] = self._current_stmt
+        NodeVisitor.generic_visit(self, node)
 
 
 class NewVariableUseAnalyzer(NodeVisitor):
@@ -200,6 +1721,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
         self.stmt_compound_map = {}
         self.compound_stmt_map = {}
         self.node_stmt_map = {}
+        self.stmt_func_map = {}
         self.current_compound = None
         self.current_stmt = None
         self.current_structure = None
@@ -215,6 +1737,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
                 old_stmt = self.current_stmt
                 self.current_stmt = node
                 self.stmt_compound_map[node] = self.current_compound
+                self.stmt_func_map[node] = self.current_function
                 if self.current_compound is not node:
                     self.compound_stmt_map[self.current_compound].append(node)
             self.node_stmt_map[node] = self.current_stmt
@@ -238,6 +1761,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
         self.stmt_usage[stmt_node] = set()
         self.stmt_definitions[stmt_node] = set()
         self.node_stmt_map[stmt_node] = stmt_node
+        self.stmt_func_map[stmt_node] = self.current_function
 
     def get_stmt_definitions(self, stmt):
         return self.stmt_definitions[stmt]
@@ -369,8 +1893,8 @@ class NewVariableUseAnalyzer(NodeVisitor):
             compound = self.get_stmt_compound(stmt)
         return self.get_nested_scope_usage(compound, stmt, None)
 
-    def get_unique_identifier(
-        self, node, type, compound=None, function=None, exclude=None
+    def get_required_identifiers(
+        self, node, type, compound=None, function=None
     ):
         stmt = self.get_stmt_from_node(node)
         if compound is None:
@@ -383,6 +1907,12 @@ class NewVariableUseAnalyzer(NodeVisitor):
                 set((x, TypeKinds.LABEL) for x in self.labels[function])
             )
         defined = set(x[0] for x in defined if x[1] == type)
+        return defined
+
+    def get_unique_identifier(
+        self, node, type, compound=None, function=None, exclude=None
+    ):
+        defined = self.get_required_identifiers(node, type, compound, function)
         if exclude is not None:
             defined = defined.union(set(exclude))
         return self.__find_new_ident(defined)
@@ -440,6 +1970,9 @@ class NewVariableUseAnalyzer(NodeVisitor):
 
     def get_stmt_from_node(self, ast_node):
         return self.node_stmt_map[ast_node]
+    
+    def get_func_from_stmt(self, stmt_node):
+        return self.stmt_func_map[stmt_node]
 
     def get_last_definition(self, name, kind):
         for scope in self.current_definitions[::-1]:
@@ -462,6 +1995,8 @@ class NewVariableUseAnalyzer(NodeVisitor):
             if self.current_structure.name is not None:
                 name = self.current_structure.name + "." + name
             else:  # Using an anonymous (no-name) struct/union, so don't record variables
+                # TODO probably can't ignore these?
+                self.idents.add(name)
                 return
         if alt_scope is None:
             self.current_definitions[-1][(name, kind)] = (node, locations)
@@ -766,7 +2301,7 @@ class NewVariableUseAnalyzer(NodeVisitor):
 
 # Identifier analysis - we need to determine
 #  1. What identifiers exist where
-#  2. What identifers are used in each
+#  2. What identifiers are used in each
 #       (i) Function - CompoundStmt
 #       (ii) Scope - CompoundStmt
 #  So, could we just make a mapping of compound statements to usage information?
@@ -1345,437 +2880,3 @@ class VariableUseAnalyzer(NodeVisitor):
             "currentStmt"
         ]
         NodeVisitor.generic_visit(self, node)
-
-
-class ExpressionAnalyzer(NodeVisitor):
-    class SimpleType(Enum):
-        INT = 0
-        REAL = 1
-        OTHER = 2
-
-    class Ptr:
-        def __init__(self, val):
-            self.val = val
-
-        def __eq__(self, other):
-            return type(self) == type(other) and self.val == other.val
-
-    class Array:
-        def __init__(self, val):
-            self.val = val
-
-        def __eq__(self, other):
-            return type(self) == type(other) and self.val == other.val
-
-    # TODO centralise these and combine with the opaque predicate types to reduce repetition
-    VALID_INT_TYPES = [
-        "int8_t",
-        "uint8_t",
-        "int16_t",
-        "uint16_t",
-        "int32_t",
-        "uint32_t",
-        "int64_t",
-        "uint64_t",
-        "char",
-        "unsigned char",
-        "signed char",
-        "unsigned int",
-        "signed int",
-        "int",
-        "unsigned short",
-        "unsigned short int",
-        "signed short",
-        "signed short int",
-        "short",
-        "short int",
-        "unsigned long",
-        "unsigned long int",
-        "signed long",
-        "signed long int",
-        "long",
-        "long int",
-        "unsigned long long",
-        "unsigned long long int",
-        "signed long long",
-        "signed long long int",
-        "long long",
-        "long long int",
-        "size_t",
-        "_Bool",
-    ]
-    VALID_REAL_TYPES = ["float", "double", "long double"]
-
-    def __init__(self, t_unit: Node) -> None:
-        super(ExpressionAnalyzer, self).__init__()
-        self.t_unit = t_unit
-        self.reset()
-
-    def reset(self):
-        self.type_aliases = []  # Stack of scopes of defined type aliases
-        self.structs = []  # Stack of scopes of defined structs/union
-        self.defined = []  # Stack of scopes of defined variables
-        self.functions = {}
-        self.params = {}
-        self.in_param_list = False
-        self.types = {None: self.SimpleType.OTHER}
-        self.mutating = {None: False}
-        self.processed = False
-
-    def load(self, t_unit: interaction.CSource) -> None:
-        self.t_unit = t_unit
-        self.processed = False
-
-    def process(self) -> None:
-        self.visit(self.t_unit)
-        self.processed = True
-
-    def is_type(self, expr: Node, type_) -> bool:
-        if expr not in self.types:
-            return type_ is None
-        return self.types[expr] == type_
-
-    def is_mutating(self, expr: Node) -> bool:
-        if expr not in self.mutating:
-            return False
-        return self.mutating[expr]
-
-    def get_type_alias(self, name):
-        for scope in self.type_aliases[::-1]:
-            if name in scope:
-                return scope[name]
-        return None
-
-    def get_var_type(self, name):
-        for scope in self.defined[::-1]:
-            if name in scope:
-                return scope[name]
-        return None
-
-    def get_struct_type(self, name):
-        for scope in self.structs[::-1]:
-            if name in scope:
-                return scope[name]
-        return None
-
-    def get_struct_field_type(self, struct, field):
-        for decl in struct.decls:
-            if decl.name is not None and decl.name == field and decl.type is not None:
-                return self.convert_type(decl.type)
-        return None
-
-    def standard_coalesce_types(self, types):
-        if any([t == self.SimpleType.OTHER for t in types]):
-            return self.SimpleType.OTHER
-        elif any([t == self.SimpleType.REAL for t in types]):
-            return self.SimpleType.REAL
-        elif all([isinstance(t, self.Array) for t in types]):
-            # TODO not right but idk what it should be
-            return self.Array(self.standard_coalesce_types([t.val for t in types]))
-        elif any([isinstance(t, self.Ptr) for t in types]):
-            # TODO also not 100% sure if this is correct - seems to be?
-            vals = [t.val if isinstance(t, self.Ptr) else t for t in types]
-            return self.Ptr(self.standard_coalesce_types(vals))
-        else:
-            return self.SimpleType.INT
-
-    def get_func_type(self, name):
-        if name in self.functions:
-            return self.functions[name]
-        return self.SimpleType.OTHER
-
-    def visit_FileAST(self, node):
-        self.type_aliases.append({})
-        self.structs.append({})
-        self.defined.append({})
-        self.generic_visit(node)
-        self.defined = self.defined[:-1]
-        self.structs = self.structs[:-1]
-        self.type_aliases = self.type_aliases[:-1]
-
-    def visit_Compound(self, node):
-        self.type_aliases.append({})
-        self.structs.append({})
-        if self.in_param_list:
-            self.defined.append(self.params)
-            self.in_param_list = False
-        else:
-            self.defined.append({})
-        self.generic_visit(node)
-        self.defined = self.defined[:-1]
-        self.structs = self.structs[:-1]
-        self.type_aliases = self.type_aliases[:-1]
-
-    def visit_ParamList(self, node):
-        self.params = {}
-        self.in_param_list = True
-        self.generic_visit(node)
-
-    def convert_type(self, node):
-        if isinstance(node, PtrDecl):
-            return self.Ptr(self.convert_type(node.type))
-        elif isinstance(node, ArrayDecl):
-            return self.Array(self.convert_type(node.type))
-        elif isinstance(node, TypeDecl):
-            return self.convert_type(node.type)
-        elif isinstance(node, (IdentifierType, str)):
-            # TODO whill names (plural) cause a problem here?
-            if isinstance(node, IdentifierType):
-                if node.names is None or len(node.names) == 0:
-                    return self.SimpleType.OTHER
-                name = "".join(node.names)
-            else:
-                name = node
-            if name in self.VALID_INT_TYPES:
-                return self.SimpleType.INT
-            elif name in self.VALID_REAL_TYPES:
-                return self.SimpleType.REAL
-            alias = self.get_type_alias(name)
-            if alias is not None:
-                return alias
-            return self.SimpleType.OTHER
-        elif isinstance(node, (Struct, Union)):
-            if node.name is None:
-                return self.SimpleType.OTHER
-            struct = self.get_struct_type(node.name)
-            if struct is not None:
-                return struct
-            return self.SimpleType.OTHER
-        else:
-            return self.SimpleType.OTHER
-
-    def visit_FuncDef(self, node):
-        if (
-            node.decl is not None
-            and node.decl.name is not None
-            and node.decl.type is not None
-            and node.decl.type.type is not None
-        ):
-            self.functions[node.decl.name] = self.convert_type(node.decl.type.type)
-        self.generic_visit(node)
-
-    def visit_Typedef(self, node):
-        if node.name is not None and node.type is not None:
-            self.type_aliases[-1][node.name] = self.convert_type(node.type)
-        self.generic_visit(node)
-
-    def visit_Decl(self, node):
-        if node.name is not None and node.type is not None:
-            if self.in_param_list:
-                self.params[node.name] = self.convert_type(node.type)
-            else:
-                self.defined[-1][node.name] = self.convert_type(node.type)
-        self.generic_visit(node)
-
-    def visit_UnaryOp(self, node):
-        self.generic_visit(node)
-        if node.expr is None or node.op is None:
-            return
-        if node.op in ["--", "p--", "++", "p++"]:
-            self.types[node] = self.types[node.expr]
-            self.mutating[node] = True
-        elif node.op in ["-", "+", "~"]:
-            self.types[node] = self.types[node.expr]
-            self.mutating[node] = self.mutating[node.expr]
-        elif node.op == "!":
-            self.types[node] = self.SimpleType.INT
-            self.mutating[node] = self.mutating[node.expr]
-        elif node.op in ["_Sizeof", "sizeof", "alignof", "_Alignof"]:
-            self.types[node] = self.SimpleType.INT
-            if node.expr in self.mutating:
-                self.mutating[node] = self.mutating[node.expr]
-            else:  # getting size/alignment of a TypeDecl
-                self.mutating[node] = False
-        elif node.op == "&":
-            self.types[node] = self.Ptr(self.types[node.expr])
-            self.mutating[node] = self.mutating[node.expr]
-        elif node.op == "*":
-            expr_type = self.types[node.expr]
-            if isinstance(expr_type, (self.Array, self.Ptr)):
-                self.types[node] = expr_type.val
-            else:
-                self.types[node] = expr_type
-            self.mutating[node] = self.mutating[node.expr]
-        else:
-            log(f"Unknown unary operator {node.op} encountered.")
-            self.types[node] = self.SimpleType.OTHER
-            self.mutating[node] = True  # Pessimistic Assumption
-
-    def visit_BinaryOp(self, node):
-        self.generic_visit(node)
-        if node.left is None or node.right is None or node.op is None:
-            return
-        if node.op in ["+", "-", "*", "/"]:
-            left_type = self.types[node.left]
-            right_type = self.types[node.right]
-            self.types[node] = self.standard_coalesce_types([left_type, right_type])
-            self.mutating[node] = self.mutating[node.left] or self.mutating[node.right]
-        elif node.op in ["%", "<<", ">>", "<", "<=", ">", ">=", "==", "!=", "&&", "||"]:
-            self.types[node] = self.SimpleType.INT
-            self.mutating[node] = self.mutating[node.left] or self.mutating[node.right]
-        elif node.op in ["&", "|", "^"]:
-            # TODO (double check) from what I can tell, must be integers?
-            self.types[node] = self.SimpleType.INT
-            self.mutating[node] = self.mutating[node.left] or self.mutating[node.right]
-        else:
-            log(f"Unknown binary operator {node.op} encountered.")
-            self.types[node] = self.SimpleType.OTHER
-            self.mutating[node] = True  # Pessimistic assumption
-
-    def visit_TernaryOp(self, node):
-        self.generic_visit(node)
-        if node.iftrue is not None:
-            self.types[node] = self.types[node.iftrue]
-        elif node.iffalse is not None:
-            self.types[node] = self.types[node.iffalse]
-        self.mutating[node] = self.mutating[node.iftrue] or self.mutating[node.iffalse]
-
-    def visit_Typename(self, node):
-        self.generic_visit(node)
-        if node.type is not None:
-            # TODO patchwork change from self.types[node.type]
-            # <- Is this correct?
-            self.types[node] = self.convert_type(node.type)
-        self.mutating[node] = False
-
-    def visit_Cast(self, node):
-        self.generic_visit(node)
-        if node.to_type is not None:
-            self.types[node] = self.types[node.to_type]
-        if node.expr is not None:
-            self.mutating[node] = self.mutating[node.expr]
-        else:
-            self.mutating[node] = False
-
-    def visit_ArrayRef(self, node):
-        self.generic_visit(node)
-        mutating = False
-        if node.name is not None:
-            arr_type = self.types[node.name]
-            if isinstance(arr_type, (self.Array, self.Ptr)):
-                self.types[node] = arr_type.val
-            else:
-                self.types[node] = arr_type
-            mutating = mutating or self.mutating[node.name]
-        if node.subscript is not None:
-            mutating = mutating or self.mutating[node.subscript]
-        self.mutating[node] = mutating
-
-    def visit_Assignment(self, node):
-        self.generic_visit(node)
-        if node.lvalue is not None:
-            self.types[node] = self.types[node.lvalue]
-        self.mutating[node] = True
-
-    def visit_Enum(self, node):
-        self.generic_visit(node)
-        if node.name is not None:
-            # TODO double check: Enum's are always integer (integral) type I think?
-            self.types[node] = self.SimpleType.INT
-        self.mutating[node] = False
-
-    def visit_FuncCall(self, node):
-        self.generic_visit(node)
-        if node.name is not None:
-            self.types[node] = self.get_func_type(node.name)
-        self.mutating[node] = True  # Pessimistic assumption (e.g. globals)
-
-    def visit_Struct(self, node):
-        if node.name is None:
-            return
-        if node.decls is not None:
-            self.structs[-1][node.name] = node
-            self.mutating[node] = True
-        else:
-            self.types[node] = self.get_struct_type(node.name)
-            self.mutating[node] = False
-
-    def visit_Union(self, node):
-        if node.name is None:
-            return
-        if node.decls is not None:
-            self.structs[-1][node.name] = node
-            self.mutating[node] = True
-        else:
-            self.types[node] = self.get_struct_type(node.name)
-            self.mutating[node] = False
-
-    def visit_StructRef(self, node):
-        self.generic_visit(node)
-        if (
-            node.type is not None
-            and node.name is not None
-            and node.field is not None
-            and node.field.name is not None
-        ):
-            if node.type == ".":
-                struct_type = self.types[node.name]
-                if isinstance(struct_type, (Struct, Union)):
-                    self.types[node] = self.get_struct_field_type(
-                        struct_type, node.field.name
-                    )
-                else:
-                    self.types[node] = self.SimpleType.OTHER
-            elif node.type == "->":
-                struct_type = self.types[node.name]
-                if isinstance(struct_type, (self.Ptr, self.Array)):
-                    struct_type = struct_type.val
-                if isinstance(struct_type, (Struct, Union)):
-                    self.types[node] = self.get_struct_field_type(
-                        struct_type, node.field.name
-                    )
-                else:
-                    self.types[node] = self.SimpleType.OTHER
-        mutating = False
-        if node.name is not None:
-            mutating = mutating or self.mutating[node.name]
-        if node.field is not None:  # TODO can this be an expr? I don't think so?
-            mutating = mutating or self.mutating[node.field]
-        self.mutating[node] = mutating
-
-    def visit_Constant(self, node):
-        self.generic_visit(node)
-        if node.type is not None:
-            self.types[node] = self.convert_type(node.type)
-        self.mutating[node] = False
-
-    def visit_ID(self, node):
-        self.generic_visit(node)
-        if node.name is not None:
-            self.types[node] = self.get_var_type(node.name)
-        self.mutating[node] = False
-
-    def visit_InitList(self, node):
-        self.generic_visit(node)
-        mutating = False
-        if node.exprs is not None:
-            # Type cannot be determined from the init list (e.g. an empty list)
-            # (Hence an init list can only be used in declarations)
-            for expr in node.exprs:
-                mutating = mutating or self.mutating[expr]
-        self.mutating[node] = mutating
-
-    def visit_ExprList(self, node):
-        self.generic_visit(node)
-        mutating = False
-        if node.exprs is not None:
-            # Type of an expr list cannot be sufficiently represented in this
-            # abstraction, but is not needed, so it is ignored.
-            for expr in node.exprs:
-                mutating = mutating or self.mutating[expr]
-        self.mutating[node] = mutating
-
-    def visit_CompoundLiteral(self, node):
-        self.generic_visit(node)
-        if node.type is not None:
-            self.types[node] = self.convert_type(node.type)
-        if node.init is not None:
-            self.mutating[node] = self.mutating[node.init]
-        else:
-            self.mutating[node] = False
-
-    def visit_NamedInitializer(self, node):
-        self.generic_visit(node)
-        if node.expr is not None:
-            self.types[node] = self.types[node.expr]
-            self.mutating[node] = True  # TODO check this?
