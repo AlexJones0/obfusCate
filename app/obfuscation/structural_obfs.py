@@ -10,8 +10,8 @@ from .utils import (
     ObfuscationUnit,
     TransformType,
     generate_new_contents,
-    NewVariableUseAnalyzer,
-    TypeKinds,
+    NewNewVariableUseAnalyzer,
+    NameSpace,
     ObjectFinder,
 )
 from pycparser.c_ast import *
@@ -352,7 +352,7 @@ class OpaquePredicate:  # TODO use class as namespace or no?
             )
             main.body.block_items = [srand_call] + main.body.block_items
         # Generate a new global entropic variable
-        ident = analyzer.get_new_identifier(exclude=[v[0] for v in existing_vars])
+        ident = analyzer.get_unique_identifier([v[0] for v in existing_vars])
         ident_decl = Decl(
             ident,
             [],
@@ -406,7 +406,7 @@ class OpaqueAugmenter(NodeVisitor):
     def process(self, source):
         if len(self.styles) == 0:
             return
-        self.analyzer = NewVariableUseAnalyzer(source.t_unit)
+        self.analyzer = NewNewVariableUseAnalyzer(source)
         self.analyzer.process()
         self.source = source
         self.visit(source.t_unit)
@@ -861,7 +861,7 @@ class OpaqueInserter(NodeVisitor):
             or self.number == 0
         ):
             return
-        self.analyzer = NewVariableUseAnalyzer(source.t_unit)
+        self.analyzer = NewNewVariableUseAnalyzer(source)
         self.analyzer.process()
         self.source = source
         self.visit(source.t_unit)
@@ -946,7 +946,7 @@ class OpaqueInserter(NodeVisitor):
             if obj.name in local_label_idents:
                 obj.name = local_label_idents[obj.name]
                 continue
-            new_ident = self.analyzer.get_new_identifier(exclude=self.label_names)
+            new_ident = self.analyzer.get_unique_identifier(list(self.label_names))
             local_label_idents[obj.name] = new_ident
             self.label_names.add(new_ident)
             obj.name = new_ident
@@ -1434,6 +1434,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.checked_stmts = None
         self.unavailable_idents = None
         self.numbers = set()
+        self.added_idents = []
         self.cur_number = 0
         self.parent = None
         self.attr = None
@@ -1441,7 +1442,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.count = 0
 
     def transform(self, source: interaction.CSource) -> None:
-        self.analyzer = NewVariableUseAnalyzer(source.t_unit)
+        self.analyzer = NewNewVariableUseAnalyzer(source)
         self.analyzer.process()
         self.visit(source.t_unit)
         if self.needs_stdlib and not utils.is_initialised(source, ["stdlib.h"])[0]:
@@ -1468,10 +1469,10 @@ class ControlFlowFlattener(NodeVisitor):
             # TODO: could switch back to the commented out below, but something
             # is not working with my identifier analysis with pointer types.
             # But I'm not necessarily sure what the benefit would be?
-            enum = self.analyzer.get_new_identifier(exclude=exclude_set)
-            # enum = self.analyzer.get_unique_identifier(
+            enum = self.analyzer.get_unique_identifier(exclude_set)
+            # enum = self.analyzer.get_new_identifier(
             #    self.current_function,
-            #    TypeKinds.NONSTRUCTURE,
+            #    NameSpace.ORDINARY,
             #    function=self.current_function,
             #    exclude=exclude_set,
             # )
@@ -1504,6 +1505,11 @@ class ControlFlowFlattener(NodeVisitor):
             else:
                 setattr(parent, attr, Compound(free_stmts + [return_node]))
 
+    def _get_unique_identifier(self):
+        new_ident = self.analyzer.get_unique_identifier(self.added_idents + self.labels)
+        self.added_idents.append(new_ident)
+        return new_ident
+
     def flatten_function(self, node):
         if (
             node.body is None
@@ -1511,21 +1517,16 @@ class ControlFlowFlattener(NodeVisitor):
             or len(node.body.block_items) == 0
         ):
             return
-        while_label = self.analyzer.get_unique_identifier(
-            node, TypeKinds.LABEL, node.body, node
-        )
+        first_stmt = node.body.block_items[0]
+        while_label = self._get_unique_identifier()
         self.labels = [while_label]
-        switch_variable = self.analyzer.get_unique_identifier(
-            node, TypeKinds.NONSTRUCTURE, node.body, node
-        )
+        switch_variable = self._get_unique_identifier()
         self.levels.append((switch_variable, while_label))
         exit = self.get_unique_number()
         entry = self.get_unique_number()
         self.cases = []
         if self.style == self.Style.ENUMERATOR:
-            enumerator = self.analyzer.get_unique_identifier(
-                node, TypeKinds.STRUCTURE, node.body, node
-            )
+            enumerator = self._get_unique_identifier()
             new_statements = [
                 Decl(
                     None,
@@ -1708,12 +1709,7 @@ class ControlFlowFlattener(NodeVisitor):
                 stmt_label = None
             if isinstance(stmt, (Case, Default)):
                 if goto_label is None:
-                    goto_label = self.analyzer.get_unique_identifier(
-                        switch_stmt,
-                        TypeKinds.LABEL,
-                        function=self.current_function,
-                        exclude=self.labels,
-                    )
+                    goto_label = self._get_unique_identifier()
                     self.labels.append(goto_label)
                 if isinstance(stmt, Case):
                     goto_labels.append(
@@ -1912,14 +1908,14 @@ class ControlFlowFlattener(NodeVisitor):
             if (ident, kind) in self.function_decls or (
                 ident,
                 kind,
-            ) in self.unavailable_idents:
+            ) in self.unavailable_idents or ident in self.added_idents:
                 # Renaming required to avoid conflicts
                 num = 2
                 new_ident = ident
                 while (new_ident, kind) in self.function_decls or (
                     new_ident,
                     kind,
-                ) in self.unavailable_idents:
+                ) in self.unavailable_idents or ident in self.added_idents:
                     new_ident = ident + str(num)
                     num += 1
                 self.analyzer.change_ident(stmt, ident, kind, new_ident)
@@ -2045,13 +2041,13 @@ class ControlFlowFlattener(NodeVisitor):
             if (ident, kind) in self.function_decls or (
                 ident,
                 kind,
-            ) in self.unavailable_idents:  # Renaming required to avoid conflicts
+            ) in self.unavailable_idents or ident in self.added_idents:  # Renaming required to avoid conflicts
                 num = 2
                 new_ident = ident
                 while (new_ident, kind) in self.function_decls or (
                     new_ident,
                     kind,
-                ) in self.unavailable_idents:
+                ) in self.unavailable_idents or ident in self.added_idents:
                     new_ident = ident + str(num)
                     num += 1
                 self.analyzer.change_ident(stmt, ident, kind, new_ident)
