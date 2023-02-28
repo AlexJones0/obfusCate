@@ -495,13 +495,20 @@ class ExpressionAnalyzer(NodeVisitor):
 
     def visit_ArrayRef(self, node):
         self.generic_visit(node)
+        name_type = self.SimpleType.OTHER if node.name is None else self.types[node.name]
+        sub_type = self.SimpleType.OTHER if node.subscript is None else self.types[node.subscript]
+        is_name_arr = isinstance(name_type, (self.Array, self.Ptr))
+        is_sub_arr = isinstance(sub_type, (self.Array, self.Ptr))
+        if not is_name_arr and not is_sub_arr:
+            self.types[node] = self.SimpleType.OTHER
+        elif is_name_arr and is_sub_arr:
+            self.types[node] = self.SimpleType.OTHER  # pessimistic assumpion ?
+        elif is_name_arr:
+            self.types[node] = name_type.val
+        else:
+            self.types[node] = sub_type.val
         mutating = False
         if node.name is not None:
-            arr_type = self.types[node.name]
-            if isinstance(arr_type, (self.Array, self.Ptr)):
-                self.types[node] = arr_type.val
-            else:
-                self.types[node] = arr_type
             mutating = mutating or self.mutating[node.name]
         if node.subscript is not None:
             mutating = mutating or self.mutating[node.subscript]
