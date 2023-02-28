@@ -775,7 +775,7 @@ class BugGenerator(NodeVisitor):
                 self.changed = True
         self.generic_visit(node)
 
-    op_map = {  # TODO check these over - can get weird with pointer math sometimes
+    bin_op_map = {  # TODO check these over - can get weird with pointer math sometimes
         ">": ("<", "<=", "!=", "=="),
         ">=": ("<", "<=", "!=", "=="),
         "<": (">", ">=", "!=", "=="),
@@ -788,12 +788,33 @@ class BugGenerator(NodeVisitor):
         "&&": ("||"),
         "||": ("&&"),
     }
+    
+    unary_op_map = {
+        "--": ("++", "p--", "p++"),
+        "++": ("--", "p++", "p--"),
+        "p--": ("p++", "--", "++"),
+        "p++": ("p--", "++", "--"),
+        "-": ("+"),
+        "+": ("-"),
+        "_Sizeof": ("alignof"),
+        "sizeof": ("alignof"),
+        "_Alignof": ("alignof"),
+        "alignof": ("sizeof"),
+    }
 
     def visit_BinaryOp(self, node):
-        if node.op in self.op_map and (
+        if node.op in self.bin_op_map and (
             not self.changed or random.random() < self.p_replace_op
         ):
-            node.op = random.choice(self.op_map[node.op])
+            node.op = random.choice(self.bin_op_map[node.op])
+            self.changed = True
+        self.generic_visit(node)
+    
+    def visit_UnaryOp(self, node):
+        if node.op in self.unary_op_map and (
+            not self.changed or random.random() < self.p_replace_op
+        ):
+            node.op = random.choice(self.unary_op_map[node.op])
             self.changed = True
         self.generic_visit(node)
 
