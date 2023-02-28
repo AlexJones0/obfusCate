@@ -345,7 +345,7 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         if not time_init:
             # TODO could this break if the user already has functions used in these libraries? uh oh need to state this somewhere
             source.contents = "#include <time.h>\n" + source.contents
-        if not srand_init:
+        if not srand_init: # TODO maybe more than just ints?
             srand_call = FuncCall(
                 ID("srand"),
                 ExprList([FuncCall(ID("time"), ExprList([Constant("int", "0")]))]),
@@ -539,11 +539,11 @@ class OpaqueAugmenter(NodeVisitor):
             if node.type.type.names is None or len(node.type.type.names) == 0:
                 continue
             type_ = node.type.type.names[-1]  # TODO is [-1] right?
-            if type_ in OpaquePredicate.VALID_INPUT_TYPES:
+            if type_ in OpaquePredicate.VALID_INT_TYPES:
                 self.parameters.append((node.name, type_))
             elif type_ in self.global_typedefs.keys():
                 # Handle typedef'd parameters
-                if self.global_typedefs[type_] in OpaquePredicate.VALID_INPUT_TYPES:
+                if self.global_typedefs[type_] in OpaquePredicate.VALID_INT_TYPES:
                     self.parameters.append((node.name, type_))
 
     def visit_Typedef(self, node: Typedef) -> None:
@@ -900,7 +900,6 @@ class OpaqueInserter(NodeVisitor):
             if valid_style == False:
                 return None  # No variables to use as parameters, so exit out
             if style == self.Style.INPUT:
-                # Choose a random function parameter (not used so far) to use
                 param = random.choice(self.parameters)
             elif style == self.Style.ENTROPY:
                 # Randomly either choose an existing entropic variable or create a new one
@@ -920,20 +919,7 @@ class OpaqueInserter(NodeVisitor):
             idents.append(param)
         args = []
         for ident in idents:
-            if ident[1] not in OpaquePredicate.VALID_REAL_TYPES:
-                args.append(ID(ident[0]))
-            else:
-                args.append(
-                    Cast(
-                        Typename(
-                            None,
-                            [],
-                            None,
-                            TypeDecl(None, [], None, IdentifierType(["int"])),
-                        ),
-                        ID(ident[0]),
-                    )
-                )
+            args.append(ID(ident[0]))
         return predicate(*args)
 
     def replace_labels(self, node):
@@ -1149,11 +1135,11 @@ class OpaqueInserter(NodeVisitor):
             if node.type.type.names is None or len(node.type.type.names) == 0:
                 continue
             type_ = node.type.type.names[-1]  # TODO is [-1] right?
-            if type_ in OpaquePredicate.VALID_INPUT_TYPES:
+            if type_ in OpaquePredicate.VALID_INT_TYPES:
                 self.parameters.append((node.name, type_))
             elif type_ in self.global_typedefs.keys():
                 # Handle typedef'd parameters
-                if self.global_typedefs[type_] in OpaquePredicate.VALID_INPUT_TYPES:
+                if self.global_typedefs[type_] in OpaquePredicate.VALID_INT_TYPES:
                     self.parameters.append((node.name, type_))
 
     def visit_Typedef(self, node: Typedef) -> None:
