@@ -9,7 +9,7 @@ macro encoding.
 from .. import interaction
 from ..debug import *
 from .utils import ObfuscationUnit, TransformType, generate_new_contents, TypeKinds, \
-    VariableUseAnalyzer, NewNewVariableUseAnalyzer
+    VariableUseAnalyzer, NewNewVariableUseAnalyzer, ExpressionAnalyzer
 from pycparser.c_ast import *
 from typing import Optional
 import pycparser, random, string, json, enum
@@ -427,11 +427,18 @@ class IdentifierRenameUnit(ObfuscationUnit):
 class IndexReverser(NodeVisitor):
     def __init__(self, probability: float) -> None:
         self.probability = probability
+        self.analyzer = None
 
-    def visit_ArrayRef(self, node):
-        if node.name is not None and node.subscript is not None:
-            if random.random() < self.probability:
-                node.name, node.subscript = node.subscript, node.name
+    def visit_ArrayRef(self, node: ArrayRef) -> None:
+        if node.name is not None and not self.analyzer.is_mutating(node.name):
+            if node.subscript is not None and not self.analyzer.is_mutating(node.subscript):
+                if random.random() < self.probability:
+                    node.name, node.subscript = node.subscript, node.name
+        NodeVisitor.generic_visit(self, node)
+        
+    def visit_FileAST(self, node: FileAST) -> None:
+        self.analyzer = ExpressionAnalyzer(node)
+        self.analyzer.process()
         NodeVisitor.generic_visit(self, node)
 
 
