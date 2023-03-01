@@ -53,19 +53,19 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         lambda x: BinaryOp(
             "||",
             BinaryOp("||",
-                     BinaryOp(">", x, Constant("int", "46340")),
-                     BinaryOp("<", x, Constant("int", "-46340"))),
-            BinaryOp(">=", BinaryOp("*", x, x), Constant("int", "0")),
+                     BinaryOp(">", copy.deepcopy(x), Constant("int", "46340")),
+                     BinaryOp("<", copy.deepcopy(x), Constant("int", "-46340"))),
+            BinaryOp(">=", BinaryOp("*", copy.deepcopy(x), copy.deepcopy(x)), Constant("int", "0")),
         ),
         # (x * -x) <= 0
         lambda x: BinaryOp(
             "||",
             BinaryOp("&&",
-                     BinaryOp(">", x, Constant("int", "23170")),
-                     BinaryOp("<", x, Constant("int", "-23170"))),
+                     BinaryOp(">", copy.deepcopy(x), Constant("int", "23170")),
+                     BinaryOp("<", copy.deepcopy(x), Constant("int", "-23170"))),
             BinaryOp(
                 "<=",
-                BinaryOp("*", x, UnaryOp("-", x)),
+                BinaryOp("*", copy.deepcopy(x), UnaryOp("-", copy.deepcopy(x))),
                 Constant("int", "0"),
             ),
         ),
@@ -75,16 +75,16 @@ class OpaquePredicate:  # TODO use class as namespace or no?
             BinaryOp(
                 "||",
                 BinaryOp("||",
-                         BinaryOp(">", y, Constant("int", "6620")),
-                         BinaryOp("<", y, Constant("int", "-6620"))),
+                         BinaryOp(">", copy.deepcopy(y), Constant("int", "6620")),
+                         BinaryOp("<", copy.deepcopy(y), Constant("int", "-6620"))),
                 BinaryOp("||",
-                         BinaryOp(">", x, Constant("int", "46339")),
-                         BinaryOp("<", x, Constant("int", "-46339")))
+                         BinaryOp(">", copy.deepcopy(x), Constant("int", "46339")),
+                         BinaryOp("<", copy.deepcopy(x), Constant("int", "-46339")))
             ),
             BinaryOp(
                 "!=",
-                BinaryOp("*", Constant("int", "7"), BinaryOp("*", y, y)),
-                BinaryOp("+", BinaryOp("*", x, x), Constant("int", "1")),
+                BinaryOp("*", Constant("int", "7"), BinaryOp("*", copy.deepcopy(y), copy.deepcopy(y))),
+                BinaryOp("+", BinaryOp("*", copy.deepcopy(x), copy.deepcopy(x)), Constant("int", "1")),
             ),
         ),
         # ((7 * (y * y)) - 1) != (x * x)
@@ -93,11 +93,11 @@ class OpaquePredicate:  # TODO use class as namespace or no?
             BinaryOp(
                 "||",
                 BinaryOp("||",
-                         BinaryOp(">", y, Constant("int", "6620")),
-                         BinaryOp("<", y, Constant("int", "-6620"))),
+                         BinaryOp(">", copy.deepcopy(y), Constant("int", "6620")),
+                         BinaryOp("<", copy.deepcopy(y), Constant("int", "-6620"))),
                 BinaryOp("||",
-                         BinaryOp(">", x, Constant("int", "46339")),
-                         BinaryOp("<", x, Constant("Int", "-46339"))),
+                         BinaryOp(">", copy.deepcopy(x), Constant("int", "46339")),
+                         BinaryOp("<", copy.deepcopy(x), Constant("Int", "-46339"))),
             ),
             BinaryOp(
                 "!=",
@@ -106,24 +106,24 @@ class OpaquePredicate:  # TODO use class as namespace or no?
                     BinaryOp(
                         "*",
                         Constant("int", "7"),
-                        BinaryOp("*", y, y),
+                        BinaryOp("*", copy.deepcopy(y), copy.deepcopy(y)),
                     ),
                     Constant("int", "1"),
                 ),
-                BinaryOp("*", x, x),
+                BinaryOp("*", copy.deepcopy(x), copy.deepcopy(x)),
             ),
         ),
         # ((x * (x + 1)) % 2) == 0
         lambda x: BinaryOp(
             "||",
             BinaryOp("||",
-                     BinaryOp(">", x, Constant("int", "46339")),
-                     BinaryOp("<", x, Constant("int", "-46339"))),
+                     BinaryOp(">", copy.deepcopy(x), Constant("int", "46339")),
+                     BinaryOp("<", copy.deepcopy(x), Constant("int", "-46339"))),
             BinaryOp(
                 "==",
                 BinaryOp(
                     "%",
-                    BinaryOp("*", x, BinaryOp("+", x, Constant("int", "1"))),
+                    BinaryOp("*", copy.deepcopy(x), BinaryOp("+", copy.deepcopy(x), Constant("int", "1"))),
                     Constant("int", "2"),
                 ),
                 Constant("int", "0"),
@@ -133,13 +133,13 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         lambda x: BinaryOp(
             "||",
             BinaryOp("||",
-                     BinaryOp(">", x, Constant("int", "46339")),
-                     BinaryOp("<", x, Constant("int", "-46339"))),
+                     BinaryOp(">", copy.deepcopy(x), Constant("int", "46339")),
+                     BinaryOp("<", copy.deepcopy(x), Constant("int", "-46339"))),
             BinaryOp(
                 "!=",
                 BinaryOp(
                     "%",
-                    BinaryOp("*", x, BinaryOp("+", Constant("int", "1"), x)),
+                    BinaryOp("*", copy.deepcopy(x), BinaryOp("+", Constant("int", "1"), copy.deepcopy(x))),
                     Constant("int", "2"),
                 ),
                 Constant("int", "1"),
@@ -149,19 +149,19 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         lambda x: BinaryOp(
             "||",
             BinaryOp("||",
-                     BinaryOp(">", x, Constant("int", "1280")),
-                     BinaryOp("<", x, Constant("int", "-1280"))),
+                     BinaryOp(">", copy.deepcopy(x), Constant("int", "1280")),
+                     BinaryOp("<", copy.deepcopy(x), Constant("int", "-1280"))),
             BinaryOp(
                 "==",
                 BinaryOp(
                     "%",
                     BinaryOp(
                         "*",
-                        x,
+                        copy.deepcopy(x),
                         BinaryOp(
                             "*",
-                            BinaryOp("+", x, Constant("int", "1")),
-                            BinaryOp("+", x, Constant("int", "2")),
+                            BinaryOp("+", copy.deepcopy(x), Constant("int", "1")),
+                            BinaryOp("+", copy.deepcopy(x), Constant("int", "2")),
                         ),
                     ),
                     Constant("int", "3"),
@@ -173,19 +173,19 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         lambda x: BinaryOp(
             "||",
             BinaryOp("||",
-                     BinaryOp(">", x, Constant("int", "1200")),
-                     BinaryOp("<", x, Constant("int", "-1200"))),
+                     BinaryOp(">", copy.deepcopy(x), Constant("int", "1200")),
+                     BinaryOp("<", copy.deepcopy(x), Constant("int", "-1200"))),
             BinaryOp(
                 "!=",
                 BinaryOp(
                     "%",
                     BinaryOp(
                         "*",
-                        BinaryOp("+", x, Constant("int", "1")),
+                        BinaryOp("+", copy.deepcopy(x), Constant("int", "1")),
                         BinaryOp(
                             "*",
-                            x,
-                            BinaryOp("+", x, Constant("int", "2")),
+                            copy.deepcopy(x),
+                            BinaryOp("+", copy.deepcopy(x), Constant("int", "2")),
                         ),
                     ),
                     Constant("int", "3"),
@@ -197,16 +197,16 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         lambda x: BinaryOp(
             "||",
             BinaryOp("||",
-                     BinaryOp(">", x, Constant("int", "1200")),
-                     BinaryOp("<", x, Constant("int", "-1200"))),
+                     BinaryOp(">", copy.deepcopy(x), Constant("int", "1200")),
+                     BinaryOp("<", copy.deepcopy(x), Constant("int", "-1200"))),
             BinaryOp(
                 "!=",
                 BinaryOp(
                     "%",
                     BinaryOp(
                         "*",
-                        BinaryOp("+", x, Constant("int", "2")),
-                        BinaryOp("*", BinaryOp("+", x, Constant("int", "1")), x),
+                        BinaryOp("+", copy.deepcopy(x), Constant("int", "2")),
+                        BinaryOp("*", BinaryOp("+", copy.deepcopy(x), Constant("int", "1")), copy.deepcopy(x)),
                     ),
                     Constant("int", "3"),
                 ),
@@ -217,15 +217,15 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         lambda x: BinaryOp(
             "||",
             BinaryOp("||",
-                     BinaryOp(">", x, Constant("int", "6620")),
-                     BinaryOp("<", x, Constant("int", "-6620"))),
+                     BinaryOp(">", copy.deepcopy(x), Constant("int", "6620")),
+                     BinaryOp("<", copy.deepcopy(x), Constant("int", "-6620"))),
             BinaryOp(
                 "!=",
                 BinaryOp(
                     "%",
                     BinaryOp(
                         "+",
-                        BinaryOp("*", BinaryOp("*", Constant("int", "7"), x), x),
+                        BinaryOp("*", BinaryOp("*", Constant("int", "7"), copy.deepcopy(x)), copy.deepcopy(x)),
                         Constant("int", "1"),
                     ),
                     Constant("int", "7"),
@@ -237,15 +237,15 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         lambda x: BinaryOp(
             "||",
             BinaryOp("||",
-                     BinaryOp(">", x, Constant("int", "46000")),
-                     BinaryOp("<", x, Constant("int", "-46000"))),
+                     BinaryOp(">", copy.deepcopy(x), Constant("int", "46000")),
+                     BinaryOp("<", copy.deepcopy(x), Constant("int", "-46000"))),
             BinaryOp(
                 "!=",
                 BinaryOp(
                     "%",
                     BinaryOp(
                         "+",
-                        BinaryOp("+", BinaryOp("*", x, x), x),
+                        BinaryOp("+", BinaryOp("*", copy.deepcopy(x), copy.deepcopy(x)), copy.deepcopy(x)),
                         Constant("int", "7"),
                     ),
                     Constant("int", "81"),
@@ -257,15 +257,15 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         lambda x: BinaryOp(
             "||",
             BinaryOp("||",
-                     BinaryOp(">", x, Constant("int", "46000")),
-                     BinaryOp("<", x, Constant("int", "-46000"))),
+                     BinaryOp(">", copy.deepcopy(x), Constant("int", "46000")),
+                     BinaryOp("<", copy.deepcopy(x), Constant("int", "-46000"))),
             BinaryOp(
                 "!=",
                 BinaryOp(
                     "%",
                     BinaryOp(
                         "+",
-                        BinaryOp("*", BinaryOp("+", x, Constant("int", "1")), x),
+                        BinaryOp("*", BinaryOp("+", copy.deepcopy(x), Constant("int", "1")), copy.deepcopy(x)),
                         Constant("int", "7"),
                     ),
                     Constant("int", "81"),
@@ -281,41 +281,41 @@ class OpaquePredicate:  # TODO use class as namespace or no?
 
     EITHER_PREDICATES = [
         # x
-        lambda x: x,
+        lambda x: copy.deepcopy(x),
         # !x
-        lambda x: UnaryOp("!", x),
+        lambda x: UnaryOp("!", copy.deepcopy(x)),
         # x <op> 0 for some operation <op>
         lambda x: BinaryOp(
-            random.choice(OpaquePredicate.COMPARISON_OPS), x, Constant("int", "0")
+            random.choice(OpaquePredicate.COMPARISON_OPS), copy.deepcopy(x), Constant("int", "0")
         ),
         # x <op> c for some constant c and operation <op>
         lambda x: BinaryOp(
             random.choice(OpaquePredicate.COMPARISON_OPS),
-            x,
+            copy.deepcopy(x),
             Constant("int", str(random.randint(-25, 25))),
         ),
         # x <op> y for some operation <op>
-        lambda x, y: BinaryOp(random.choice(OpaquePredicate.COMPARISON_OPS), x, y),
-        # x <op1> y && y <op2> z for some operations <op1> and <op2>
+        lambda x, y: BinaryOp(random.choice(OpaquePredicate.COMPARISON_OPS), copy.deepcopy(x), copy.deepcopy(y)),
+        # x <op1> y && y <op2> z for some comparsion operations <op1> and <op2>
         lambda x, y, z: BinaryOp(
             random.choice(["&&", "||"]),
-            BinaryOp(random.choice(OpaquePredicate.COMPARISON_OPS), x, y),
-            BinaryOp(random.choice(OpaquePredicate.COMPARISON_OPS), y, z),
+            BinaryOp(random.choice(OpaquePredicate.COMPARISON_OPS), copy.deepcopy(x), copy.deepcopy(y)),
+            BinaryOp(random.choice(OpaquePredicate.COMPARISON_OPS), copy.deepcopy(y), copy.deepcopy(z)),
         ),
         # x <op1> y <op2> z for some arithmetic operation <op1> and some comparison operation <op2>
         lambda x, y, z: BinaryOp(
             random.choice(OpaquePredicate.COMPARISON_OPS),
-            BinaryOp(random.choice(OpaquePredicate.BIN_ARITHMETIC_OPS), x, y),
-            z,
+            BinaryOp(random.choice(OpaquePredicate.BIN_ARITHMETIC_OPS), copy.deepcopy(x), copy.deepcopy(y)),
+            copy.deepcopy(z),
         ),
         # y == 0 || x <op1> y <op2> z for some division operation <op1> and some comparison operation <op2>
         lambda x, y, z: BinaryOp(
             "||",
-            BinaryOp("==", y, Constant("int", "0")),
+            BinaryOp("==", copy.deepcopy(y), Constant("int", "0")),
             BinaryOp(
                 random.choice(OpaquePredicate.COMPARISON_OPS),
-                BinaryOp(random.choice(OpaquePredicate.BIN_DIV_OPS), x, y),
-                z,
+                BinaryOp(random.choice(OpaquePredicate.BIN_DIV_OPS), copy.deepcopy(x), copy.deepcopy(y)),
+                copy.deepcopy(z),
             ),
         ),
     ]
