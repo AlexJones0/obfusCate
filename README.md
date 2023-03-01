@@ -26,11 +26,13 @@
 
     4.1. [**Running the Program**](#41-running-the-program)
 
-    4.2. [**Supported Transformations**](#42-supported-transformations)
+    4.2. [**Making your program amenable to obfuscation**](#42-making-your-program-amenable-to-obfuscation)
 
-    4.3. [**Supported Complexity Metrics**](#43-supported-complexity-metrics)
+    4.3. [**Supported Transformations**](#43-supported-transformations)
 
-    4.4. [**Other Notable Features**](#44-other-notable-features)
+    4.4. [**Supported Complexity Metrics**](#44-supported-complexity-metrics)
+
+    4.5. [**Other Notable Features**](#45-other-notable-features)
 
 5. [**Project Structure / Documentation**](#5-project-structure--documentation)
 
@@ -122,15 +124,31 @@ TODO: Example Compositions
 
 TODO: Note on first time obfuscation runtime - generating `yacctab.py`, but quick after that.
 
-### **4.2. Supported Transformations**
+### **4.2. Making your program amenable to obfuscation**
+
+There are several steps you can take to make your program more amenable to obfuscation and allow more effective transformations, as there are a few cases in which the program behavious cautioutsly in case it cannot be 100% sure about certain properties of your program (e.g. side effects), and there are many things that it is simply not intelligent enough to reason about with regards to semantics. The following are suggested ways to make your program more amenable (and how they help!)
+
+1. **Move as much code out of the `main()` function as possible** - due to certain limitations and to make it easier to preserve certain properties, some obfuscations are not applied or applied in limited effect to the `main()` function - for example, opaque predicate insertion or augmentation will not occur in `main`. To overcome this, put as much code as possible outside of this function, even if it means taking your current main body and putting it in some other function `main2(int argc, char *argv)` which you then just immediately call from `main` using `main2(argc, argv)`.
+
+2. **Store the results of function calls as variables** - for some transformations (such as arithmetic encoding), expression type analysis is used to infer the type and potential for side effects in expressions. Although functions may return e.g. integer types, these are still not encoded if placed within expressions, because obfusCated cannot easily assert any guarantees about whether `f()` has side effects on the rest of the program, for example by setting globals. So for example instead of using `x = f() + g()`, please write `a = f(); b = g(); x = a + b`.
+
+3. **Store the results of expressions with side effects (e.g. `i++`) as variables** - for similar reasons as above, to make it easier for obfusCate to understand when it can transform your code.
+
+4. **Create large bodies of code and complicated expressions** - as a result of no methods currently implementing techniques such as function merging, variable splitting/merging, etc., the obfuscated code is bound by the complexity of the given code. So obviously, if you can inline some function calls to create large functions, or combine multiple calculations into one huge expression, this will aid in creating more complex obfuscations (you can think of this as a bit of a preprocessing step involving some manual obfuscation!).
+
+5. **Use integers over floats where possible** - obfusCate of course does work with float types, but many techniques are limited to integers (e.g. arithmetic encoding), and many techniques are not particularly stealthy without them due to lengthy and obvious conversions, so where it is possible to downcast to integers for your intermediary code steps (without losing accuracy, functionality, etc.) - it is recommended that you do so.
+
+6. **Check the limitations of each method** - although most methods will work with almost every standard C feature, there are some limitations on certain methods, or on certain options of certain methods (e.g. no function signatures with minimised identifier renaming). These are sometimes due to limitations in `pycparser`, sometimes due to the complexity of supporting such a feature (e.g. even though it is supported, anonymous structs/unions cause *so many* issues...). Make sure you're not using any features that conflict with the options you want to use!
+
+### **4.3. Supported Transformations**
 
 TODO: Obfuscations
 
-### **4.3. Supported Complexity Metrics**
+### **4.4. Supported Complexity Metrics**
 
 TODO: METRICS
 
-### **4.4. Other Notable Features**
+### **4.5. Other Notable Features**
 
 TODO: OTHER NOTABLE FEATURES
 

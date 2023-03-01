@@ -796,10 +796,6 @@ class BugGenerator(NodeVisitor):
         "p++": ("p--", "++", "--"),
         "-": ("+"),
         "+": ("-"),
-        "_Sizeof": ("alignof"),
-        "sizeof": ("alignof"),
-        "_Alignof": ("alignof"),
-        "alignof": ("sizeof"),
     }
 
     def visit_BinaryOp(self, node):
