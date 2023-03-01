@@ -52,13 +52,17 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # (x * x) >= 0
         lambda x: BinaryOp(
             "||",
-            BinaryOp(">", x, Constant("int", "46340")),
+            BinaryOp("&&",
+                     BinaryOp(">", x, Constant("int", "46340")),
+                     BinaryOp("<", x, Constant("int", "-46340"))),
             BinaryOp(">=", BinaryOp("*", x, x), Constant("int", "0")),
         ),
         # (x * -x) <= 0
         lambda x: BinaryOp(
             "||",
-            BinaryOp(">", x, Constant("int", "23170")),
+            BinaryOp("&&",
+                     BinaryOp(">", x, Constant("int", "23170")),
+                     BinaryOp("<", x, Constant("int", "-23170"))),
             BinaryOp(
                 "<=",
                 BinaryOp("*", x, UnaryOp("-", x)),
@@ -70,8 +74,12 @@ class OpaquePredicate:  # TODO use class as namespace or no?
             "||",
             BinaryOp(
                 "&&",
-                BinaryOp(">", y, Constant("int", "6620")),
-                BinaryOp(">", x, Constant("int", "46339")),
+                BinaryOp("&&",
+                         BinaryOp(">", y, Constant("int", "6620")),
+                         BinaryOp("<", y, Constant("int", "-6620"))),
+                BinaryOp("&&",
+                         BinaryOp(">", x, Constant("int", "46339")),
+                         BinaryOp("<", x, Constant("int", "-46339")))
             ),
             BinaryOp(
                 "!=",
@@ -84,8 +92,12 @@ class OpaquePredicate:  # TODO use class as namespace or no?
             "||",
             BinaryOp(
                 "&&",
-                BinaryOp(">", y, Constant("int", "6620")),
-                BinaryOp(">", x, Constant("int", "46339")),
+                BinaryOp("&&",
+                         BinaryOp(">", y, Constant("int", "6620")),
+                         BinaryOp("<", y, Constant("int", "-6620"))),
+                BinaryOp("&&",
+                         BinaryOp(">", x, Constant("int", "46339")),
+                         BinaryOp("<", x, Constant("Int", "-46339"))),
             ),
             BinaryOp(
                 "!=",
@@ -104,7 +116,9 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # ((x * (x + 1)) % 2) == 0
         lambda x: BinaryOp(
             "||",
-            BinaryOp(">", x, Constant("int", "46339")),
+            BinaryOp("&&",
+                     BinaryOp(">", x, Constant("int", "46339")),
+                     BinaryOp("<", x, Constant("int", "-46339"))),
             BinaryOp(
                 "==",
                 BinaryOp(
@@ -118,7 +132,9 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # ((x * (1 + x)) % 2) != 1
         lambda x: BinaryOp(
             "||",
-            BinaryOp(">", x, Constant("int", "46339")),
+            BinaryOp("&&",
+                     BinaryOp(">", x, Constant("int", "46339")),
+                     BinaryOp("<", x, Constant("int", "-46339"))),
             BinaryOp(
                 "!=",
                 BinaryOp(
@@ -132,7 +148,9 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # ((x * ((x + 1) * (x + 2))) % 3) == 0
         lambda x: BinaryOp(
             "||",
-            BinaryOp(">", x, Constant("int", "1280")),
+            BinaryOp("&&",
+                     BinaryOp(">", x, Constant("int", "1280")),
+                     BinaryOp("<", x, Constant("int", "-1280"))),
             BinaryOp(
                 "==",
                 BinaryOp(
@@ -154,7 +172,9 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # (((x + 1) * (x * (x + 2))) % 3) != 1
         lambda x: BinaryOp(
             "||",
-            BinaryOp(">", x, Constant("int", "1200")),
+            BinaryOp("&&",
+                     BinaryOp(">", x, Constant("int", "1200")),
+                     BinaryOp("<", x, Constant("int", "-1200"))),
             BinaryOp(
                 "!=",
                 BinaryOp(
@@ -176,7 +196,9 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # (((x + 1) * ((x + 2) * x)) % 3) != 2
         lambda x: BinaryOp(
             "||",
-            BinaryOp(">", x, Constant("int", "1200")),
+            BinaryOp("&&",
+                     BinaryOp(">", x, Constant("int", "1200")),
+                     BinaryOp("<", x, Constant("int", "-1200"))),
             BinaryOp(
                 "!=",
                 BinaryOp(
@@ -194,7 +216,9 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # (((7 * x) * x) + 1) % 7) != 0
         lambda x: BinaryOp(
             "||",
-            BinaryOp(">", x, Constant("int", "6620")),
+            BinaryOp("&&",
+                     BinaryOp(">", x, Constant("int", "6620")),
+                     BinaryOp("<", x, Constant("int", "-6620"))),
             BinaryOp(
                 "!=",
                 BinaryOp(
@@ -212,7 +236,9 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # ((((x * x) + x) + 7) % 81) != 0
         lambda x: BinaryOp(
             "||",
-            BinaryOp(">", x, Constant("int", "46000")),
+            BinaryOp("&&",
+                     BinaryOp(">", x, Constant("int", "46000")),
+                     BinaryOp("<", x, Constant("int", "-46000"))),
             BinaryOp(
                 "!=",
                 BinaryOp(
@@ -230,7 +256,9 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # ((((x + 1) * x) + 7) % 81) != 0
         lambda x: BinaryOp(
             "||",
-            BinaryOp(">", x, Constant("int", "46000")),
+            BinaryOp("&&",
+                     BinaryOp(">", x, Constant("int", "46000")),
+                     BinaryOp("<", x, Constant("int", "-46000"))),
             BinaryOp(
                 "!=",
                 BinaryOp(
