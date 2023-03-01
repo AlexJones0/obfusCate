@@ -8,8 +8,8 @@ macro encoding.
 """
 from .. import interaction
 from ..debug import *
-from .utils import ObfuscationUnit, TransformType, generate_new_contents, TypeKinds, \
-    VariableUseAnalyzer, NewNewVariableUseAnalyzer, ExpressionAnalyzer
+from .utils import ObfuscationUnit, TransformType, generate_new_contents, \
+    NewNewVariableUseAnalyzer, ExpressionAnalyzer
 from pycparser.c_ast import *
 from typing import Optional
 import pycparser, random, string, json, enum
@@ -569,7 +569,7 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
         lexer.input(contents)
         # Lex tokens and format according to whitespace rules
         spaced_tokens = pycparser.c_lexer.CLexer.keywords + pycparser.c_lexer.CLexer.keywords_new + ("ID",)
-        spaced_end_tokens = spaced_tokens + (
+        spaced_end_tokens = set(spaced_tokens + (
             "INT_CONST_DEC",
             "INT_CONST_OCT",
             "INT_CONST_HEX",
@@ -577,7 +577,13 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
             "INT_CONST_CHAR",
             "FLOAT_CONST",
             "HEX_FLOAT_CONST",
-        )
+        ))
+        spaced_tokens = set(spaced_tokens)
+        # Ambiguous lexemes are lexemes of two or more characters that can in some way be split up into 
+        # two other lexemes recognised by the program, such that those lexemes must be spaced so they are
+        # not ambiguously greedily recognised as these larger lexemes.
+        ambiguous_lexemes = set(["+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", "++", "--", 
+                                 ">>", "<<", "==", "!=", "<=", ">=", "&&", "||", "->"])
         cur_line_length = 0
         cur_line = []
         token = lexer.token()
@@ -585,8 +591,10 @@ class ClutterWhitespaceUnit(ObfuscationUnit):  # TODO picture extension?
         while token is not None:
             addSpace = (
                 prev is not None
-                and prev.type in spaced_tokens
-                and token.type in spaced_end_tokens
+                and (
+                    (prev.type in spaced_tokens and token.type in spaced_end_tokens)
+                    or prev.value + token.value in ambiguous_lexemes
+                )
             )
             cur_line_length += (1 if addSpace else 0) + len(token.value)
             if cur_line_length <= self.target_length:
