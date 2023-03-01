@@ -11,7 +11,6 @@ from .utils import (
     TransformType,
     generate_new_contents,
     NewNewVariableUseAnalyzer,
-    NameSpace,
     ObjectFinder,
 )
 from pycparser.c_ast import *
@@ -60,7 +59,7 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # (x * -x) <= 0
         lambda x: BinaryOp(
             "||",
-            BinaryOp("&&",
+            BinaryOp("||",
                      BinaryOp(">", copy.deepcopy(x), Constant("int", "23170")),
                      BinaryOp("<", copy.deepcopy(x), Constant("int", "-23170"))),
             BinaryOp(
@@ -334,12 +333,12 @@ class OpaquePredicate:  # TODO use class as namespace or no?
             if expr.op in OpaquePredicate.negation_map.keys():
                 expr.op = OpaquePredicate.negation_map[expr.op]
                 return expr
-            elif expr.op == "&&":  # TODO De Morgan's - check
+            elif expr.op == "&&": # De Morgan's Law AND form
                 expr.op = "||"
                 expr.left = OpaquePredicate.negate(expr.left)
                 expr.right = OpaquePredicate.negate(expr.right)
                 return expr
-            elif expr.op == "||":
+            elif expr.op == "||": # De Morgan's Law OR form
                 expr.op = "&&"
                 expr.left = OpaquePredicate.negate(expr.left)
                 expr.right = OpaquePredicate.negate(expr.right)
