@@ -979,6 +979,7 @@ class NewNewVariableUseAnalyzer(NodeVisitor):
         return usages
         
     def _get_scope_path(self, compound: Scope) -> list[Scope]:
+        """ TODO DOCSTRING """
         scope_path = [compound]
         while compound is not None:
             compound = self.compound_parent[compound]
@@ -1025,6 +1026,47 @@ class NewNewVariableUseAnalyzer(NodeVisitor):
         definitions = definitions.union(scope_defs)
         return definitions
             
+    def get_last_ident_definition(self, ast_node: Node, ident: Identifier) -> Node | None:
+        """ Given an AST node corresponding to some part of the abstract 
+        syntax tree for the analysed program, this method searches backwards
+        from the given node to find the last instance of an identifier's
+        definition, if such a definition exists.
+
+        Args:
+            ast_node (Node): The AST node to check from.
+            ident (Identifier): The identifier (name & namespace) to look for.
+
+        Returns:
+            Node | None: Some AST node corresponding to the statement (i.e.
+            the root of that statement's AST subtree) where the given 
+            identifier was last defined, or None if the identifier is not
+            defined at the given point in the program.
+        """
+        # comehere todo remove this comment when done; anchor point
+        stmt = self.get_stmt_from_node(ast_node)
+        compound = self.get_stmt_compound(stmt)
+        # Recursively search backwards through scopes and find last definition instance
+        scope_path = self._get_scope_path(compound)
+        to_stmt = stmt
+        for i, scope in enumerate(scope_path):
+            from_index, to_index = self._coalesce_indexes(scope, None, to_stmt)
+            for j in range(from_index, to_index):
+                stmt = self.compound_stmt_map[scope][j]
+                if ident in self.stmt_definitions[stmt]:
+                    return stmt
+            # We search the parent scope up to the statement corresponding to the
+            # child scope (to avoid searching the whole scope)
+            if i >= len(scope_path) - 1:
+                continue
+            parent = scope_path[i+1]
+            to_stmt = [c[1] for c in self.compound_children[parent] if c[0] == scope]
+            if len(to_stmt) == 0:
+                to_stmt = None
+            else:
+                to_stmt = to_stmt[0]
+        return None
+        
+
     def get_usage_from_stmt(self, stmt: Node, compound: Scope | None = None) -> list[Identifier]:
         """ Given a statement, this will find all the identifiers that
         are used in and after the end of that statement (towards the 
@@ -2902,15 +2944,29 @@ class VariableUseAnalyzer(NodeVisitor):
         NodeVisitor.generic_visit(self, node)
 
 
+class ASTCacher(NodeVisitor):
+    
+    def __init__(self):
+        super(ASTCacher, self).__init__()
+        self.node_cache = set()
+    
+    def node_in_AST(self, node: Node) -> bool:
+        return node in self.node_cache
+    
+    def generic_visit(self, node: Node) -> None:
+        self.node_cache.add(node)
+        return super(ASTCacher, self).generic_visit(node)
+
+
 class DebugDuplicationVisitor(NodeVisitor):
     
     def __init__(self):
         super(DebugDuplicationVisitor, self).__init__()
         self.node_cache = set()
     
-    def generic_visit(self, node):
+    def generic_visit(self, node: Node) -> None:
         if node in self.node_cache:
             node.show()
         else:
             self.node_cache.add(node)
-        return super().generic_visit(node)
+        return super(DebugDuplicationVisitor, self).generic_visit(node)

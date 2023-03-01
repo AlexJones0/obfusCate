@@ -12,6 +12,8 @@ from .utils import (
     generate_new_contents,
     NewNewVariableUseAnalyzer,
     ObjectFinder,
+    NameSpace,
+    ASTCacher
 )
 from pycparser.c_ast import *
 from typing import Iterable, Tuple, Optional
@@ -451,7 +453,20 @@ class OpaqueAugmenter(NodeVisitor):
         self.source = source
         self.visit(source.t_unit)
 
-    def generate_opaque_predicate(self, cond_expr):
+    def generate_opaque_predicate(self, cond_expr, source_ancestor):
+        # TODO: better approach - use expression analyzer to get any idents at the current point
+        #   in the program of the int/float types? Don't see why this wouldn't work, and would
+        #   avoid all these jank renaming issues 
+        #  TODO could also just make this a seperate type - PARAMETERS, VARIABLES and ENTROPY
+        # Parse valid parameters at the definition - we don't allow any parameters that
+        # are redefined up to the conditional. We don't worry about not analyzing any
+        # copied declarations because it is enforced that declarations are not copied in
+        # opaque insertion, so this case cannot occur.
+        parameters = []
+        for param in self.parameters:
+            def_node = self.analyzer.get_last_ident_definition(source_ancestor, (param[0], NameSpace.ORDINARY))
+            if isinstance(def_node, ParamList):  # Only non-redefined parameters
+                parameters.append(param)
         # Retrieve a random opaque predicate and check its parameters
         predicate = random.choice(OpaquePredicate.TRUE_PREDICATES)
         num_args = predicate.__code__.co_argcount
@@ -466,8 +481,8 @@ class OpaqueAugmenter(NodeVisitor):
                 styles.remove(style)
                 if style == self.Style.INPUT:
                     valid_style = (
-                        self.parameters is not None
-                        and len(set(self.parameters).difference(set(idents))) != 0
+                        parameters is not None
+                        and len(set(parameters).difference(set(idents))) != 0
                     )  # TODO check logic here just in case
                 elif style == self.Style.ENTROPY:
                     valid_style = True
@@ -482,7 +497,7 @@ class OpaqueAugmenter(NodeVisitor):
                 # some mess to generate entropic variables _afterwards_)
             if style == self.Style.INPUT:
                 # Choose a random function parameter (not used so far) to use
-                param = random.choice(self.parameters)
+                param = random.choice(parameters)
             elif style == self.Style.ENTROPY:
                 # Randomly either choose an existing entropic variable or create a new one
                 available_vars = list(set(self.entropic_vars).difference(set(idents)))
@@ -531,8 +546,9 @@ class OpaqueAugmenter(NodeVisitor):
 
     def test_add_predicate(self, node):
         if node.cond is not None and random.random() < self.probability:
+            ancestor = node.cond
             for _ in range(self.number):
-                node.cond = self.generate_opaque_predicate(node.cond)
+                node.cond = self.generate_opaque_predicate(node.cond, ancestor)
 
     def visit_If(self, node):
         self.test_add_predicate(node)
@@ -905,6 +921,9 @@ class OpaqueInserter(NodeVisitor):
     def reset(self):
         self.functions = []
         self.global_typedefs = {}
+        self.parent = None
+        self.parent_map = {}
+        self.node_cache = None
         self.current_function = None
         self.parameters = None
         self.analyzer = None
@@ -925,7 +944,32 @@ class OpaqueInserter(NodeVisitor):
         self.source = source
         self.visit(source.t_unit)
 
-    def generate_opaque_predicate_cond(self, predicate_sets=None):
+    def _get_source_ancestor(self, node: Node) -> Node | None:
+        while node is not None:
+            if self.node_cache.node_in_AST(node):
+                return node
+            elif node not in self.parent_map:
+                return None
+            node = self.parent_map[node]
+        return None
+
+    def generate_opaque_predicate_cond(self, node: Node, predicate_sets=None):
+        # TODO: better approach - use expression analyzer to get any idents at the current point
+        #   in the program of the int/float types? Don't see why this wouldn't work, and would
+        #   avoid all these jank renaming issues 
+        #  TODO could also just make this a seperate type - PARAMETERS, VARIABLES and ENTROPY
+        # Parse valid parameters at the definition - we don't allow any parameters that
+        # are redefined up to the conditional. We don't worry about not analyzing any
+        # copied declarations because it is enforced that declarations are not copied in
+        # opaque insertion, so this case cannot occur.
+        parameters = []
+        if len(self.parameters) != 0:
+            source_ancestor = self._get_source_ancestor(node)
+            if source_ancestor is not None:
+                for param in self.parameters:
+                    def_node = self.analyzer.get_last_ident_definition(source_ancestor, (param[0], NameSpace.ORDINARY))
+                    if isinstance(def_node, ParamList):  # Only non-redefined parameters
+                        parameters.append(param)
         # Retrieve a random opaque predicate and check its parameters
         if predicate_sets is None:
             predicate = random.choice(OpaquePredicate.TRUE_PREDICATES)
@@ -946,8 +990,8 @@ class OpaqueInserter(NodeVisitor):
                 styles.remove(style)
                 if style == self.Style.INPUT:
                     valid_style = (
-                        self.parameters is not None
-                        and len(set(self.parameters).difference(set(idents))) != 0
+                        parameters is not None
+                        and len(set(parameters).difference(set(idents))) != 0
                     )  # TODO check logic here just in case
                 elif style == self.Style.ENTROPY:
                     valid_style = (  # TODO is there a better way to handle this to avoid rand decls etc.?
@@ -959,7 +1003,7 @@ class OpaqueInserter(NodeVisitor):
             if valid_style == False:
                 return None  # No variables to use as parameters, so exit out
             if style == self.Style.INPUT:
-                param = random.choice(self.parameters)
+                param = random.choice(parameters)
             elif style == self.Style.ENTROPY:
                 # Randomly either choose an existing entropic variable or create a new one
                 available_vars = list(set(self.entropic_vars).difference(set(idents)))
@@ -1022,12 +1066,12 @@ class OpaqueInserter(NodeVisitor):
         kind = random.choice(self.kinds)  # TODO do I make this proportional also?
         match kind:
             case self.Kind.CHECK:  # if (true) { your code }
-                cond = self.generate_opaque_predicate_cond()
+                cond = self.generate_opaque_predicate_cond(stmt)
                 if cond is None:
                     return None
                 return Compound([If(cond, stmt, None)])
             case self.Kind.FALSE:  # if (false) { buggy code }
-                cond = self.generate_opaque_predicate_cond()
+                cond = self.generate_opaque_predicate_cond(stmt)
                 if cond is None:
                     return None
                 cond = OpaquePredicate.negate(cond)
@@ -1035,14 +1079,14 @@ class OpaqueInserter(NodeVisitor):
                 block_items = stmt.block_items if isinstance(stmt, Compound) else [stmt]
                 return Compound([If(cond, buggy, None)] + block_items)
             case self.Kind.ELSE:  # if (false) { buggy code } else { YOUR CODE }
-                cond = self.generate_opaque_predicate_cond()
+                cond = self.generate_opaque_predicate_cond(stmt)
                 if cond is None:
                     return None
                 cond = OpaquePredicate.negate(cond)
                 buggy = self.generate_buggy(stmt)
                 return Compound([If(cond, buggy, stmt)])
             case self.Kind.EITHER:  # if (either) { YOUR CODE } else { YOUR CODE }
-                cond = self.generate_opaque_predicate_cond(
+                cond = self.generate_opaque_predicate_cond(stmt,
                     [OpaquePredicate.EITHER_PREDICATES]
                 )
                 if cond is None:
@@ -1051,7 +1095,7 @@ class OpaqueInserter(NodeVisitor):
                 self.replace_labels(copied)
                 return Compound([If(cond, stmt, copied)])
             case self.Kind.WHILE_FALSE:  # while (false) { buggy code }
-                cond = self.generate_opaque_predicate_cond()
+                cond = self.generate_opaque_predicate_cond(stmt)
                 if cond is None:
                     return None
                 cond = OpaquePredicate.negate(cond)
@@ -1065,6 +1109,10 @@ class OpaqueInserter(NodeVisitor):
         new_body = self.generate_opaque_predicate(node.body)
         if new_body is not None:
             node.body = new_body
+            old_parent = self.parent
+            self.parent = node
+            self.visit(node.body)
+            self.parent = old_parent
         return True
 
     def get_random_compound(self, compounds):
@@ -1126,6 +1174,10 @@ class OpaqueInserter(NodeVisitor):
                 + new_block.block_items
                 + compound.block_items[indexes[1] + 1 :]
             )
+            old_parent = self.parent
+            self.parent = compound
+            self.visit(compound)
+            self.parent = old_parent
         return True
 
     def add_stmt_predicate(self, compounds):
@@ -1149,6 +1201,10 @@ class OpaqueInserter(NodeVisitor):
                 + new_block.block_items
                 + compound.block_items[index + 1 :]
             )
+            old_parent = self.parent
+            self.parent = compound
+            self.visit(compound)
+            self.parent = old_parent
         return True
 
     def add_opaque_predicates(self, node):
@@ -1223,22 +1279,30 @@ class OpaqueInserter(NodeVisitor):
             self.global_typedefs[node.name] = self.global_typedefs[typetype]
         else:  # Typedef to some standard C type
             self.global_typedefs[node.name] = typetype
-        NodeVisitor.generic_visit(self, node)
+        self.generic_visit(node)
 
-    def visit_FuncDef(self, node):
+    def visit_FuncDef(self, node: FuncDef) -> None:
         prev = self.current_function
         self.current_function = node
         self.functions.append(node)
         self.parameters = []
-        NodeVisitor.generic_visit(self, node)
+        self.generic_visit(node)
         if node.body is not None:
             self.add_opaque_predicates(node)
         self.current_function = prev
         self.parameters = None
 
-    def visit_FileAST(self, node):
-        NodeVisitor.generic_visit(self, node)
+    def visit_FileAST(self, node: FileAST) -> None:
+        self.node_cache = ASTCacher()
+        self.node_cache.visit(node)
+        self.generic_visit(node)
         self.reset()
+        
+    def generic_visit(self, node: Node) -> None:
+        self.parent_map[node] = self.parent
+        self.parent = node
+        super(OpaqueInserter, self).generic_visit(node)
+        self.parent = self.parent_map[node]
 
 
 class InsertOpaqueUnit(ObfuscationUnit):
