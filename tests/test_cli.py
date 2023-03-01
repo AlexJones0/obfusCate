@@ -4,6 +4,7 @@ from contextlib import redirect_stdout
 from app import settings as cfg
 from app.cli import *
 from app.interaction import CSource
+from app.obfuscation import cli as obfscli
 from tests import *
 import io
 
@@ -574,8 +575,8 @@ class TestCLISysArgs(unittest.TestCase):
         self.assertFalse(handle_CLI())
 
 
-class TestObfuscationCLIFunctions(unittest.TestCase):
-    """Implements unit test for the obfuscation edit_cli and get_cli methods."""
+class TestCLISysArgs(unittest.TestCase):
+    """Implements unit tests for the CLI program system arguments & options. """
 
     def test_cli_help_sysarg(self) -> None:
         """ Tests that the CLI correctly displays the help menu when the 
@@ -824,6 +825,42 @@ class TestObfuscationCLIFunctions(unittest.TestCase):
         out = out.getvalue()
         self.assertFalse(cfg.SKIP_MENUS)
     
+
+class TestObfuscationMethodsCLI(unittest.TestCase):
+    """Implements unit tests for each obfuscation method's CLI interface 
+    (their .edit_cli() and .get_cli() methods.)"""
+    
+    def test_identity_get_cli(self) -> None:
+        """ Tests that the CLI correctly provides an interface for getting a new
+        IdentityUnit object, with no available options. """
+        obfs_unit = obfscli.CliIdentityUnit.get_cli()
+        self.assertIsNotNone(obfs_unit)
+        self.assertIsInstance(obfs_unit, obfscli.CliIdentityUnit)
+    
+    def test_identity_edit_cli(self) -> None:
+        """ Tests that the CLI correctly provides an interface for editing
+        an IdentityUnit object, with no available options. """
+        obfs_unit = obfscli.CliIdentityUnit()
+        self.assertTrue(obfs_unit.edit_cli())
+        
+    def test_augment_opaque_get_cli_quit(self) -> None:
+        """ Tests that the CLI correctly provies an interface for editing
+        an AugmentOpaqueUnit object, which can be quit at all stages."""
+        output = io.StringIO()
+        with patch("builtins.input", side_effect=["quit"]), redirect_stdout(output):
+            obfscli.CliIdentityUnit.get_cli()
+        print(output.getvalue())
+        output = io.StringIO()
+        with patch("builtins.input", side_effect=["3", "quit"]), redirect_stdout(output):
+            obfscli.CliIdentityUnit.get_cli()
+        print(output.getvalue())
+        output = io.StringIO()
+        with patch("builtins.input", side_effect=["3", "0.5", "quit"]), redirect_stdout(output):
+            obfscli.CliIdentityUnit.get_cli()
+        print(output.getvalue())
+    
+    # TODO[TESTING] add more CLI transform tests here!
+        
 
 if __name__ == "__main__":
     unittest.main()
