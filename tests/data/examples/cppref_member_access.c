@@ -34,7 +34,6 @@ int main(void)
     //// Program 3
     int n3 = 1;
     int *p3 = &n3; // address of object n
-    int (*fp)(char) = &f; // address of function f
     int a2[3] = {1,2,3};
     int *start=a, *end=&a2[3]; // same as end = a+3
 

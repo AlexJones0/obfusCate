@@ -579,7 +579,7 @@ class OpaqueAugmenter(NodeVisitor):
             elif type_ in self.global_typedefs.keys():
                 # Handle typedef'd parameters
                 if self.global_typedefs[type_] in OpaquePredicate.VALID_INT_TYPES:
-                    self.parameters.append((node.name, type_))
+                    self.parameters.append((node.name, self.global_typedefs[type_]))
 
     def visit_Typedef(self, node: Typedef) -> None:
         # Parse valid global typedefs to find permissible input params
@@ -603,13 +603,13 @@ class OpaqueAugmenter(NodeVisitor):
             self.global_typedefs[node.name] = self.global_typedefs[typetype]
         else:  # Typedef to some standard C type
             self.global_typedefs[node.name] = typetype
-        self.generic_visit(node)
+        NodeVisitor.generic_visit(self, node)
 
     def visit_FuncDef(self, node):
         prev = self.current_function
         self.current_function = node
         self.parameters = []
-        self.generic_visit(node)
+        NodeVisitor.generic_visit(self, node)
         self.current_function = prev
         self.parameters = None
 
@@ -1192,7 +1192,7 @@ class OpaqueInserter(NodeVisitor):
             elif type_ in self.global_typedefs.keys():
                 # Handle typedef'd parameters
                 if self.global_typedefs[type_] in OpaquePredicate.VALID_INT_TYPES:
-                    self.parameters.append((node.name, type_))
+                    self.parameters.append((node.name, self.global_typedefs[type_]))
 
     def visit_Typedef(self, node: Typedef) -> None:
         # Parse valid global typedefs to find permissible input params
@@ -1216,14 +1216,14 @@ class OpaqueInserter(NodeVisitor):
             self.global_typedefs[node.name] = self.global_typedefs[typetype]
         else:  # Typedef to some standard C type
             self.global_typedefs[node.name] = typetype
-        self.generic_visit(node)
+        NodeVisitor.generic_visit(self, node)
 
     def visit_FuncDef(self, node):
         prev = self.current_function
         self.current_function = node
         self.functions.append(node)
         self.parameters = []
-        self.generic_visit(node)
+        NodeVisitor.generic_visit(self, node)
         if node.body is not None:
             self.add_opaque_predicates(node)
         self.current_function = prev
