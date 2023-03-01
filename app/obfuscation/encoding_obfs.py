@@ -9,7 +9,7 @@ from ..debug import *
 from .utils import ObfuscationUnit, TransformType, generate_new_contents, ExpressionAnalyzer
 from pycparser.c_ast import *
 from typing import Optional
-import random, json, math, enum
+import random, json, math, enum, copy
 
 
 class StringEncodeTraverser(NodeVisitor):
@@ -518,15 +518,15 @@ class ArithmeticEncodeTraverser(NodeVisitor):
     unary_subs = {
         "-": [
             lambda n: BinaryOp(
-                "+", UnaryOp("~", n.expr), Constant("int", "1")
+                "+", UnaryOp("~", copy.deepcopy(n.expr)), Constant("int", "1")
             ),  # -x = ¬x + 1
             lambda n: UnaryOp(
-                "~", BinaryOp("-", n.expr, Constant("int", "1"))
+                "~", BinaryOp("-", copy.deepcopy(n.expr), Constant("int", "1"))
             ),  # -x = ¬(x - 1)
         ],
         "~": [
             lambda n: BinaryOp(
-                "-", UnaryOp("-", n.expr), Constant("int", "1")
+                "-", UnaryOp("-", copy.deepcopy(n.expr)), Constant("int", "1")
             ),  # ¬x = -x - 1
         ],
     }
@@ -535,64 +535,64 @@ class ArithmeticEncodeTraverser(NodeVisitor):
     binary_subs = {
         "+": [
             lambda n: BinaryOp(  # x + y = x - ¬y - 1
-                "-", BinaryOp("-", n.left, UnaryOp("~", n.right)), Constant("int", "1")
+                "-", BinaryOp("-", copy.deepcopy(n.left), UnaryOp("~", copy.deepcopy(n.right))), Constant("int", "1")
             ),
             # TODO for these left shifts, is it correct if an argument is negative as well?
             lambda n: BinaryOp(  # x + y = (x ^ y) + 2 * (x & y)
                 "+",
-                BinaryOp("^", n.left, n.right),
-                BinaryOp("<<", BinaryOp("&", n.left, n.right), Constant("int", "1")),
+                BinaryOp("^", copy.deepcopy(n.left), copy.deepcopy(n.right)),
+                BinaryOp("<<", BinaryOp("&", copy.deepcopy(n.left), copy.deepcopy(n.right)), Constant("int", "1")),
             ),
             lambda n: BinaryOp(  # x + y = (x | y) + (x & y)
-                "+", BinaryOp("|", n.left, n.right), BinaryOp("&", n.left, n.right)
+                "+", BinaryOp("|", copy.deepcopy(n.left), copy.deepcopy(n.right)), BinaryOp("&", copy.deepcopy(n.left), copy.deepcopy(n.right))
             ),
             lambda n: BinaryOp(  # x + y = 2 * (x | y) - (x ^ y)
                 "-",
-                BinaryOp("<<", BinaryOp("|", n.left, n.right), Constant("int", "1")),
-                BinaryOp("^", n.left, n.right),
+                BinaryOp("<<", BinaryOp("|", copy.deepcopy(n.left), copy.deepcopy(n.right)), Constant("int", "1")),
+                BinaryOp("^", copy.deepcopy(n.left), copy.deepcopy(n.right)),
             ),
         ],
         "-": [
             lambda n: BinaryOp(  # x - y = x + ¬y + 1
-                "+", BinaryOp("+", n.left, UnaryOp("~", n.right)), Constant("int", "1")
+                "+", BinaryOp("+", copy.deepcopy(n.left), UnaryOp("~", copy.deepcopy(n.right))), Constant("int", "1")
             ),
             lambda n: BinaryOp(  # x - y = (x ^ y) - 2 * (¬x & y)
                 "-",
-                BinaryOp("^", n.left, n.right),
+                BinaryOp("^", copy.deepcopy(n.left), copy.deepcopy(n.right)),
                 BinaryOp(
                     "<<",
-                    BinaryOp("&", UnaryOp("~", n.left), n.right),
+                    BinaryOp("&", UnaryOp("~", copy.deepcopy(n.left)), copy.deepcopy(n.right)),
                     Constant("int", "1"),
                 ),
             ),
             lambda n: BinaryOp(  # x - y = (x & ¬y) - (¬x & y)
                 "-",
-                BinaryOp("&", n.left, UnaryOp("~", n.right)),
-                BinaryOp("&", UnaryOp("~", n.left), n.right),
+                BinaryOp("&", copy.deepcopy(n.left), UnaryOp("~", copy.deepcopy(n.right))),
+                BinaryOp("&", UnaryOp("~", copy.deepcopy(n.left)), copy.deepcopy(n.right)),
             ),
             lambda n: BinaryOp(  # x - y = 2 * (x & ¬y) - (x ^ y)
                 "-",
                 BinaryOp(
                     "<<",
-                    BinaryOp("&", n.left, UnaryOp("~", n.right)),
+                    BinaryOp("&", copy.deepcopy(n.left), UnaryOp("~", copy.deepcopy(n.right))),
                     Constant("int", "1"),
                 ),
-                BinaryOp("^", n.left, n.right),
+                BinaryOp("^", copy.deepcopy(n.left), copy.deepcopy(n.right)),
             ),
         ],
         "^": [
             lambda n: BinaryOp(  # x ^ y = (x | y) - (x & y)
-                "-", BinaryOp("|", n.left, n.right), BinaryOp("&", n.left, n.right)
+                "-", BinaryOp("|", copy.deepcopy(n.left), copy.deepcopy(n.right)), BinaryOp("&", copy.deepcopy(n.left), copy.deepcopy(n.right))
             ),
         ],
         "|": [
             lambda n: BinaryOp(  # x | y = (x & ¬y) + y
-                "+", BinaryOp("&", n.left, UnaryOp("~", n.right)), n.right
+                "+", BinaryOp("&", copy.deepcopy(n.left), UnaryOp("~", copy.deepcopy(n.right))), copy.deepcopy(n.right)
             ),
         ],
         "&": [
             lambda n: BinaryOp(  # x & y = (¬x | y) - ¬x
-                "-", BinaryOp("|", UnaryOp("~", n.left), n.right), UnaryOp("~", n.left)
+                "-", BinaryOp("|", UnaryOp("~", copy.deepcopy(n.left)), copy.deepcopy(n.right)), UnaryOp("~", copy.deepcopy(n.left))
             ),
         ],
     }

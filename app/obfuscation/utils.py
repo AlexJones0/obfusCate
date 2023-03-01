@@ -2900,3 +2900,17 @@ class VariableUseAnalyzer(NodeVisitor):
             "currentStmt"
         ]
         NodeVisitor.generic_visit(self, node)
+
+
+class DebugDuplicationVisitor(NodeVisitor):
+    
+    def __init__(self):
+        super(DebugDuplicationVisitor, self).__init__()
+        self.node_cache = set()
+    
+    def generic_visit(self, node):
+        if node in self.node_cache:
+            node.show()
+        else:
+            self.node_cache.add(node)
+        return super().generic_visit(node)

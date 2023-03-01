@@ -127,10 +127,9 @@ class IdentifierTraverser(NodeVisitor):
 
     class Style(enum.Enum):
         COMPLETE_RANDOM = "Complete Randomness"
-        ONLY_UNDERSCORES = "Only underscores"  # TODO will this break anything?
+        ONLY_UNDERSCORES = "Only underscores"
         MINIMAL_LENGTH = "Minimal length"
         I_AND_L = "Blocks of l's and I's"
-        #REALISTIC = "Realistic Names" # TODO salvage or scrap
 
     def __init__(self, style: Style, minimise_idents: bool):
         self.style = style
