@@ -52,7 +52,7 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # (x * x) >= 0
         lambda x: BinaryOp(
             "||",
-            BinaryOp("&&",
+            BinaryOp("||",
                      BinaryOp(">", x, Constant("int", "46340")),
                      BinaryOp("<", x, Constant("int", "-46340"))),
             BinaryOp(">=", BinaryOp("*", x, x), Constant("int", "0")),
@@ -73,11 +73,11 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         lambda x, y: BinaryOp(
             "||",
             BinaryOp(
-                "&&",
-                BinaryOp("&&",
+                "||",
+                BinaryOp("||",
                          BinaryOp(">", y, Constant("int", "6620")),
                          BinaryOp("<", y, Constant("int", "-6620"))),
-                BinaryOp("&&",
+                BinaryOp("||",
                          BinaryOp(">", x, Constant("int", "46339")),
                          BinaryOp("<", x, Constant("int", "-46339")))
             ),
@@ -91,11 +91,11 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         lambda x, y: BinaryOp(
             "||",
             BinaryOp(
-                "&&",
-                BinaryOp("&&",
+                "||",
+                BinaryOp("||",
                          BinaryOp(">", y, Constant("int", "6620")),
                          BinaryOp("<", y, Constant("int", "-6620"))),
-                BinaryOp("&&",
+                BinaryOp("||",
                          BinaryOp(">", x, Constant("int", "46339")),
                          BinaryOp("<", x, Constant("Int", "-46339"))),
             ),
@@ -116,7 +116,7 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # ((x * (x + 1)) % 2) == 0
         lambda x: BinaryOp(
             "||",
-            BinaryOp("&&",
+            BinaryOp("||",
                      BinaryOp(">", x, Constant("int", "46339")),
                      BinaryOp("<", x, Constant("int", "-46339"))),
             BinaryOp(
@@ -132,7 +132,7 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # ((x * (1 + x)) % 2) != 1
         lambda x: BinaryOp(
             "||",
-            BinaryOp("&&",
+            BinaryOp("||",
                      BinaryOp(">", x, Constant("int", "46339")),
                      BinaryOp("<", x, Constant("int", "-46339"))),
             BinaryOp(
@@ -148,7 +148,7 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # ((x * ((x + 1) * (x + 2))) % 3) == 0
         lambda x: BinaryOp(
             "||",
-            BinaryOp("&&",
+            BinaryOp("||",
                      BinaryOp(">", x, Constant("int", "1280")),
                      BinaryOp("<", x, Constant("int", "-1280"))),
             BinaryOp(
@@ -172,7 +172,7 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # (((x + 1) * (x * (x + 2))) % 3) != 1
         lambda x: BinaryOp(
             "||",
-            BinaryOp("&&",
+            BinaryOp("||",
                      BinaryOp(">", x, Constant("int", "1200")),
                      BinaryOp("<", x, Constant("int", "-1200"))),
             BinaryOp(
@@ -196,7 +196,7 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # (((x + 1) * ((x + 2) * x)) % 3) != 2
         lambda x: BinaryOp(
             "||",
-            BinaryOp("&&",
+            BinaryOp("||",
                      BinaryOp(">", x, Constant("int", "1200")),
                      BinaryOp("<", x, Constant("int", "-1200"))),
             BinaryOp(
@@ -216,7 +216,7 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # (((7 * x) * x) + 1) % 7) != 0
         lambda x: BinaryOp(
             "||",
-            BinaryOp("&&",
+            BinaryOp("||",
                      BinaryOp(">", x, Constant("int", "6620")),
                      BinaryOp("<", x, Constant("int", "-6620"))),
             BinaryOp(
@@ -236,7 +236,7 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # ((((x * x) + x) + 7) % 81) != 0
         lambda x: BinaryOp(
             "||",
-            BinaryOp("&&",
+            BinaryOp("||",
                      BinaryOp(">", x, Constant("int", "46000")),
                      BinaryOp("<", x, Constant("int", "-46000"))),
             BinaryOp(
@@ -256,7 +256,7 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         # ((((x + 1) * x) + 7) % 81) != 0
         lambda x: BinaryOp(
             "||",
-            BinaryOp("&&",
+            BinaryOp("||",
                      BinaryOp(">", x, Constant("int", "46000")),
                      BinaryOp("<", x, Constant("int", "-46000"))),
             BinaryOp(
@@ -320,13 +320,19 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         ),
     ]
 
+    negation_map = {
+        ">": "<=",
+        "<": ">=",
+        ">=": "<",
+        "<=": ">",
+        "==": "!=",
+        "!=": "=="
+    }
+
     def negate(expr: Node) -> Node:
         if isinstance(expr, BinaryOp):
-            if expr.op == "==":
-                expr.op = "!="
-                return expr
-            elif expr.op == "!=":
-                expr.op = "=="
+            if expr.op in OpaquePredicate.negation_map.keys():
+                expr.op = OpaquePredicate.negation_map[expr.op]
                 return expr
             elif expr.op == "&&":  # TODO De Morgan's - check
                 expr.op = "||"
@@ -506,6 +512,8 @@ class OpaqueAugmenter(NodeVisitor):
         opaque_expr = predicate(*args)
         is_true = random.random() >= 0.5
         is_before = random.random() >= 0.5
+        # TODO seed code seems to not always work with Augment Opaque; stuff changes; why?
+        # generates same thing but different names?
         if is_true:
             if is_before:
                 return BinaryOp("&&", opaque_expr, cond_expr)

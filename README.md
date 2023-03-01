@@ -155,6 +155,7 @@ TODO: OTHER NOTABLE FEATURES
 <br></br>
 
 ## **5. Project Structure / Documentation**
+----
 
 ### **5.1 Project Structure**
 
