@@ -34,9 +34,16 @@
   }
   ``` 
 
- - The **Control Flow Flattening** obfuscation does not work when an array of **const** values is assigned via an initializer list, as this cannot be trivially lifted to the start of the function. In the future I might make this so that it only breaks on **randomised case order** by just keeping const array decls in place, or I might even make it work in all cases by enforcing a 'quasi-random' case ordering that ensures a correct ordering between const array decls and their uses such that they are defined correctly and in scope for their usage, and thus function as expected. But this is requires a lot more work for little payoff, so this is not implemented currently. Example below:
+ - The **Control Flow Flattening** obfuscation does not work when an array of **const** values is assigned via an initializer list, as this cannot be trivially lifted to the start of the function. In the future I might make this so that it only breaks on **randomised case order** by just keeping const array decls in place, or I might even make it work in all cases by enforcing a 'quasi-random' case ordering that ensures a correct ordering between const array decls and their uses such that they are defined correctly and in scope for their usage, and thus function as expected. But this is requires a lot more work for little payoff, so this is not implemented currently. TODO CHECK THIS - WHY CAN I NOT EASILY LIFT IT UP? IS IT BECAUSE OF LABELS? BECAUSE RENAMING OF DEFINITIONS SHOULD HANDLE MOST CASES? Example below:
+
  ```
  const double snd[] = {5.6, 3.4, 1.2};
+ ```
+
+ - As is noted in its tooltip, the **Integer Literal Encoding** obfuscation currently does not detect cases of implicit type converstion from integer constants to integer pointers. This would pretty much only be ever used in the case of `int *x = 0;` to create a `NULL` pointer without the standard library header, or some similar use case with a function call e.g. `int a = srand(time(0));`. To avoid these, either explicitly use `NULL`, or cast e.g. with `(int *)` or `(void *)` to avoid compiler complaints (despite the fact that constant folding should solve this). In the future, it would be good to see support for this case in obfusCate by determining these explicit typecasts, but that's a lot of energy required to solve a very niche edge case, so that will have to be relegated to a future release. Example below:
+ ```
+ int *x = 0;
+ int y = srand(time(0));
  ```
 
  - ...

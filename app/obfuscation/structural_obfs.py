@@ -381,7 +381,14 @@ class OpaquePredicate:  # TODO use class as namespace or no?
         if not srand_init: # TODO maybe more than just ints?
             srand_call = FuncCall(
                 ID("srand"),
-                ExprList([FuncCall(ID("time"), ExprList([Constant("int", "0")]))]),
+                ExprList([FuncCall(ID("time"), ExprList([
+                    Cast(
+                        Typename(None, [], None, 
+                            PtrDecl([], 
+                                TypeDecl(None, [], None, 
+                                    IdentifierType(['void'])))),
+                        Constant("int", "0")
+                )]))]),
             )
             main.body.block_items = [srand_call] + main.body.block_items
         # Generate a new global entropic variable
