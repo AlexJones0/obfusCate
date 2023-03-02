@@ -281,6 +281,7 @@ def get_program_output(filepath: str, inputs: list[str]) -> str | None:
     ).decode("utf-8")
     if "error" in output:
         return None
+    print(output)
     os.chmod("./tests/testing/obfs.exe", 0o777)
     return subprocess.check_output(
         ["./tests/testing/obfs.exe"] + inputs
