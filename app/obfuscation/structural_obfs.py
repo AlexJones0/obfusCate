@@ -857,7 +857,7 @@ class BugGenerator(NodeVisitor):
     }
 
     def visit_BinaryOp(self, node):
-        if node.op in self.bin_op_map and (
+        if node.op in self.bin_op_map and not self.in_case and (
             not self.changed or random.random() < self.p_replace_op
         ):
             node.op = random.choice(self.bin_op_map[node.op])
@@ -865,7 +865,7 @@ class BugGenerator(NodeVisitor):
         self.generic_visit(node)
     
     def visit_UnaryOp(self, node):
-        if node.op in self.unary_op_map and (
+        if node.op in self.unary_op_map and not self.in_case and (
             not self.changed or random.random() < self.p_replace_op
         ):
             node.op = random.choice(self.unary_op_map[node.op])
