@@ -1042,7 +1042,6 @@ class NewNewVariableUseAnalyzer(NodeVisitor):
             identifier was last defined, or None if the identifier is not
             defined at the given point in the program.
         """
-        # comehere todo remove this comment when done; anchor point
         stmt = self.get_stmt_from_node(ast_node)
         compound = self.get_stmt_compound(stmt)
         # Recursively search backwards through scopes and find last definition instance
@@ -1379,7 +1378,7 @@ class NewNewVariableUseAnalyzer(NodeVisitor):
         self._current_definitions.append({})
         self.compound_children[node] = set()
         self.compound_parent[node] = None # The FileAST has no parent
-        self.stmt_compound_map[node] = node
+        self.stmt_compound_map[node] = None
         self.compound_stmt_map[node] = []
         self._current_compound = node
         # Record children as statements
@@ -1408,7 +1407,7 @@ class NewNewVariableUseAnalyzer(NodeVisitor):
         self.compound_children[node] = set()
         self.compound_children[self._current_compound].add((node, self._current_stmt))
         self.compound_parent[node] = self._current_compound
-        self.stmt_compound_map[node] = node
+        self.stmt_compound_map[node] = self._current_compound
         self.compound_stmt_map[node] = []
         prev_compound = self._current_compound
         self._current_compound = node
