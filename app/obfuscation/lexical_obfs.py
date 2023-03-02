@@ -11,6 +11,7 @@ from ..debug import *
 from .utils import ObfuscationUnit, TransformType, generate_new_contents, \
     NewNewVariableUseAnalyzer, ExpressionAnalyzer
 from pycparser.c_ast import *
+from pycparser.c_lexer import CLexer
 from typing import Optional
 import pycparser, random, string, json, enum
 
@@ -19,7 +20,7 @@ class NewNewIdentifierRenamer:
     """..."""
 
     def __init__(self, style: "IdentifierTraverser.Style", minimise_idents: bool):
-        self.new_idents_set = set()
+        self.banned_idents = set([kw.lower() for kw in CLexer.keywords])
         self.new_idents = []
         self.style = style
         self._random_source = random.randint(0, 2**16)
@@ -27,7 +28,7 @@ class NewNewIdentifierRenamer:
     # TODO modularise later
     def generate_new_ident(self):
         new_ident = ""
-        while len(new_ident) == 0 or new_ident in self.new_idents_set:
+        while len(new_ident) == 0 or new_ident in self.banned_idents:
             if self.style == IdentifierTraverser.Style.COMPLETE_RANDOM:
                 size_ = random.randint(4, 19)
                 new_ident = random.choices(string.ascii_letters)[0]
@@ -58,7 +59,7 @@ class NewNewIdentifierRenamer:
                 new_ident = bin(hash_val)[2:]
                 new_ident = "0" * (num_chars - len(new_ident)) + new_ident
                 new_ident = new_ident.replace("1", "l").replace("0", "I")
-                while new_ident in self.new_idents_set:
+                while new_ident in self.banned_idents:
                     # Linear probe for next available hash value
                     hash_val += 1
                     if hash_val >= num_vals:
@@ -66,8 +67,10 @@ class NewNewIdentifierRenamer:
                     new_ident = bin(hash_val)[2:]
                     new_ident = "0" * (num_chars - len(new_ident)) + new_ident
                     new_ident = new_ident.replace("1", "l").replace("0", "I")
-        self.new_idents_set.add(new_ident)
         self.new_idents.append(new_ident)
+        if new_ident in self.banned_idents:
+            return self.generate_new_ident()
+        self.banned_idents.add(new_ident)
         return new_ident
         
     def transform(self, source: interaction.CSource) -> None:
@@ -139,6 +142,7 @@ class IdentifierTraverser(NodeVisitor):
     def reset(self):
         self.idents = {"main": "main"}
         self._new_idents = set()
+        self._banned_idents = set([kw.lower() for kw in CLexer.keywords])
         self._scopes = list()
         self._random_source = random.randint(0, 2**16)
         self._scrambled_node_cache = set()
@@ -187,6 +191,9 @@ class IdentifierTraverser(NodeVisitor):
                     new_ident = "0" * (num_chars - len(new_ident)) + new_ident
                     new_ident = new_ident.replace("1", "l").replace("0", "I")
         self._new_idents.add(new_ident)
+        if new_ident in self._banned_idents:
+            # Don't allow reserved keywords; we must get a new ident
+            return self.get_new_ident(ident)
         self.idents[ident] = new_ident
         return new_ident
 
