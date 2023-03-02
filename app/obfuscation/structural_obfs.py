@@ -876,7 +876,7 @@ class BugGenerator(NodeVisitor):
         was_in_case = self.in_case
         self.in_case = True
         if node.expr is not None:
-            NodeVisitor.generic_visit(self, node)
+            self.visit(node.expr)
         self.in_case = was_in_case
         if node.stmts is not None:
             for child in node.stmts:
