@@ -282,7 +282,7 @@ def get_program_output(filepath: str, inputs: list[str]) -> str | None:
     if "error" in output:
         return None
     if not os.path.exists("./tests/testing/obfs.exe"):
-        print("PATH DOES NOT EXIST: os.listdir("./tests/testing"))
+        print("PATH DOES NOT EXIST:", os.listdir("./tests/testing/"))
     else:
         print("PATH EXISTS. ")
     os.chmod("./tests/testing/obfs.exe", 0o777)
