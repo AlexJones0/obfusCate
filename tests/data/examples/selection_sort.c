@@ -5,7 +5,7 @@ void selection_sort(int *arr, const int n) {
     for (int i = 0; i < n; i++) {
         int min_found = arr[i];
         int min_index = i;
-        for (int j = n; j > i; j--) {
+        for (int j = n - 1; j > i; j--) {
             if (arr[j] < min_found) {
                 min_found = arr[j];
                 min_index = j;
