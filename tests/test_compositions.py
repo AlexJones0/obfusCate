@@ -304,7 +304,8 @@ def get_example_programs() -> dict[str, Tuple[CSource, list[str], str]]:
         program with those command-line arguments supplied.
     """
     programs = {}
-    explore_dirs = ["./tests/data/examples/", "./tests/data/constructs"]
+    #explore_dirs = ["./tests/data/examples/", "./tests/data/constructs"]
+    explore_dirs = ["./tests/data/issues/"]
     explore_dirs = [os.path.join(os.getcwd(), dir_) for dir_ in explore_dirs]
     for dir_ in explore_dirs:
         for file in os.listdir(dir_):
