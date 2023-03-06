@@ -1,7 +1,7 @@
 //////
 #include <stdio.h>
 
-void bubble_sort(int *arr, const int n) {
+void bubble_sort(int arr[], const int n) {
     for (int i = 0; i < n; i++) {
         for (int j = n; j > i; j--) {
             if (arr[j] < arr[i]) {
