@@ -1042,8 +1042,12 @@ class NewNewVariableUseAnalyzer(NodeVisitor):
             identifier was last defined, or None if the identifier is not
             defined at the given point in the program.
         """
-        stmt = self.get_stmt_from_node(ast_node)
-        compound = self.get_stmt_compound(stmt)
+        if isinstance(ast_node, Compound):
+            stmt = None
+            compound = ast_node
+        else:
+            stmt = self.get_stmt_from_node(ast_node)
+            compound = self.get_stmt_compound(stmt)
         # Recursively search backwards through scopes and find last definition instance
         scope_path = self._get_scope_path(compound)
         to_stmt = stmt
@@ -1595,6 +1599,7 @@ class NewNewVariableUseAnalyzer(NodeVisitor):
             self.visit_ID(expr.name[-1], record=False)
             self.visit(expr.expr)
     
+    @_stmt_wrapper
     def visit_ParamList(self, node: ParamList) -> None:
         """ TODO DOCSTRING"""
         if self._current_function is None:

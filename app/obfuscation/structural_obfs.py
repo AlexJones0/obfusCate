@@ -962,11 +962,13 @@ class OpaqueInserter(NodeVisitor):
         # are redefined up to the conditional. We don't worry about not analyzing any
         # copied declarations because it is enforced that declarations are not copied in
         # opaque insertion, so this case cannot occur.
+        # TODO NEED DESPERATE OVERHALL OF HOW OPAQUES ARE CHOSEN TO BE CORRECT!
         parameters = []
         if len(self.parameters) != 0:
             source_ancestor = self._get_source_ancestor(node)
             if source_ancestor is not None:
                 for param in self.parameters:
+                    # TODO double check compound stuff here didn't break anything
                     def_node = self.analyzer.get_last_ident_definition(source_ancestor, (param[0], NameSpace.ORDINARY))
                     if isinstance(def_node, ParamList):  # Only non-redefined parameters
                         parameters.append(param)
