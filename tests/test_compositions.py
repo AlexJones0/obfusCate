@@ -395,7 +395,8 @@ def run_test(
                 "FAIL Test {} - Failed [correctness error] ({}/{})\n"
                 "   Transform={},\n"
                 "   Example={},\n"
-                "   Seed={}\n,"
+                "   Seed={},\n"
+                "   Program={}\n"
                 "       Expected={}\n"
                 "       Received={}"
             ).format(
@@ -405,6 +406,7 @@ def run_test(
                 str(pipeline),
                 filepath.split("\\./")[-1],
                 seed,
+                result.contents,
                 expected_output,
                 output,
             ),

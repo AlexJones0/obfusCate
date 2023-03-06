@@ -21,8 +21,9 @@ int main() {
     int wrong_order_count = 0;
     printf("3\n");
     for (int i = 0; i < 99; i++) {
-        if (my_arr[i] > my_arr[i+1])
+        if (my_arr[i] > my_arr[i+1]) {
             wrong_order_count++;
+        }
     }
     printf("4\n");
     printf("%d\n", wrong_order_count);
