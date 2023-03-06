@@ -468,10 +468,7 @@ class TestObfuscationIntegrationSingle(unittest.TestCase):
         if os.path.isdir(test_path):
             shutil.rmtree(test_path)
         os.mkdir(test_path, 0o777)
-        try:
-            examples = get_example_programs()
-        except:
-            self.fail("Example programs could not be retrieved.")
+        examples = get_example_programs()
         debug.create_log_file()
         programs = list(examples.keys())
 
