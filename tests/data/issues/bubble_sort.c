@@ -3,7 +3,7 @@
 
 void bubble_sort(int arr[], const int n) {
     for (int i = 0; i < n; i++) {
-        for (int j = n; j > i; j--) {
+        for (int j = n-1; j > i; j--) {
             if (arr[j] < arr[i]) {
                 int temp = arr[i];
                 arr[i] = arr[j];
