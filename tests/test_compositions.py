@@ -269,26 +269,25 @@ def get_program_output(filepath: str, inputs: list[str]) -> str | None:
         Returns None if compilation fails or some other error occurs
         during execution.
     """
-    output = subprocess.check_output(
-        [
-            "clang",
-            "-O",
-            "-o",
-            "./tests/testing/obfs.exe",
-            filepath,
-            "-trigraphs",
-        ]
-    ).decode("utf-8")
-    if "error" in output:
+    try:
+        output = subprocess.run(
+            [
+                "clang",
+                "-O",
+                "-o",
+                "./tests/testing/obfs.exe",
+                filepath,
+                "-trigraphs",
+            ], capture_output=True, text=True
+        )
+        output = output.stdout + "\n" + output.stderr
+        if "error" in output:
+            return None
+        os.chmod("./tests/testing/obfs.exe", 0o777)
+        output = subprocess.run(["./tests/testing/obfs.exe"] + inputs, capture_output=True, text=True)
+        return output.stdout + "\n" + output.stderr
+    except Exception as e:
         return None
-    if not os.path.exists("./tests/testing/obfs.exe"):
-        print("PATH DOES NOT EXIST:", os.listdir("./tests/testing/"))
-    else:
-        print("PATH EXISTS. ")
-    os.chmod("./tests/testing/obfs.exe", 0o777)
-    return subprocess.check_output(
-        ["./tests/testing/obfs.exe"] + inputs
-    ).decode("utf-8")
 
 
 def get_example_programs() -> dict[str, Tuple[CSource, list[str], str]]:

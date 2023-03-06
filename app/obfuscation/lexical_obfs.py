@@ -50,7 +50,7 @@ class NewNewIdentifierRenamer:
                         break
             elif self.style == IdentifierTraverser.Style.I_AND_L:
                 cur_num = len(self.new_idents)
-                num_chars = 2
+                num_chars = 8
                 num_vals = 2**num_chars
                 while cur_num * 4 > num_vals:
                     num_chars += 1
@@ -173,7 +173,7 @@ class IdentifierTraverser(NodeVisitor):
                         break
             elif self.style == self.Style.I_AND_L:
                 cur_num = len(self._new_idents)
-                num_chars = 16
+                num_chars = 8
                 num_vals = 2**num_chars
                 while cur_num * 4 > num_vals:
                     num_chars += 1
