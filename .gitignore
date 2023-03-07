@@ -133,6 +133,7 @@ logs/
 
 # Output locations
 out/
+demo/
 /examples/
 /compositions/
 /tests/testing/*
