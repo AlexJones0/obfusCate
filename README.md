@@ -2,7 +2,7 @@
 ***<img src="app/graphics/icons/logo.png" width="40" height="40"></img> obfusCate*: An automated, approachable C source-to-source obfuscator**
 ===============
 
-<img src="https://github.com/AlexJones0/3YP/actions/workflows/test.yml/badge.svg" alt="Tests passing!"></img>
+<img src="https://github.com/AlexJones0/3YP/actions/workflows/test.yml/badge.svg" alt=""></img>
 
 <img src="app/graphics/examples/example1.png"></img>
 
