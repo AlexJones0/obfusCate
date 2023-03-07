@@ -229,14 +229,23 @@ class IdentifierTraverser(NodeVisitor):
 
     def visit_Decl(self, node):
         self.scramble_ident(node)
+        type_node = node
+        while type_node.type is not None and isinstance(type_node.type, (ArrayDecl, PtrDecl)):
+            type_node = type_node.type
+        if isinstance(type_node, (Struct, Union)) and type_node.decls is not None:
+            self.scramble_ident(type_node)
+        if isinstance(type_node.type, (Struct, Union)):
+            self.scramble_ident(type_node.type)
         NodeVisitor.generic_visit(self, node)
 
     def visit_Struct(self, node):
-        self.scramble_ident(node)
+        if node.name in self.idents and node not in self._scrambled_node_cache:
+            node.name = self.idents[node.name]
         NodeVisitor.generic_visit(self, node)
 
     def visit_Union(self, node):
-        self.scramble_ident(node)
+        if node.name in self.idents and node not in self._scrambled_node_cache:
+            node.name = self.idents[node.name]
         NodeVisitor.generic_visit(self, node)
 
     def visit_Enum(self, node):
