@@ -262,7 +262,9 @@ class CountUnit(CodeMetricUnit):
     cached = {}
     
     def __cache_metrics(self, metrics) -> None:
-        CountUnit.cached = metrics
+        CountUnit.cached = dict(x for x in CountUnit.cached.items())
+        for k, v in metrics.items():
+            CountUnit.cached[k] = v
 
     def add_AST_metrics(self, old_source: CSource, new_source: CSource) -> None:
         old_counter = CountVisitor()
@@ -275,6 +277,7 @@ class CountUnit(CodeMetricUnit):
         self.add_metric("AST Nodes", str(new_n), int_delta(new_n, old_n))
         new_f, old_f = new_counter.functions, old_counter.functions
         self.add_metric("Functions", str(new_f), int_delta(new_f, old_f))
+        self.__cache_metrics({"Functions": (new_f, old_f)})
         new_id, old_id = new_counter.ident_set, old_counter.ident_set
         num_new_id, num_old_id = len(new_id), len(old_id)
         self.add_metric(
@@ -1476,7 +1479,14 @@ class MaintainabilityUnit(CodeMetricUnit):
         count_metrics = CountUnit.cached
         if "Lines" not in count_metrics or count_metrics["Lines"][0] == 'N/A':
             return self.__skip_metrics()
+        # Get average lines of code per function
         new_loc, old_loc = count_metrics["Lines"]
+        new_func, old_func = count_metrics["Functions"]
+        # Add 1 function to consider global definitions seperately
+        new_func += 1
+        old_func += 1
+        new_loc /= new_func
+        old_loc /= old_func
         cyclomatic_metrics = CyclomaticComplexityUnit.cached
         if "Cyclomatic Complexity" not in cyclomatic_metrics or \
             cyclomatic_metrics["Cyclomatic Complexity"][0] == 'N/A':
@@ -1486,6 +1496,13 @@ class MaintainabilityUnit(CodeMetricUnit):
         if "Volume" not in halstead_metrics or halstead_metrics["Volume"][0] == 'N/A':
             return self.__skip_metrics()
         new_vol, old_vol = halstead_metrics["Volume"]
+        # TODO is this right? I don't think I'm calculating and aggregating
+        # volume right? Should calculate volume individually and then average?
+        # And probably do this in the Halstead function as well?
+        if new_vol != 'N/A':
+            new_vol /= new_func 
+        if old_vol != 'N/A':
+            old_vol /= old_func
         # Calculate new metrics
         if old_loc == 'N/A' or old_cc == 'N/A' or old_vol == 'N/A' or old_vol <= 0 or old_loc <= 0:
             old_maintainability = 'N/A'
