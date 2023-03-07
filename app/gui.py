@@ -1068,6 +1068,8 @@ class GeneralOptionsForm(QFrame):
         dialog.setFileMode(QFileDialog.FileMode.AnyFile)
         dialog.setFilter(QDir.Filter.Readable)
         dialog.setNameFilter("C source files (*.c)")
+        # TODO remove after demo
+        dialog.setDirectory(os.path.join(os.getcwd(), "demo/"))
         if not dialog.exec():
             return
         files = dialog.selectedFiles()
