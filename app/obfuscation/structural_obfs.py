@@ -1295,7 +1295,7 @@ class OpaqueInserter(NodeVisitor):
         self.functions.append(node)
         self.parameters = []
         self.generic_visit(node)
-        if node.body is not None:
+        if node.body is not None and node.decl is not None and node.decl.name != "main":
             self.add_opaque_predicates(node)
         self.current_function = prev
         self.parameters = None
