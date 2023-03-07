@@ -203,7 +203,8 @@ options = {
                         [
                             OpaqueInserter.Kind.CHECK,
                             OpaqueInserter.Kind.FALSE,
-                            OpaqueInserter.Kind.ELSE,
+                            OpaqueInserter.Kind.ELSE_TRUE,
+                            OpaqueInserter.Kind.ELSE_FALSE,
                             OpaqueInserter.Kind.EITHER,
                             OpaqueInserter.Kind.WHILE_FALSE,
                         ],

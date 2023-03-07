@@ -898,10 +898,10 @@ class OpaqueInserter(NodeVisitor):
     class Kind(enum.Enum):
         CHECK = "CHECK: if (true predicate) { YOUR CODE } "
         FALSE = "FALSE: if (false predicate) { buggy code } "
-        ELSE = "ELSE: if (false predicate) { buggy code } else { YOUR CODE } "
-        EITHER = "EITHER: if (any predicate) { YOUR CODE } else { YOUR CODE } "
+        ELSE_TRUE = "ELSE_TRUE: if (true predicate) { YOUR CODE } else { buggy code }"
+        ELSE_FALSE = "ELSE_FALSE: if (false predicate) { buggy code } else { YOUR CODE } "
         WHILE_FALSE = "WHILE_FALSE: while (false predicate) { buggy code } "
-        # TODO could add bug - where bogus/buggy code is generated
+        EITHER = "EITHER: if (any predicate) { YOUR CODE } else { YOUR CODE } "
 
     def __init__(
         self,
@@ -1080,7 +1080,13 @@ class OpaqueInserter(NodeVisitor):
                 buggy = self.generate_buggy(stmt)
                 block_items = stmt.block_items if isinstance(stmt, Compound) else [stmt]
                 return Compound([If(cond, buggy, None)] + block_items)
-            case self.Kind.ELSE:  # if (false) { buggy code } else { YOUR CODE }
+            case self.Kind.ELSE_TRUE:  # if (true) { YOUR CODE } else { buggy code }
+                cond = self.generate_opaque_predicate_cond(stmt)
+                if cond is None:
+                    return None
+                buggy = self.generate_buggy(stmt)
+                return Compound([If(cond, stmt, buggy)])
+            case self.Kind.ELSE_FALSE:  # if (false) { buggy code } else { YOUR CODE }
                 cond = self.generate_opaque_predicate_cond(stmt)
                 if cond is None:
                     return None
