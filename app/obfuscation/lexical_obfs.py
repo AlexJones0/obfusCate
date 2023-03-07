@@ -234,17 +234,19 @@ class IdentifierTraverser(NodeVisitor):
             type_node = type_node.type
         if isinstance(type_node, (Struct, Union)) and type_node.decls is not None:
             self.scramble_ident(type_node)
-        if isinstance(type_node.type, (Struct, Union)):
+        if isinstance(type_node.type, (Struct, Union)) and type_node.type.decls is not None:
             self.scramble_ident(type_node.type)
         NodeVisitor.generic_visit(self, node)
 
     def visit_Struct(self, node):
         if node.name in self.idents and node not in self._scrambled_node_cache:
+            self._scrambled_node_cache.add(node)
             node.name = self.idents[node.name]
         NodeVisitor.generic_visit(self, node)
 
     def visit_Union(self, node):
         if node.name in self.idents and node not in self._scrambled_node_cache:
+            self._scrambled_node_cache.add(node)
             node.name = self.idents[node.name]
         NodeVisitor.generic_visit(self, node)
 
@@ -271,6 +273,7 @@ class IdentifierTraverser(NodeVisitor):
                 self.get_new_ident(node.declname)
             node.declname = self.idents[node.declname]
             self._scopes[-1].add(node.declname)
+            self._scrambled_node_cache.add(node)
         NodeVisitor.generic_visit(self, node)
     
     def visit_Typedef(self, node):
@@ -280,10 +283,12 @@ class IdentifierTraverser(NodeVisitor):
     def visit_ID(self, node):
         if node.name in self.idents:
             node.name = self.idents[node.name]
+            self._scrambled_node_cache.add(node)
 
     def visit_FuncCall(self, node):
         if node.name in self.idents:
             node.name = self.idents[node.name]
+            self._scrambled_node_cache.add(node)
         NodeVisitor.generic_visit(self, node)
 
     def visit_IdentifierType(self, node):
@@ -291,6 +296,7 @@ class IdentifierTraverser(NodeVisitor):
             name = node.names[-1]
             if name in self.idents:
                 node.names[-1] = self.idents[name]
+            self._scrambled_node_cache.add(node)
         NodeVisitor.generic_visit(self, node)
 
     def visit_Pragma(self, node):  # TODO maybe warn on pragma?
