@@ -1486,7 +1486,11 @@ class MaintainabilityUnit(CodeMetricUnit):
         new_func += 1
         old_func += 1
         new_loc /= new_func
+        if new_loc == 0:
+            new_loc = 1
         old_loc /= old_func
+        if old_loc == 0:
+            old_loc = 1
         cyclomatic_metrics = CyclomaticComplexityUnit.cached
         if "Cyclomatic Complexity" not in cyclomatic_metrics or \
             cyclomatic_metrics["Cyclomatic Complexity"][0] == 'N/A':
