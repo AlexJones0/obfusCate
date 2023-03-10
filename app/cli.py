@@ -43,7 +43,7 @@ def help_menu() -> bool:
         "options, see below.\n\n"
         "Usage: python {} input_c_file [output_file] [options]\n\n"
         "Options:\n"
-    ).format(__file__.split("\\")[-1])
+    ).format(__file__.split("\\")[-1].split("/")[-1])
     max_len = max([len(str(opt)) for opt in interaction.shared_options])
     for option in interaction.shared_options:
         option_str = str(option)

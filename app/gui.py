@@ -21,6 +21,7 @@ def help_menu() -> bool:
 
     Returns:
         bool: Always returns False, to signal that execution should stop."""
+    print(__file__)
     help_str = (
         "################ GUI Help Manual ################\n"
         "This program takes as an argument some input C source program file and allows\n"
@@ -32,7 +33,7 @@ def help_menu() -> bool:
         "information on usage and options, see below.\n\n"
         "Usage: python {} [input_c_file] [output_file] [options]\n\n"
         "Options:\n"
-    ).format(__file__.split("\\").split("/")[-1])
+    ).format(__file__.split("\\")[-1].split("/")[-1])
     max_len = max([len(str(opt)) for opt in interaction.shared_options])
     for option in interaction.shared_options:
         option_str = str(option)
