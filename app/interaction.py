@@ -167,7 +167,6 @@ class CSource:
         except Exception as e:
             self.error_context = str(e).replace(".\\\\obfuscate_temp.c:", "")
             log(f"Unexpected error whilst parsing the program: {str(e)}.")
-            print_error(f"An unknown error occurred whilst parsing {self.fpath}.")
             self.t_unit = None
 
     def update_t_unit(self) -> None:
