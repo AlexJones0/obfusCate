@@ -6,7 +6,6 @@ providing a JSON file. Handles the overall general CLI interaction / control flo
 as CLI system arguments and options.
 """
 from . import interaction, complexity, obfuscation as obfs
-from .obfuscation import cli as obfs_cli
 from .debug import print_error, create_log_file, log, logprint
 from app import settings as config
 from typing import Iterable, Type, Tuple

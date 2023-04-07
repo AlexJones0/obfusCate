@@ -15,45 +15,46 @@ import abc, enum, json, string, copy
 
 
 class ExpressionAnalyzer(NodeVisitor):
-    """ This class implements AST expression analysis, using bottom-up AST traversal
-    to derive a type and mutability for the majority of nodes in the AST. """
-    
+    """This class implements AST expression analysis, using bottom-up AST traversal
+    to derive a type and mutability for the majority of nodes in the AST."""
+
     class SimpleType(Enum):
-        """ An Enum simplifying data types into integers, reals (floats/decimals), and
-        other values to simplify the analysis process, as these are all that is needed. """
+        """An Enum simplifying data types into integers, reals (floats/decimals), and
+        other values to simplify the analysis process, as these are all that is needed."""
+
         INT = 0
         REAL = 1
         OTHER = 2
 
     class Ptr:
-        """ A simplified class to represent a pointer type in a C program. """
-        
+        """A simplified class to represent a pointer type in a C program."""
+
         def __init__(self, val: Any):
-            """ A constructor for the simplified Ptr type, taking the type it points to. """
+            """A constructor for the simplified Ptr type, taking the type it points to."""
             self.val = val
 
         def __eq__(self, other: Any) -> bool:
-            """ Determines whether this type is equivalent to another type, by specifically
-            checking whether the other class is also a Ptr, and that both point to equal types. """
+            """Determines whether this type is equivalent to another type, by specifically
+            checking whether the other class is also a Ptr, and that both point to equal types."""
             return type(self) == type(other) and self.val == other.val
 
     class Array:
-        """ A simplified class to represent an array type in a C program. """
+        """A simplified class to represent an array type in a C program."""
 
         def __init__(self, val: Any):
-            """ A constructor for the simplified Array type, taking the the type of values that are 
-            stored in the array. """
+            """A constructor for the simplified Array type, taking the the type of values that are
+            stored in the array."""
             self.val = val
 
         def __eq__(self, other: Any) -> bool:
-            """ Determines whether this type is equivalent to another type, by specifically
-            checking whether the other class is also an Array, and that both store equal types. """
+            """Determines whether this type is equivalent to another type, by specifically
+            checking whether the other class is also an Array, and that both store equal types."""
             return type(self) == type(other) and self.val == other.val
-        
+
     NodeType = SimpleType | Ptr | Array | Struct | Union
 
     def __init__(self, t_unit: FileAST):
-        """ The constructor for the ExpressionAnalyzer class, creating necessary data structures.
+        """The constructor for the ExpressionAnalyzer class, creating necessary data structures.
 
         Args:
             t_unit (FileAST): The pycparser FileAST node representing the translation
@@ -64,24 +65,24 @@ class ExpressionAnalyzer(NodeVisitor):
         self.reset()
 
     def reset(self) -> None:
-        """Resets the state of the ExpressionAnalyzer, allowing it to be re-used. """
+        """Resets the state of the ExpressionAnalyzer, allowing it to be re-used."""
         # Attributes to store current state whilst traversing
         self.type_aliases = []  # Stack of scopes of defined type aliases
         self.structs = []  # Stack of scopes of defined structs/union
         self.defined_vars = []  # Stack of scopes of defined variables
         self.in_param_list = False
         self.processed = False
-        
-        # Attributes to track function and parameter definitions globally 
+
+        # Attributes to track function and parameter definitions globally
         self.functions = {}
         self.params = {}
-        
+
         # Attributes to represent the type and mutability of nodes.
         self.types = {None: self.SimpleType.OTHER}
         self.mutating = {None: False}
 
     def load(self, t_unit: FileAST) -> None:
-        """ Loads a given FileAST to analyse.
+        """Loads a given FileAST to analyse.
 
         Args:
             t_unit (FileAST): The FileAST representing the C translation unit.
@@ -90,12 +91,12 @@ class ExpressionAnalyzer(NodeVisitor):
         self.processed = False
 
     def process(self) -> None:
-        """ Processes the current AST, updating internal representations. """
+        """Processes the current AST, updating internal representations."""
         self.visit(self.t_unit)
         self.processed = True
 
     def is_type(self, expr: Node, type_: Type) -> bool:
-        """ Determines whether the program construct represented by a given AST node
+        """Determines whether the program construct represented by a given AST node
         is of the type provided by using the stored internal representation.
 
         Args:
@@ -108,9 +109,9 @@ class ExpressionAnalyzer(NodeVisitor):
         if expr not in self.types:
             return type_ is None
         return self.types[expr] == type_
-    
+
     def get_type(self, expr: Node) -> NodeType | None:
-        """ Retrives the ExpressionAnalyzer's internal simplified type representation of
+        """Retrives the ExpressionAnalyzer's internal simplified type representation of
         the type of the given expression AST node.
 
         Args:
@@ -124,7 +125,7 @@ class ExpressionAnalyzer(NodeVisitor):
         return self.types[expr]
 
     def is_mutating(self, expr: Node) -> bool:
-        """ Determines whether the program construct represented by a given AST node
+        """Determines whether the program construct represented by a given AST node
         is mutating or not by using the stored internal representation.
 
         Args:
@@ -138,7 +139,7 @@ class ExpressionAnalyzer(NodeVisitor):
         return self.mutating[expr]
 
     def get_type_alias(self, name: str) -> NodeType | None:
-        """ Retrieves the current type that is aliased by a given name, if such an alias exists.
+        """Retrieves the current type that is aliased by a given name, if such an alias exists.
 
         Args:
             name (str): The type alias (typedef) to check for.
@@ -152,7 +153,7 @@ class ExpressionAnalyzer(NodeVisitor):
         return None
 
     def get_var_type(self, name: str) -> NodeType | None:
-        """ Retrives the type of the current variable represented by a given name, if such
+        """Retrives the type of the current variable represented by a given name, if such
         a variable exists at this point in the program.
 
         Args:
@@ -167,7 +168,7 @@ class ExpressionAnalyzer(NodeVisitor):
         return None
 
     def get_struct_type(self, name: str) -> NodeType | None:
-        """ Retrieves the type of the current struct/union represented by a given name, if 
+        """Retrieves the type of the current struct/union represented by a given name, if
         such a struct/union exists at this point in the program.
 
         Args:
@@ -181,8 +182,10 @@ class ExpressionAnalyzer(NodeVisitor):
                 return scope[name]
         return None
 
-    def get_struct_field_type(self, struct: Struct | Union, field: str) -> NodeType | None:
-        """ Retrieves the type of the specified field of the specified struct/union, by
+    def get_struct_field_type(
+        self, struct: Struct | Union, field: str
+    ) -> NodeType | None:
+        """Retrieves the type of the specified field of the specified struct/union, by
         recursively finding the type of any typed tag declarations with a matching name.
 
         Args:
@@ -198,11 +201,11 @@ class ExpressionAnalyzer(NodeVisitor):
         return None
 
     def standard_coalesce_types(self, types: Iterable[NodeType]) -> NodeType:
-        """ Performs 'standard' coalescing of types, which is defined such that
+        """Performs 'standard' coalescing of types, which is defined such that
         the presence of any 'OTHER' type makes an 'OTHER', otherwise the presence
         of any 'REAL' type makes a 'REAL', otherwise the presence of any array or
         pointer makes an array or pointer to the coalescence of referenced types,
-        and finally an integer otherwise. This essentially performs standard 
+        and finally an integer otherwise. This essentially performs standard
         type coercion as is required by *most* functions in C, to avoid repeat
         definitions of functionality.
 
@@ -227,7 +230,7 @@ class ExpressionAnalyzer(NodeVisitor):
             return self.SimpleType.INT
 
     def get_func_type(self, name: str) -> NodeType:
-        """ Fetches the type of a given function as it is known to the analyzer.
+        """Fetches the type of a given function as it is known to the analyzer.
 
         Args:
             name (str): The name of the function to retrieve the type of.
@@ -241,7 +244,7 @@ class ExpressionAnalyzer(NodeVisitor):
         return self.SimpleType.OTHER
 
     def convert_type(self, node: Node | NodeType) -> NodeType:
-        """ Given an AST node or an existing simplified type, this method converts the
+        """Given an AST node or an existing simplified type, this method converts the
         type of that node to the analyzer's simplified type representation, recursively
         parsing to determine the type and construct an appropriate representation.
 
@@ -285,8 +288,8 @@ class ExpressionAnalyzer(NodeVisitor):
             return self.SimpleType.OTHER
 
     def visit_FileAST(self, node: FileAST) -> None:
-        """ Visit a FileAST node, appending a dictionary to each tracking stack as 
-        this is the creation of a new scope, and then traversing the node. """
+        """Visit a FileAST node, appending a dictionary to each tracking stack as
+        this is the creation of a new scope, and then traversing the node."""
         self.type_aliases.append({})
         self.structs.append({})
         self.defined_vars.append({})
@@ -296,10 +299,10 @@ class ExpressionAnalyzer(NodeVisitor):
         self.type_aliases = self.type_aliases[:-1]
 
     def visit_Compound(self, node: Compound) -> None:
-        """ Visit a Compound node, appending a dictionary to each tacking stack as
+        """Visit a Compound node, appending a dictionary to each tacking stack as
         this is the creation of a new scope, and then traversing the node. If
         this compound refers to a function body (and as such the analyzer is storing
-        some parameters), these parameters are incldued in the scope's defined variables. """
+        some parameters), these parameters are incldued in the scope's defined variables."""
         self.type_aliases.append({})
         self.structs.append({})
         if self.params is not None and len(self.params) != 0:
@@ -313,16 +316,16 @@ class ExpressionAnalyzer(NodeVisitor):
         self.type_aliases = self.type_aliases[:-1]
 
     def visit_ParamList(self, node: ParamList) -> None:
-        """ Visits a ParamList node, creating a dictionary to store contained parameters
-        and setting a flag such that this context is known to the analyzer. """
+        """Visits a ParamList node, creating a dictionary to store contained parameters
+        and setting a flag such that this context is known to the analyzer."""
         self.params = {}
         self.in_param_list = True
         self.generic_visit(node)
         self.in_param_list = False
 
     def visit_FuncDef(self, node: FuncDef) -> None:
-        """ Visits a FuncDef node, recording the function alongside its type so
-        long as the function specifies a valid name and type, and then traversing it. """
+        """Visits a FuncDef node, recording the function alongside its type so
+        long as the function specifies a valid name and type, and then traversing it."""
         if (
             node.decl is not None
             and node.decl.name is not None
@@ -333,18 +336,18 @@ class ExpressionAnalyzer(NodeVisitor):
         self.generic_visit(node)
 
     def visit_Typedef(self, node: Typedef) -> None:
-        """ Visits a Typedef node, recording the type alias so long as a valid
-        name and type is specified, and then traverses the node normally. """
+        """Visits a Typedef node, recording the type alias so long as a valid
+        name and type is specified, and then traverses the node normally."""
         if node.name is not None and node.type is not None:
             self.type_aliases[-1][node.name] = self.convert_type(node.type)
         self.generic_visit(node)
 
     def visit_Decl(self, node: Decl) -> None:
-        """ Visits a Decl node, recording the variable type listed by the declaration,
+        """Visits a Decl node, recording the variable type listed by the declaration,
         alongside the type of the node itself. If the analyzer is currently in a parameter
         list, the declaration is stored as a parameter instead of a variable, such that
         it is included within the correct scope. A decl is considered to be mutating, as it
-        involves creating a new variable. """
+        involves creating a new variable."""
         if node.name is not None and node.type is not None:
             if self.in_param_list:
                 self.params[node.name] = self.convert_type(node.type)
@@ -358,10 +361,10 @@ class ExpressionAnalyzer(NodeVisitor):
         self.generic_visit(node)
 
     def visit_UnaryOp(self, node: UnaryOp) -> None:
-        """ Visits an UnaryOp node, first traversing it and then bottom-up deriving its type
+        """Visits an UnaryOp node, first traversing it and then bottom-up deriving its type
         and mutability. Must separately consider increments/decrements, unary arithmetic/bitwise
         negation, logical negation, size and alignment retrieval, and pointer referencing and
-        de-referencing. """
+        de-referencing."""
         self.generic_visit(node)
         if node.expr is None or node.op is None:
             return
@@ -396,7 +399,7 @@ class ExpressionAnalyzer(NodeVisitor):
             self.mutating[node] = True  # pessimistic Assumption
 
     def visit_BinaryOp(self, node: BinaryOp) -> None:
-        """ Visits a BinaryOp node, first traversing it and then bottom-up deriving its type
+        """Visits a BinaryOp node, first traversing it and then bottom-up deriving its type
         and mutability. Must separately consider arithmetic, logical operations, and bitwise
         operations in expressions."""
         self.generic_visit(node)
@@ -419,8 +422,8 @@ class ExpressionAnalyzer(NodeVisitor):
             self.mutating[node] = True  # Pessimistic assumption
 
     def visit_TernaryOp(self, node: TernaryOp) -> None:
-        """ Visits an UnaryOp node, first traversing it and then bottom-up deriving its type
-        and mutability. Type is determined from either expression; mutability from both. """
+        """Visits an UnaryOp node, first traversing it and then bottom-up deriving its type
+        and mutability. Type is determined from either expression; mutability from both."""
         self.generic_visit(node)
         if node.iftrue is not None:
             self.types[node] = self.types[node.iftrue]
@@ -429,31 +432,39 @@ class ExpressionAnalyzer(NodeVisitor):
         self.mutating[node] = self.mutating[node.iftrue] or self.mutating[node.iffalse]
 
     def visit_Typename(self, node: Typename) -> None:
-        """ Visits a Typename node, first traversing it and then bottom-up deriving its type
-        and mutability. Simply converts and stores the node's types, with no mutability. """
+        """Visits a Typename node, first traversing it and then bottom-up deriving its type
+        and mutability. Simply converts and stores the node's types, with no mutability."""
         self.generic_visit(node)
         if node.type is not None:
             self.types[node] = self.convert_type(node.type)
         self.mutating[node] = False
 
     def visit_Cast(self, node: Cast) -> None:
-        """ Visits a Cast node, first traversing it and then bottom-up deriving its type
+        """Visits a Cast node, first traversing it and then bottom-up deriving its type
         and mutability. The node's type is determined from the type expression being casted
         to, whereas mutability is determined by the node's expression."""
         self.generic_visit(node)
         if node.to_type is not None:
             self.types[node] = self.types[node.to_type]
-        self.mutating[node] = self.mutating[node.expr] if node.expr is not None else False
+        self.mutating[node] = (
+            self.mutating[node.expr] if node.expr is not None else False
+        )
 
     def visit_ArrayRef(self, node: ArrayRef) -> None:
-        """ Visits an ArrayRef node, first traversing it and then bottom-up deriving its type
+        """Visits an ArrayRef node, first traversing it and then bottom-up deriving its type
         and mutability. The 'name' and 'subscript' are checked to determine which corresponds
-        to an array type and which correspodns to an integer type, as this is not enforced. 
-        Type is then determined by accessing the value of the Array/Ptr value type, and 
-        mutability is derived from the mutability of the 'name' and 'subscript' expressions. """
+        to an array type and which correspodns to an integer type, as this is not enforced.
+        Type is then determined by accessing the value of the Array/Ptr value type, and
+        mutability is derived from the mutability of the 'name' and 'subscript' expressions."""
         self.generic_visit(node)
-        name_type = self.SimpleType.OTHER if node.name is None else self.types[node.name]
-        sub_type = self.SimpleType.OTHER if node.subscript is None else self.types[node.subscript]
+        name_type = (
+            self.SimpleType.OTHER if node.name is None else self.types[node.name]
+        )
+        sub_type = (
+            self.SimpleType.OTHER
+            if node.subscript is None
+            else self.types[node.subscript]
+        )
         is_name_arr = isinstance(name_type, (self.Array, self.Ptr))
         is_sub_arr = isinstance(sub_type, (self.Array, self.Ptr))
         if not is_name_arr and not is_sub_arr:
@@ -472,35 +483,35 @@ class ExpressionAnalyzer(NodeVisitor):
         self.mutating[node] = mutating
 
     def visit_Assignment(self, node: Assignment) -> None:
-        """ Visits an Assignment node, first traversing it and then bottom-up deriving its type
+        """Visits an Assignment node, first traversing it and then bottom-up deriving its type
         and mutability. Type is determined from the expression (lvalue) type, and mutability
-        is set to True as we are performing assignment, changing the value of something. """
+        is set to True as we are performing assignment, changing the value of something."""
         self.generic_visit(node)
         if node.lvalue is not None:
             self.types[node] = self.types[node.lvalue]
         self.mutating[node] = True
 
     def visit_Enum(self, node: Enum) -> None:
-        """ Visits an Enum node, first traversing it and then bottom-up deriving its type
-        and mutability. This is static: they are of integral (int) type, with no mutability. """
+        """Visits an Enum node, first traversing it and then bottom-up deriving its type
+        and mutability. This is static: they are of integral (int) type, with no mutability."""
         self.generic_visit(node)
         if node.name is not None:
             self.types[node] = self.SimpleType.INT
         self.mutating[node] = False
 
     def visit_FuncCall(self, node: FuncCall) -> None:
-        """ Visits a FuncCall node, first traversing it and then bottom-up deriving its type
+        """Visits a FuncCall node, first traversing it and then bottom-up deriving its type
         and mutability. Type is determined by retrieving the relevant type of the function
-        being called, and we assume mutation pessimistically. """
+        being called, and we assume mutation pessimistically."""
         self.generic_visit(node)
         if node.name is not None and node.name.name is not None:
             self.types[node] = self.get_func_type(node.name.name)
         self.mutating[node] = True  # Pessimistic assumption (e.g. globals)
 
     def visit_Struct(self, node: Struct) -> None:
-        """ Visits a Struct node, first traversing it and then bottom-up deriving its type
-        and mutability. Type and mutability is based on context, deriving whether the 
-        struct is a definition (it has decls) or not. """
+        """Visits a Struct node, first traversing it and then bottom-up deriving its type
+        and mutability. Type and mutability is based on context, deriving whether the
+        struct is a definition (it has decls) or not."""
         if node.decls is not None:
             self.structs[-1][node.name] = node
             self.types[node] = node
@@ -510,9 +521,9 @@ class ExpressionAnalyzer(NodeVisitor):
             self.mutating[node] = False
 
     def visit_Union(self, node: Union) -> None:
-        """ Visits a Union node, first traversing it and then bottom-up deriving its type
+        """Visits a Union node, first traversing it and then bottom-up deriving its type
         and mutability. Type and mutability is based on context, deriving whether the
-        union is a definition (it has decls) or not. """
+        union is a definition (it has decls) or not."""
         if node.decls is not None:
             self.structs[-1][node.name] = node
             self.types[node] = node
@@ -522,10 +533,10 @@ class ExpressionAnalyzer(NodeVisitor):
             self.mutating[node] = False
 
     def visit_StructRef(self, node: StructRef) -> None:
-        """ Visits a StructRef node, first traversing it and then bottom-up deriving its type
+        """Visits a StructRef node, first traversing it and then bottom-up deriving its type
         and mutability. Type and mutability is determined by coalesing the type and mutability
         of the 'name' and 'field' expressions. '.' and '->' are parsed seperately to retrieve
-        the type directly or dereference first. """
+        the type directly or dereference first."""
         self.generic_visit(node)
         if (
             node.type is not None
@@ -559,26 +570,26 @@ class ExpressionAnalyzer(NodeVisitor):
         self.mutating[node] = mutating
 
     def visit_Constant(self, node: Constant) -> None:
-        """ Visits a Constant node, first traversing it and then bottom-up deriving its type
-        and mutability. Type is directly converted and stored, and constants are non-mutable. """
+        """Visits a Constant node, first traversing it and then bottom-up deriving its type
+        and mutability. Type is directly converted and stored, and constants are non-mutable."""
         self.generic_visit(node)
         if node.type is not None:
             self.types[node] = self.convert_type(node.type)
         self.mutating[node] = False
 
     def visit_ID(self, node: ID) -> None:
-        """ Visits an ID node, first traversing it and then bottom-up deriving its type
+        """Visits an ID node, first traversing it and then bottom-up deriving its type
         and mutability. IDs do not cause mutation, and type is based on the type of the current
-        defined variable with that identifier name. """
+        defined variable with that identifier name."""
         self.generic_visit(node)
         if node.name is not None:
             self.types[node] = self.get_var_type(node.name)
         self.mutating[node] = False
 
     def visit_InitList(self, node: InitList) -> None:
-        """ Visits an InitList node, first traversing it and then bottom-up deriving its type
+        """Visits an InitList node, first traversing it and then bottom-up deriving its type
         and mutability. Lists themselves have no type, but mutability is determined
-        by the mutability of the relevant initialiser expressions. """
+        by the mutability of the relevant initialiser expressions."""
         self.generic_visit(node)
         mutating = False
         if node.exprs is not None:
@@ -588,10 +599,10 @@ class ExpressionAnalyzer(NodeVisitor):
         self.mutating[node] = mutating
 
     def visit_ExprList(self, node: ExprList) -> None:
-        """ Visits an ExprList node, first traversing it and then bottom-up deriving its type
-        and mutability. Lists themselves have no single type that can be represented in this 
-        simplified abstraction, but mutability is determined by the mutability of the relevant 
-        constituent expressions. """
+        """Visits an ExprList node, first traversing it and then bottom-up deriving its type
+        and mutability. Lists themselves have no single type that can be represented in this
+        simplified abstraction, but mutability is determined by the mutability of the relevant
+        constituent expressions."""
         self.generic_visit(node)
         mutating = False
         if node.exprs is not None:
@@ -600,9 +611,9 @@ class ExpressionAnalyzer(NodeVisitor):
         self.mutating[node] = mutating
 
     def visit_CompoundLiteral(self, node: CompoundLiteral) -> None:
-        """ Visits a CompoundLiteral node, first traversing it and then bottom-up deriving its type
+        """Visits a CompoundLiteral node, first traversing it and then bottom-up deriving its type
         and mutability. Type and mutability are directly derived/converted from the type and
-        mutability of the initialisation value expression. """
+        mutability of the initialisation value expression."""
         self.generic_visit(node)
         if node.type is not None:
             self.types[node] = self.convert_type(node.type)
@@ -614,9 +625,9 @@ class ExpressionAnalyzer(NodeVisitor):
             self.mutating[node] = False
 
     def visit_NamedInitializer(self, node: NamedInitializer) -> None:
-        """ Visits a NamedInitializer node, first traversing it and then bottom-up deriving its type
+        """Visits a NamedInitializer node, first traversing it and then bottom-up deriving its type
         and mutability. Type is directly determined from the type of the intializer list, and this
-        is always set to be mutating as values are being initialized. """
+        is always set to be mutating as values are being initialized."""
         self.generic_visit(node)
         if node.expr is not None:
             self.types[node] = self.types[node.expr]

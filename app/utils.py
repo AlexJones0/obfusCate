@@ -3,8 +3,8 @@ Defines utility functions for use in all parts of the system.
 Currently continas a utility to check if a list of libraries are
 initialised within a given source file. 
 """
-from typing import Iterable
 from .interaction import CSource
+from typing import Iterable
 
 
 def is_initialised(source: CSource, libraries: Iterable[str]) -> Iterable[bool]:
