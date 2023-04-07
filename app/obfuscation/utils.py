@@ -231,3 +231,33 @@ def generate_new_contents(source: interaction.CSource) -> str:
     generator = interaction.PatchedGenerator()
     new_contents += generator.visit(source.t_unit)
     return new_contents
+
+
+# Store valid C types to allow appropriate type analysis
+VALID_INT_TYPES = [
+    "int8_t",
+    "uint8_t",
+    "int16_t",
+    "uint16_t",
+    "int32_t",
+    "uint32_t",
+    "int64_t",
+    "uint64_t",
+    "char",
+    "unsigned char",
+    "signed char",
+    "unsigned int",
+    "signed int",
+    "int",
+    "unsigned short",
+    "signed short",
+    "short",
+    "unsigned long",
+    "signed long",
+    "long",
+    "unsigned long long",
+    "signed long long",
+    "long long",
+]
+
+VALID_REAL_TYPES = ["float", "double", "long double"]

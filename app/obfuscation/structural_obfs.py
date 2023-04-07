@@ -12,7 +12,9 @@ from .utils import (
     generate_new_contents,
     ObjectFinder,
     NameSpace,
-    ASTCacher
+    ASTCacher,
+    VALID_INT_TYPES,
+    VALID_REAL_TYPES
 )
 from .identifier_analysis import IdentifierAnalyzer
 from pycparser.c_ast import *
@@ -21,32 +23,6 @@ import random, json, copy, math, enum
 
 
 class OpaquePredicate:  # TODO use class as namespace or no?
-    VALID_INT_TYPES = [
-        "int8_t",
-        "uint8_t",
-        "int16_t",
-        "uint16_t",
-        "int32_t",
-        "uint32_t",
-        "int64_t",
-        "uint64_t",
-        "char",
-        "unsigned char",
-        "signed char",
-        "unsigned int",
-        "signed int",
-        "int",
-        "unsigned short",
-        "signed short",
-        "short",
-        "unsigned long",
-        "signed long",
-        "long",
-        "unsigned long long",
-        "signed long long",
-        "long long",
-    ]
-    VALID_REAL_TYPES = ["float", "double", "long double"]
     VALID_INPUT_TYPES = VALID_INT_TYPES + VALID_REAL_TYPES
 
     TRUE_PREDICATES = [
@@ -516,7 +492,7 @@ class OpaqueAugmenter(NodeVisitor):
             idents.append(param)
         args = []
         for ident in idents:
-            if ident[1] not in OpaquePredicate.VALID_REAL_TYPES:
+            if ident[1] not in VALID_REAL_TYPES:
                 args.append(ID(ident[0]))
             else:
                 args.append(
@@ -597,11 +573,11 @@ class OpaqueAugmenter(NodeVisitor):
             if node.type.type.names is None or len(node.type.type.names) == 0:
                 continue
             type_ = node.type.type.names[-1]  # TODO is [-1] right?
-            if type_ in OpaquePredicate.VALID_INT_TYPES:
+            if type_ in VALID_INT_TYPES:
                 self.parameters.append((node.name, type_))
             elif type_ in self.global_typedefs.keys():
                 # Handle typedef'd parameters
-                if self.global_typedefs[type_] in OpaquePredicate.VALID_INT_TYPES:
+                if self.global_typedefs[type_] in VALID_INT_TYPES:
                     self.parameters.append((node.name, self.global_typedefs[type_]))
 
     def visit_Typedef(self, node: Typedef) -> None:
@@ -1258,11 +1234,11 @@ class OpaqueInserter(NodeVisitor):
             if node.type.type.names is None or len(node.type.type.names) == 0:
                 continue
             type_ = node.type.type.names[-1]  # TODO is [-1] right?
-            if type_ in OpaquePredicate.VALID_INT_TYPES:
+            if type_ in VALID_INT_TYPES:
                 self.parameters.append((node.name, type_))
             elif type_ in self.global_typedefs.keys():
                 # Handle typedef'd parameters
-                if self.global_typedefs[type_] in OpaquePredicate.VALID_INT_TYPES:
+                if self.global_typedefs[type_] in VALID_INT_TYPES:
                     self.parameters.append((node.name, self.global_typedefs[type_]))
 
     def visit_Typedef(self, node: Typedef) -> None:

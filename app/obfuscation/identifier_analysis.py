@@ -1,4 +1,4 @@
-""" File: obfuscation/utils.py
+""" File: obfuscation/identifier_analysis.py
 Implements the IdentifierAnalyzer class for performing identifer usage and 
 liveness analysis on C programs, allowing the reasoning about different
 identifier names within a program.
