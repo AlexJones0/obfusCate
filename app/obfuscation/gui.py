@@ -376,18 +376,18 @@ class GuiIdentifierRenameUnit(IdentifierRenameUnit):
             "The renaming style to use when renaming identifiers throughout the\n"
             "program, which dictates how new identifiers are chosen to replace\n"
             "existing names.",
-            {style.value: style for style in IdentifierTraverser.Style},
+            {style.value: style for style in IdentifierRenamer.Style},
             self.style.value,
             parent,
             {
-                IdentifierTraverser.Style.COMPLETE_RANDOM.value: "Generate new identifiers that are completely random strings of 4-19 characters.\n"
+                IdentifierRenamer.Style.COMPLETE_RANDOM.value: "Generate new identifiers that are completely random strings of 4-19 characters.\n"
                 "  e.g. tcEM7, aA_LsaUdhnh, YPWnW0XE.",
-                IdentifierTraverser.Style.ONLY_UNDERSCORES.value: "Generate new identifiers that consist of solely the underscore character '_'.\n"
+                IdentifierRenamer.Style.ONLY_UNDERSCORES.value: "Generate new identifiers that consist of solely the underscore character '_'.\n"
                 "  e.g. _, _____, ________.",
-                IdentifierTraverser.Style.MINIMAL_LENGTH.value: "Generate new identifiers that occupy the minimum space possible as a whole, by\n"
+                IdentifierRenamer.Style.MINIMAL_LENGTH.value: "Generate new identifiers that occupy the minimum space possible as a whole, by\n"
                 "iterating through available symbols sequentially.\n"
                 "  e.g. a, b, c, d, e, ...",
-                IdentifierTraverser.Style.I_AND_L.value: "Generate new identifiers that each comprise of the exact same amount of characters,\n"
+                IdentifierRenamer.Style.I_AND_L.value: "Generate new identifiers that each comprise of the exact same amount of characters,\n"
                 "using random combinations of only the characters 'I' and 'l'. This makes it hard to\n"
                 "determine separate identifiers via. differences in length, as in e.g. underscore\n"
                 "renaming.\n"
@@ -424,7 +424,7 @@ class GuiIdentifierRenameUnit(IdentifierRenameUnit):
         return GuiIdentifierRenameUnit(unit.style, unit.minimise_idents)
 
     def get_gui() -> "GuiIdentifierRenameUnit":
-        return GuiIdentifierRenameUnit(IdentifierTraverser.Style.COMPLETE_RANDOM, False)
+        return GuiIdentifierRenameUnit(IdentifierRenamer.Style.COMPLETE_RANDOM, False)
 
 
 class GuiArithmeticEncodeUnit(ArithmeticEncodeUnit):

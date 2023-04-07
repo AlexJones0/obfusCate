@@ -49,7 +49,7 @@ class IdentifierAnalyzer(NodeVisitor):
 
         # Program structure trees
         self.compound_children = {}
-        self.compound_parents = {}
+        self.compound_parent = {}
         self.stmt_compound_map = {}
         self.compound_stmt_map = {}
         self.node_stmt_map = {}  # Maps all AST nodes to the statement they are part of
@@ -371,7 +371,7 @@ class IdentifierAnalyzer(NodeVisitor):
             given scope."""
         scope_path = [compound]
         while compound is not None:
-            compound = self.compound_parents[compound]
+            compound = self.compound_parent[compound]
             scope_path.append(compound)
         scope_path = scope_path[:-1]
         return scope_path
@@ -796,7 +796,7 @@ class IdentifierAnalyzer(NodeVisitor):
         # Record the scope information
         self._current_definitions.append({})
         self.compound_children[node] = []
-        self.compound_parents[node] = None  # The FileAST has no parent
+        self.compound_parent[node] = None  # The FileAST has no parent
         self.stmt_compound_map[node] = None
         self.compound_stmt_map[node] = []
         self._current_compound = node
@@ -827,7 +827,7 @@ class IdentifierAnalyzer(NodeVisitor):
         self.compound_children[self._current_compound].append(
             (node, self._current_stmt)
         )
-        self.compound_parents[node] = self._current_compound
+        self.compound_parent[node] = self._current_compound
         self.stmt_compound_map[node] = self._current_compound
         self.compound_stmt_map[node] = []
         prev_compound = self._current_compound
@@ -939,12 +939,13 @@ class IdentifierAnalyzer(NodeVisitor):
         # Parse type declaration for structs/unions/enums, account for pointers etc.
         types = []
         cur_node = node
-        node_type = cur_node.type
-        while node_type is not None and isinstance(node_type, (PtrDecl, ArrayDecl)):
-            types.append(node_type)
-            cur_node = node_type
-        if isinstance(node_type, (Enum, Struct, Union)):
-            types.append(node_type)
+        while cur_node.type is not None and isinstance(
+            cur_node.type, (PtrDecl, ArrayDecl)
+        ):
+            types.append(cur_node.type)
+            cur_node = cur_node.type
+        if isinstance(cur_node.type, (Enum, Struct, Union)):
+            types.append(cur_node.type)
         for i, type_ in enumerate(types):
             if (isinstance(type_, Enum) and type_.values is not None) or (
                 isinstance(type_, (Struct, Union))
@@ -1082,8 +1083,7 @@ class IdentifierAnalyzer(NodeVisitor):
                 new_namespace = (NameSpace.MEMBER, struct)
                 members.add(name)
                 self._current_definitions[-2][(name, new_namespace)] = node
-                prev_definitions = self.definition_uses.pop((node, name, namespace))
-                self.definition_uses[(node, name, new_namespace)] = prev_definitions
+                self.definition_uses[(node, name, new_namespace)] = self.definition_uses.pop((node, name, namespace))
                 self.stmt_definitions[node].remove((name, namespace))
                 self.stmt_definitions[node].add((name, new_namespace))
         self._current_definitions[-1] = []

@@ -367,13 +367,13 @@ class CliIdentifierRenameUnit(IdentifierRenameUnit):
 
         Returns:
             bool: True if editing successful, false if the user chose to quit."""
-        options = [s.value for s in IdentifierTraverser.Style]
+        options = [s.value for s in IdentifierRenamer.Style]
         prompt = f"\nThe current identifier renaming style is '{self.style.value}'.\n"
         prompt += "Choose a new style for identifier renaming.\n"
         choice = interaction.menu_driven_option(options, prompt)
         if choice == -1:
             return False
-        self.style = IdentifierTraverser.Style(options[choice])
+        self.style = IdentifierRenamer.Style(options[choice])
         options = [
             "Minimise identifier usage [WARNING: EXPERIMENTAL]", # TODO WARNING
             "Do not minimise identifier usage",
@@ -395,12 +395,12 @@ class CliIdentifierRenameUnit(IdentifierRenameUnit):
         Returns:
             Optional[CliIdentifierRenameUnit]: the transform created from user CLI
             interaction. Returns None if the user chose to quit within the CLI."""
-        options = [s.value for s in IdentifierTraverser.Style]
+        options = [s.value for s in IdentifierRenamer.Style]
         prompt = "\nChoose a style to use for identifier renaming.\n"
         choice = interaction.menu_driven_option(options, prompt)
         if choice == -1:
             return None
-        style = IdentifierTraverser.Style(options[choice])
+        style = IdentifierRenamer.Style(options[choice])
         options = [
             "Minimise identifier usage [WARNING: EXPERIMENTAL]", # TODO WARNING
             "Do not minimise identifier usage",

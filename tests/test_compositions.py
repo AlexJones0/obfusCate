@@ -18,11 +18,12 @@ from random import uniform as randf, randint as randi
 
 
 class UsedDepth(enum.Enum):
-    LIGHTEST = 0
-    VERY_LIGHT = 1
-    LIGHT = 2
-    MEDIUM = 3
-    HEAVY = 4
+    NONE = 0
+    LIGHTEST = 1
+    VERY_LIGHT = 2
+    LIGHT = 3
+    MEDIUM = 4
+    HEAVY = 5
 
 
 INTEGRATION_TEST_STYLE = UsedDepth.LIGHTEST
@@ -66,10 +67,10 @@ options = {
     IdentifierRenameUnit: list(  # 8 Options
         itertools.product(
             [
-                IdentifierTraverser.Style.COMPLETE_RANDOM,
-                IdentifierTraverser.Style.ONLY_UNDERSCORES,
-                IdentifierTraverser.Style.MINIMAL_LENGTH,
-                IdentifierTraverser.Style.I_AND_L,
+                IdentifierRenamer.Style.COMPLETE_RANDOM,
+                IdentifierRenamer.Style.ONLY_UNDERSCORES,
+                IdentifierRenamer.Style.MINIMAL_LENGTH,
+                IdentifierRenamer.Style.I_AND_L,
             ],
             [True, False],
         )

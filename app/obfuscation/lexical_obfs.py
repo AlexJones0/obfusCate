@@ -17,28 +17,33 @@ from typing import Optional
 import pycparser, random, string, json, enum
 
 
-class NewNewIdentifierRenamer:
-    """..."""
+class IdentifierRenamer:
 
-    def __init__(self, style: "IdentifierTraverser.Style", minimise_idents: bool):
+    class Style(enum.Enum):
+        COMPLETE_RANDOM = "Complete Randomness"
+        ONLY_UNDERSCORES = "Only underscores"
+        MINIMAL_LENGTH = "Minimal length"
+        I_AND_L = "Blocks of l's and I's"
+
+    def __init__(self, style: Style, minimise_idents: bool):
         self.banned_idents = set([kw.lower() for kw in CLexer.keywords])
         self.new_idents = []
         self.style = style
+        self.minimise_idents = minimise_idents
         self._random_source = random.randint(0, 2**16)
         
-    # TODO modularise later
     def generate_new_ident(self):
         new_ident = ""
         while len(new_ident) == 0 or new_ident in self.banned_idents:
-            if self.style == IdentifierTraverser.Style.COMPLETE_RANDOM:
+            if self.style == IdentifierRenamer.Style.COMPLETE_RANDOM:
                 size_ = random.randint(4, 19)
                 new_ident = random.choices(string.ascii_letters)[0]
                 new_ident += "".join(
                     random.choices(string.ascii_letters + string.digits + "_" * 6, k=size_)
                 )
-            elif self.style == IdentifierTraverser.Style.ONLY_UNDERSCORES:
+            elif self.style == IdentifierRenamer.Style.ONLY_UNDERSCORES:
                 new_ident = "_" * (len(self.new_idents) + 1)
-            elif self.style == IdentifierTraverser.Style.MINIMAL_LENGTH:
+            elif self.style == IdentifierRenamer.Style.MINIMAL_LENGTH:
                 cur_num = len(self.new_idents)
                 # choices = "_" + ascii_letters + ascii_digits
                 choices = string.ascii_letters
@@ -49,7 +54,7 @@ class NewNewIdentifierRenamer:
                     cur_num = cur_num // len(choices)
                     if cur_num == 0:
                         break
-            elif self.style == IdentifierTraverser.Style.I_AND_L:
+            elif self.style == IdentifierRenamer.Style.I_AND_L:
                 cur_num = len(self.new_idents)
                 num_chars = 8
                 num_vals = 2**num_chars
@@ -74,7 +79,7 @@ class NewNewIdentifierRenamer:
         self.banned_idents.add(new_ident)
         return new_ident
         
-    def transform(self, source: interaction.CSource) -> None:
+    def minimised_transform(self, source: interaction.CSource) -> None:
         analyzer = IdentifierAnalyzer()
         analyzer.load(source)
         analyzer.process()
@@ -123,197 +128,31 @@ class NewNewIdentifierRenamer:
             # TODO IMPORTANT remove when done testing
             analyzer.change_ident(*def_use, new_ident)
         analyzer.update_funcspecs()
-
-
-class IdentifierTraverser(NodeVisitor):
-    """Traverses the program AST looking for non-external identifiers (except main),
-    transforming them to some random scrambled identifier."""
-
-    class Style(enum.Enum):
-        COMPLETE_RANDOM = "Complete Randomness"
-        ONLY_UNDERSCORES = "Only underscores"
-        MINIMAL_LENGTH = "Minimal length"
-        I_AND_L = "Blocks of l's and I's"
-
-    def __init__(self, style: Style, minimise_idents: bool):
-        self.style = style
-        self.minimise_idents = minimise_idents
-        self.reset()
-
-    def reset(self):
-        self.idents = {"main": "main"}
-        self._new_idents = set()
-        self._banned_idents = set([kw.lower() for kw in CLexer.keywords])
-        self._scopes = list()
-        self._random_source = random.randint(0, 2**16)
-        self._scrambled_node_cache = set()
-
-    def get_new_ident(
-        self, ident
-    ):  # TODO could add an option for variable reuse as well using liveness?
-        new_ident = ""
-        while len(new_ident) == 0 or new_ident in self._new_idents:
-            if self.style == self.Style.COMPLETE_RANDOM:
-                size_ = random.randint(4, 19)
-                new_ident = random.choices(string.ascii_letters)[0]
-                new_ident += "".join(
-                    random.choices(string.ascii_letters + string.digits + "_" * 6, k=size_)
-                )
-            elif self.style == self.Style.ONLY_UNDERSCORES:
-                new_ident = "_" * (len(self._new_idents) + 1)
-            elif self.style == self.Style.MINIMAL_LENGTH:
-                cur_num = len(self._new_idents)
-                # choices = "_" + ascii_letters + ascii_digits
-                choices = string.ascii_letters
-                new_ident = ""
-                # new_ident += choices[cur_num // len(ascii_digits)]
-                while cur_num >= 0:
-                    new_ident += choices[cur_num % len(choices)]
-                    cur_num = cur_num // len(choices)
-                    if cur_num == 0:
-                        break
-            elif self.style == self.Style.I_AND_L:
-                cur_num = len(self._new_idents)
-                num_chars = 8
-                num_vals = 2**num_chars
-                while cur_num * 4 > num_vals:
-                    num_chars += 1
-                    num_vals *= 2
-                hash_val = (hash(str(cur_num)) + self._random_source) % (num_vals)
-                new_ident = bin(hash_val)[2:]
-                new_ident = "0" * (num_chars - len(new_ident)) + new_ident
-                new_ident = new_ident.replace("1", "l").replace("0", "I")
-                while new_ident in self._new_idents:
-                    # Linear probe for next available hash value
-                    hash_val += 1
-                    if hash_val >= num_vals:
-                        hash_val = 0
-                    new_ident = bin(hash_val)[2:]
-                    new_ident = "0" * (num_chars - len(new_ident)) + new_ident
-                    new_ident = new_ident.replace("1", "l").replace("0", "I")
-        self._new_idents.add(new_ident)
-        if new_ident in self._banned_idents:
-            # Don't allow reserved keywords; we must get a new ident
-            return self.get_new_ident(ident)
-        self.idents[ident] = new_ident
-        return new_ident
-
-    def scramble_ident(self, node):
-        if node in self._scrambled_node_cache:
-            # Work around for pycparser annoyingly
-            # using the same reference for anonymous struct
-            # types for decl lists, causing double-renaming
-            # issues. We check a cache to ensure this doesn't happen.
-            return 
-        self._scrambled_node_cache.add(node)
-        if hasattr(node, "name") and node.name is not None:
-            if node.name not in self.idents:
-                self.get_new_ident(node.name)
-            node.name = self.idents[node.name]
-            self._scopes[-1].add(node.name)
-
-    def visit_FileAST(self, node):
-        self._scopes.append(set())
-        NodeVisitor.generic_visit(self, node)
-        self._scopes = self._scopes[:-1]
-        self.reset()
-
-    def visit_FuncDef(self, node):
-        self._scopes.append(set())
-        NodeVisitor.generic_visit(self, node)
-        self._scopes = self._scopes[:-1]
-
-    def visit_Compound(self, node):
-        self._scopes.append(set())
-        NodeVisitor.generic_visit(self, node)
-        self._scopes = self._scopes[:-1]
-
-    def visit_Decl(self, node):
-        self.scramble_ident(node)
-        type_node = node
-        while type_node.type is not None and isinstance(type_node.type, (ArrayDecl, PtrDecl)):
-            type_node = type_node.type
-        if isinstance(type_node, (Struct, Union)) and type_node.decls is not None:
-            self.scramble_ident(type_node)
-        if isinstance(type_node.type, (Struct, Union)) and type_node.type.decls is not None:
-            self.scramble_ident(type_node.type)
-        NodeVisitor.generic_visit(self, node)
-
-    def visit_Struct(self, node):
-        if node.name in self.idents and node not in self._scrambled_node_cache:
-            self._scrambled_node_cache.add(node)
-            node.name = self.idents[node.name]
-        NodeVisitor.generic_visit(self, node)
-
-    def visit_Union(self, node):
-        if node.name in self.idents and node not in self._scrambled_node_cache:
-            self._scrambled_node_cache.add(node)
-            node.name = self.idents[node.name]
-        NodeVisitor.generic_visit(self, node)
-
-    def visit_Enum(self, node):
-        self.scramble_ident(node)
-        NodeVisitor.generic_visit(self, node)
-        self._scopes[-1].remove(node.name)
-
-    def visit_Enumerator(self, node):
-        self.scramble_ident(node)
-        NodeVisitor.generic_visit(self, node)
-
-    def visit_Label(self, node):
-        self.scramble_ident(node)
-        NodeVisitor.generic_visit(self, node)
-
-    def visit_Goto(self, node):
-        self.scramble_ident(node)
-        NodeVisitor.generic_visit(self, node)
-
-    def visit_TypeDecl(self, node):
-        if node.declname is not None:
-            if node.declname not in self.idents:
-                self.get_new_ident(node.declname)
-            node.declname = self.idents[node.declname]
-            self._scopes[-1].add(node.declname)
-            self._scrambled_node_cache.add(node)
-        NodeVisitor.generic_visit(self, node)
     
-    def visit_Typedef(self, node):
-        self.scramble_ident(node)
-        NodeVisitor.generic_visit(self, node)
-
-    def visit_ID(self, node):
-        if node.name in self.idents:
-            node.name = self.idents[node.name]
-            self._scrambled_node_cache.add(node)
-
-    def visit_FuncCall(self, node):
-        if node.name in self.idents:
-            node.name = self.idents[node.name]
-            self._scrambled_node_cache.add(node)
-        NodeVisitor.generic_visit(self, node)
-
-    def visit_IdentifierType(self, node):
-        if node.names is not None and len(node.names) > 0:
-            name = node.names[-1]
-            if name in self.idents:
-                node.names[-1] = self.idents[name]
-            self._scrambled_node_cache.add(node)
-        NodeVisitor.generic_visit(self, node)
-
-    def visit_Pragma(self, node):  # TODO maybe warn on pragma?
-        # TODO something's not working with pragmas because of how pycparser handles them!
-        print_error("Error: cannot currently handle pragmas!")
-        log(
-            "Could not continue obfuscation because the obfuscator cannot handle pragmas!"
-        )
-        exit()
-
-    def visit_StaticAssert(self, node):  # TODO what's breaking here?
-        print_error("Error: cannot currently handle static assertions!")
-        log(
-            "Could not continue obfuscation because the obfuscator cannot handle static asserts!"
-        )
-        exit()
+    def normal_transform(self, source: interaction.CSource) -> None:
+        analyzer = IdentifierAnalyzer()
+        analyzer.load(source)
+        analyzer.process()
+        skip_idents = set(["main"])
+        definition_uses = list(analyzer.definition_uses.keys())
+        ident_mappings = {}
+        for def_use in definition_uses:
+            identifier = def_use[1]
+            if def_use[1] in skip_idents:
+                continue
+            if identifier in ident_mappings:
+                new_ident = ident_mappings[identifier]
+            else:
+                new_ident = self.generate_new_ident()
+                ident_mappings[identifier] = new_ident
+            analyzer.change_ident(*def_use, new_ident)
+        analyzer.update_funcspecs()
+            
+    def transform(self, source: interaction.CSource) -> None:
+        if self.minimise_idents:
+            self.minimised_transform(source)
+        else:
+            self.normal_transform(source)
 
 
 # TODO this transformation still breaks sometimes, even without minimisation
@@ -348,12 +187,8 @@ class IdentifierRenameUnit(ObfuscationUnit):
         self.minimise_idents = minimise_idents
 
     def transform(self, source: interaction.CSource) -> interaction.CSource:
-        if self.minimise_idents:
-            transformer = NewNewIdentifierRenamer(self.style, True)
-            transformer.transform(source)
-        else:
-            traverser = IdentifierTraverser(self.style, False)
-            traverser.visit(source.t_unit)
+        transformer = IdentifierRenamer(self.style, self.minimise_idents)
+        transformer.transform(source)
         new_contents = generate_new_contents(source)
         return interaction.CSource(source.fpath, new_contents, source.t_unit)
 
@@ -410,7 +245,7 @@ class IdentifierRenameUnit(ObfuscationUnit):
             )
             return None
         elif json_obj["style"] not in [
-            style.name for style in IdentifierTraverser.Style
+            style.name for style in IdentifierRenamer.Style
         ]:
             log(
                 "Failed to load RenameIdentifiers() - style '{}' is not a valid style.".format(
@@ -432,7 +267,7 @@ class IdentifierRenameUnit(ObfuscationUnit):
             )
             return None
         return IdentifierRenameUnit(
-            {style.name: style for style in IdentifierTraverser.Style}[
+            {style.name: style for style in IdentifierRenamer.Style}[
                 json_obj["style"]
             ],
             json_obj["minimise_idents"],
