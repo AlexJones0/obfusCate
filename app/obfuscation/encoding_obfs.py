@@ -6,7 +6,8 @@ the encoding of integer arithmetic expressions/operations.
 """
 from .. import interaction
 from ..debug import *
-from .utils import ObfuscationUnit, TransformType, generate_new_contents, ExpressionAnalyzer
+from .utils import ObfuscationUnit, TransformType, generate_new_contents
+from .expression_analysis import ExpressionAnalyzer
 from pycparser.c_ast import *
 from typing import Optional
 import random, json, math, enum, copy

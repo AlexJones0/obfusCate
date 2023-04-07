@@ -8,7 +8,6 @@ from app import debug
 from tests import *
 import io
 import itertools
-import pytest
 import subprocess
 import shutil
 import sys

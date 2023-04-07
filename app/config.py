@@ -13,7 +13,7 @@ class Config(object):
     COMP_PATH = "./compositions/auto/"
     TEMP_FILE_PATH = "./obfuscate_temp.c"
     LOG_FILE = ""
-    LOGS_ENABLED = True
+    LOGS_ENABLED = False
     CALCULATE_COMPLEXITY = True
     DISPLAY_ERRORS = False
     SUPPRESS_ERRORS = False

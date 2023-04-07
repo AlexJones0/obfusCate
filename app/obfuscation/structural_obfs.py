@@ -10,11 +10,11 @@ from .utils import (
     ObfuscationUnit,
     TransformType,
     generate_new_contents,
-    NewNewVariableUseAnalyzer,
     ObjectFinder,
     NameSpace,
     ASTCacher
 )
+from .identifier_analysis import IdentifierAnalyzer
 from pycparser.c_ast import *
 from typing import Iterable, Tuple, Optional
 import random, json, copy, math, enum
@@ -448,7 +448,7 @@ class OpaqueAugmenter(NodeVisitor):
     def process(self, source):
         if len(self.styles) == 0:
             return
-        self.analyzer = NewNewVariableUseAnalyzer(source)
+        self.analyzer = IdentifierAnalyzer(source)
         self.analyzer.process()
         self.source = source
         self.visit(source.t_unit)
@@ -939,7 +939,7 @@ class OpaqueInserter(NodeVisitor):
             or self.number == 0
         ):
             return
-        self.analyzer = NewNewVariableUseAnalyzer(source)
+        self.analyzer = IdentifierAnalyzer(source)
         self.analyzer.process()
         self.source = source
         self.visit(source.t_unit)
@@ -1559,7 +1559,7 @@ class ControlFlowFlattener(NodeVisitor):
         self.count = 0
 
     def transform(self, source: interaction.CSource) -> None:
-        self.analyzer = NewNewVariableUseAnalyzer(source)
+        self.analyzer = IdentifierAnalyzer(source)
         self.analyzer.process()
         self.visit(source.t_unit)
         if self.needs_stdlib and not utils.is_initialised(source, ["stdlib.h"])[0]:
@@ -2348,6 +2348,9 @@ class ControlFlowFlattener(NodeVisitor):
                 arr_size = node.type.dim
             # Create a malloc for the Variable Length Array (VLA)
             # TODO: note not 100% equivalent! Is there any way around?
+            # TODO Tigress uses "__builtin_alloca" to create a void* and 
+            # then CAST that to the type being used. It then tracks and alters
+            # sizeof expressions on this to make them correct. Which is just insane!
             alloc_func = FuncCall(
                 ID("alloca" if cfg.USE_ALLOCA else "malloc"),
                 ExprList(

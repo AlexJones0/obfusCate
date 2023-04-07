@@ -6,7 +6,8 @@ arguments).
 """
 from .. import interaction
 from ..debug import *
-from .utils import ObfuscationUnit, TransformType, generate_new_contents, NewNewVariableUseAnalyzer
+from .utils import ObfuscationUnit, TransformType, generate_new_contents
+from .identifier_analysis import IdentifierAnalyzer
 from pycparser.c_ast import *
 from typing import Optional
 import random, string, json
@@ -55,7 +56,7 @@ class FuncArgRandomiserTraverser(NodeVisitor):
         self.func_args = dict()
         self.walk_num = 1
         self.current_func = None
-        self.analyzer = NewNewVariableUseAnalyzer()
+        self.analyzer = IdentifierAnalyzer()
 
     def get_extra_args(self, idents):
         extra_args = []

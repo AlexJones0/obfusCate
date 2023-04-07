@@ -8,8 +8,9 @@ macro encoding.
 """
 from .. import interaction
 from ..debug import *
-from .utils import ObfuscationUnit, TransformType, generate_new_contents, \
-    NewNewVariableUseAnalyzer, ExpressionAnalyzer
+from .utils import ObfuscationUnit, TransformType, generate_new_contents
+from .expression_analysis import ExpressionAnalyzer
+from .identifier_analysis import IdentifierAnalyzer
 from pycparser.c_ast import *
 from pycparser.c_lexer import CLexer
 from typing import Optional
@@ -74,7 +75,7 @@ class NewNewIdentifierRenamer:
         return new_ident
         
     def transform(self, source: interaction.CSource) -> None:
-        analyzer = NewNewVariableUseAnalyzer()
+        analyzer = IdentifierAnalyzer()
         analyzer.load(source)
         analyzer.process()
         skip_idents = set(["main"])

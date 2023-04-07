@@ -10,7 +10,7 @@ from .config import GuiDefaults as Df
 from app import settings as cfg
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
-from PyQt6.QtCore import Qt, QSize, QMimeData, QDir, QCoreApplication, QTimer
+from PyQt6.QtCore import Qt, QSize, QMimeData, QDir, QCoreApplication, QTimer, QRegularExpression
 from typing import Type, Tuple, Callable, Any
 from copy import deepcopy
 import functools, sys, os, ctypes
@@ -67,8 +67,66 @@ def get_transform_colour(transform_type: obfs.TransformType) -> str:
 
 
 class CHighlighter(QSyntaxHighlighter):
+    
+    def __init__(self, parent: QWidget | None) -> None:
+        super(CHighlighter, self).__init__(parent)
+        self.rules = []
+        
+        keyword = QTextCharFormat()
+        brush = QBrush(Qt.GlobalColor.blue, Qt.BrushStyle.SolidPattern)
+        keyword.setForeground(brush)
+        keywords = list(c_lexer.CLexer.keywords) 
+        keywords += list(c_lexer.CLexer.keywords_new)
+        for word in keywords:
+            pattern = QRegularExpression(f"\\b{word.lower()}\\b")
+            self.rules.append((pattern, keyword))
+
+        string = QTextCharFormat()
+        brush = QBrush(Qt.GlobalColor.red, Qt.BrushStyle.SolidPattern)
+        string.setForeground(brush)
+        pattern = QRegularExpression("\".*\"")
+        #pattern.setMinimal(True)  ???
+        self.rules.append((pattern, string))
+        pattern = QRegularExpression("\'.*\'")
+        self.rules.append((pattern, string))
+        
+        comment = QTextCharFormat()
+        brush = QBrush(Qt.GlobalColor.green, Qt.BrushStyle.SolidPattern)
+        comment.setForeground(brush)
+        pattern = QRegularExpression("\/\/[^\n\r]*")
+        self.rules.append((pattern, comment))
+        pattern = QRegularExpression("\/\*(\*(?!\/)|[^*])*\*\/")
+        self.rules.append((pattern, comment))
+    
+        literal = QTextCharFormat()
+        brush = QBrush(Qt.GlobalColor.lightGray, Qt.BrushStyle.SolidPattern)
+        literal.setForeground(brush)
+        words = ["Inf", "NaN", "NULL"]
+        for word in words:
+            pattern = QRegularExpression(f"\\b{word}\\b")
+            self.rules.append((pattern, literal))
+        # TODO check this regexp
+        pattern = QRegularExpression("[0-9]*([0-9]([uU]?(ll|LL)?[uU]?)+(\.[0-9]*)?([eE][+-]?[0-9]+)[fFlL])")
+        self.rules.append((pattern, literal))
+        
+        delimiter = QTextCharFormat()
+        brush = QBrush(Qt.GlobalColor.yellow, Qt.BrushStyle.SolidPattern)
+        delimiter.setForeground(brush)
+        delimiter.setFontWeight(500)
+        pattern = QRegularExpression("[\(\)\{\}\[\]]+")
+        self.rules.append((pattern, delimiter))
+    
     def highlightBlock(self, text: str) -> None:
-        return super().highlightBlock(text)
+        for pattern, formatting in self.rules:
+            pattern = QRegularExpression(pattern) # TODO ???
+            matches = pattern.globalMatch(text)
+            while matches.hasNext():
+                match = matches.next()
+                start = match.capturedStart()
+                length = match.capturedLength()
+                self.setFormat(start, length, formatting)
+        # TODO multi-line comments using block states
+        self.setCurrentBlockState(0)
 
 
 # TODO can I make the editors _not_ reset scroll unless necessary
@@ -100,7 +158,7 @@ class SourceEditor(QPlainTextEdit):
         palette.setColor(QPalette.ColorRole.Base, QColor("#272822"))
         palette.setColor(QPalette.ColorRole.Text, QColor("white"))
         self.setPalette(palette)
-        highlighter = CHighlighter(self.document())
+        #self.highlighter = CHighlighter(self.document())
         # TODO proper syntax highlighting
         # TODO line numbers
 
