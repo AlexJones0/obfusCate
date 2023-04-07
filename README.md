@@ -165,11 +165,9 @@ TODO: Where different parts of the project are located
 
 ### **5.2 Documentation**
 
-TODO: Brief explanation of documentation distribution
+Much of the project's functionality is created by extending the pycparser Abstract Syntax Tree (AST) `NodeVisitor` class, which defines an interface for in-order traversal of ASTs. This defined **49 unique methods** for visiting each AST node class - as such, documentation of these methods tend to be very repetitive and regurgitative within such classes. For this reason, explanation about the inputs of these methods (which are always just AST nodes of that given type) will be **omitted**, and in some cases function-level documentation will be shortened to describe something as *'visiting/traversing an X node',* only explaining the important added parts of functionality. For specific complex methods, the docstring may be listed **in full**, but just note that wherever you see such simplified documentation, it is specifically for the case of clarity, readability and brevity.
 
-TODO: Discussion of documentation of the AST `NodeVisitor` class.
-
-TODO: Discussion of any supplementary documentation.
+Documentation regarding the creation of this project, its motivation, background research, design decisions, management, evaluation and such can be found in the supporting final dissertation report pdf. Please see there for more detail. A `bugs.md` file is also included to provide more detailed documentation of the few specific known issues that cannot be easily fixed. This `README.md` file also contains some helpful documentation to get you started using the documentation. Apart from that, all other documentation can be found within file-, function- and statement-level comments throughout the code.
 
 <br></br>
 
