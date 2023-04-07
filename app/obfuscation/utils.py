@@ -186,25 +186,6 @@ class ObjectFinder(NodeVisitor):
         self.parent = this_parent
 
 
-def generate_new_contents(source: interaction.CSource) -> str:
-    """Generates textual obfuscated file contents from a source's abstract syntax tree
-    (AST), facilitating AST manipulation for source-to-source transformation.
-
-    Args:
-        source (interaction.CSource): The source object to generate contents for.
-
-    Returns:
-        (str) The generated file contents from the source's AST"""
-    new_contents = ""
-    for line in source.contents.splitlines():
-        line_contents = line.strip()
-        if line_contents.strip().startswith(("#", "%:", "??=")):
-            new_contents += line + "\n"
-    generator = interaction.PatchedGenerator()
-    new_contents += generator.visit(source.t_unit)
-    return new_contents
-
-
 class ASTCacher(NodeVisitor):
     """ A class for caching all the nodes in an AST as a set, to allow quick querying
     of whether a given node is in the AST or not. """
@@ -232,3 +213,21 @@ class ASTCacher(NodeVisitor):
         self.node_cache.add(node)
         super(ASTCacher, self).generic_visit(node)
 
+
+def generate_new_contents(source: interaction.CSource) -> str:
+    """Generates textual obfuscated file contents from a source's abstract syntax tree
+    (AST), facilitating AST manipulation for source-to-source transformation.
+
+    Args:
+        source (interaction.CSource): The source object to generate contents for.
+
+    Returns:
+        (str) The generated file contents from the source's AST"""
+    new_contents = ""
+    for line in source.contents.splitlines():
+        line_contents = line.strip()
+        if line_contents.strip().startswith(("#", "%:", "??=")):
+            new_contents += line + "\n"
+    generator = interaction.PatchedGenerator()
+    new_contents += generator.visit(source.t_unit)
+    return new_contents
