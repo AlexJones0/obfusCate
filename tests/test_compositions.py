@@ -26,7 +26,7 @@ class UsedDepth(enum.Enum):
     EXTREME = 5
 
 
-INTEGRATION_TEST_STYLE = UsedDepth.LIGHTEST
+INTEGRATION_TEST_STYLE = UsedDepth.NONE
 
 
 def callfunc_neq(func: Callable, neq: Iterable[Any]) -> Any:
@@ -131,7 +131,7 @@ options = {
         (4,),
         (5,),
     ],
-    FuncArgumentRandomiseUnit: list(  # 16 Options
+    FuncArgumentRandomiseUnit: list(  # 48 Options
         itertools.product(
             [
                 0,
@@ -143,6 +143,7 @@ options = {
                 callfunc_neq(lambda: randi(0, 250), set([0, 3, 5, 10, 100])),
                 callfunc_neq(lambda: randi(0, 250), set([0, 3, 5, 10, 100])),
             ],
+            [0.0, 0.5, 1.0],
             [True, False],
         )
     ),

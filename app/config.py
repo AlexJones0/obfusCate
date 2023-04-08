@@ -8,7 +8,7 @@ class Config(object):
     """Stores settings used by the program during its execution."""
 
     NAME = "obfusCate"
-    VERSION = "v0.17.4"
+    VERSION = "v0.18.3"
     LOG_PATH = "./logs/"
     COMP_PATH = "./compositions/auto/"
     TEMP_FILE_PATH = "./obfuscate_temp.c"
@@ -25,13 +25,20 @@ class Config(object):
     USE_ALLOCA = True
     USE_PATCHED_PARSER = True
 
+
 class GuiDefaults(object):
-    """ Stores important default values used by GUI code throughout the program,
+    """Stores important default values used by GUI code throughout the program,
     including lists of font families to use for rendering different text (in what
     order), shortcut keypress sequences, and standardized CSS to give the
-    program a cohesive style. """
-    
-    DEFAULT_FONT = ["Consolas", "Fira Code", "Jetbrains Mono", "Courier New", "monospace"]
+    program a cohesive style."""
+
+    DEFAULT_FONT = [
+        "Consolas",
+        "Fira Code",
+        "Jetbrains Mono",
+        "Courier New",
+        "monospace",
+    ]
     CODE_FONT = ["Jetbrains Mono", "Fira Code", "Consolas", "Courier New", "monospace"]
     SHORTCUT_OBFUSCATE = "Ctrl+R"
     SHORTCUT_DELETE = "Ctrl+D"

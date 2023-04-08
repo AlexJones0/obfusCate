@@ -311,6 +311,16 @@ class CliFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
             return False
         self.extra_args = extra
         self.traverser.extra = extra
+        
+        print("The current probability of using variables instead of constants as")
+        print(f"spurious arguments is {self.probability}.")
+        print("What is the new probability (0.0 <= p <= 1.0) of using variables?")
+        probability = interaction.get_float(0.0, 1.0)
+        if probability == float("nan"):
+            return False
+        self.probability = probability
+        self.traverser.variable_probability = probability
+        
         options = ["Randomise argument order", "Do not randomise argument order"]
         prompt = (
             "You have currently selected to{} randomise the function argument order.\n"
@@ -333,13 +343,20 @@ class CliFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
         print("How many extra arguments should be inserted?")
         extra = interaction.get_int(0, None)
         if extra is None:
-            return False
+            return None
+        
+        print("With what probability (0.0 <= p <= 1.0) should variables be used instead of constants")
+        print("to fill extra spurious arguments in function calls where possible?")
+        probability = interaction.get_float(0.0, 1.0)
+        if probability == float("nan"):
+            return None
+        
         options = ["Randomise argument order", "Do not randomise argument order"]
         prompt = "\nSelect whether you would like to randomise the function argument order or not.\n"
         choice = interaction.menu_driven_option(options, prompt)
         if choice == -1:
             return None
-        return CliFuncArgumentRandomiseUnit(extra, (choice == 0))
+        return CliFuncArgumentRandomiseUnit(extra, probability, (choice == 0))
 
     def from_json(json_str: str) -> Optional["CliFuncArgumentRandomiseUnit"]:
         """Loads the CLI obfuscation unit from its JSON string representation by
@@ -355,7 +372,7 @@ class CliFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
         unit = FuncArgumentRandomiseUnit.from_json(json_str)
         if unit is None:
             return None
-        return CliFuncArgumentRandomiseUnit(unit.extra_args, unit.randomise)
+        return CliFuncArgumentRandomiseUnit(unit.extra_args, unit.probability, unit.randomise)
 
 
 class CliIdentifierRenameUnit(IdentifierRenameUnit):

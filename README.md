@@ -407,7 +407,7 @@ replacing `python3` with `python` or `py` with your python path as is necessary.
 If you navigate to `tests/test_compositions.py`, you can change the value of the `INTEGRATION_TEST_STYLE` variable to be different `UsedDepth` enumerated values, to run obfuscation correctness tests that fit your needs. Note that these test cases grow exponentially, so you can roughly expect (on a standard modern laptop, note these are rough estimates):
 - `UsedDepth.NONE`: 0 seconds, 0 tests
 - `UsedDepth.LIGHTEST`: 5 minutes, around 1,000 tests
-- `UsedDepth.LIGHT`: 2-3 hours, around 30,000 tests
+- `UsedDepth.LIGHT`: 1 hour, around 7500 tests
 - `UsedDepth.MEDIUM`: 16-24 hours, around 150,000 tests
 - `UsedDepth.HEAVY`: 120-150 hours, around 1,000,000 tests
 - `UsedDepth.EXTREME`: 600-800 hours, around 5,000,000 tests

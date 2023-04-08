@@ -7,6 +7,7 @@ as CLI system arguments and options.
 """
 from . import interaction, complexity, obfuscation as obfs
 from .debug import print_error, create_log_file, log, logprint
+from .obfuscation import cli as obfs_cli
 from app import settings as config
 from typing import Iterable, Type, Tuple
 import sys, copy, unidecode

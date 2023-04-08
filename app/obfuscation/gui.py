@@ -242,6 +242,7 @@ class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
     def __init__(self, *args, **kwargs):
         super(GuiFuncArgumentRandomiseUnit, self).__init__(*args, **kwargs)
         self.extra_args_entry = None
+        self.probability_entry = None
         self.randomise_checkbox = None
 
     def edit_gui(self, parent: QWidget) -> None:
@@ -257,6 +258,22 @@ class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
             parent,
         )
         layout.addWidget(extra_args, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        probability, self.probability_entry = generate_float_widget(
+            "Probability:",
+            "The probability that a function argument, linked to an extra spurious parameter\n"
+            "that has been added to a function's specification, will be filled using some\n"
+            "matching variable value from the program instead of some new constant value,\n"
+            "where this pr obability must be  anumber in the range 0 <= p <= 1. A probability\n"
+            "of 0 means all spurious arguments will be constants (less secure), a probability of\n"
+            "0.5 means a 50 percent chance of using a variable where a variable can be used, and\n"
+            "a 1.0 means that all spurious arguments will use defined variables were possible.\n"
+            " This allows you to achieve a mixture of constants and variables for security.",
+            self.probability,
+            0.0,
+            1.0,
+            parent,
+        )
+        layout.addWidget(probability, alignment=Qt.AlignmentFlag.AlignTop)
         randomise, self.randomise_checkbox = generate_checkbox_widget(
             "Randomise Arg Order?",
             "Where possible, randomises the order of arguments in function definitions and calls such\n"
@@ -269,7 +286,7 @@ class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
             parent,
         )
         layout.addWidget(randomise, 1, alignment=Qt.AlignmentFlag.AlignTop)
-        layout.addStretch(3) # TODO why doesn't this work without 3?
+        layout.addStretch(3)  # TODO why doesn't this work without 3?
         parent.setLayout(layout)
 
     def load_gui_values(self) -> None:
@@ -282,6 +299,17 @@ class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
             except:
                 self.extra_args = 3
                 self.traverser.extra = 3
+        if self.probability_entry is not None:
+            try:
+                self.probability = float(self.probability_entry.text())
+                if self.probability > 1.0:
+                    self.probability = 1.0
+                elif self.probability < 0.0:
+                    self.probability = 0.0
+                self.traverser.variable_probability = self.probability
+            except:
+                self.probability = 0.75
+                self.traverser.variable_probability = self.probability
         if self.randomise_checkbox is not None:
             self.randomise = self.randomise_checkbox.isChecked()
             self.traverser.randomise = self.randomise
@@ -290,10 +318,10 @@ class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
         unit = FuncArgumentRandomiseUnit.from_json(json_str)
         if unit is None:
             return None
-        return GuiFuncArgumentRandomiseUnit(unit.extra_args, unit.randomise)
+        return GuiFuncArgumentRandomiseUnit(unit.extra_args, unit.probability, unit.randomise)
 
     def get_gui() -> "GuiFuncArgumentRandomiseUnit":
-        return GuiFuncArgumentRandomiseUnit(3, True)
+        return GuiFuncArgumentRandomiseUnit(3, 0.75, True)
 
 
 class GuiStringEncodeUnit(StringEncodeUnit):

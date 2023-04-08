@@ -677,7 +677,7 @@ class IdentifierAnalyzer(NodeVisitor):
             for funcspec in funcspecs:
                 funcspec.type.args = copy.deepcopy(new_func_spec)
                 funcspec.name = func_name
-                typedecl = self._get_typedecl(funcspec.type.type)
+                typedecl = self.get_typedecl(funcspec.type.type)
                 if typedecl is not None:
                     typedecl.declname = func_name
 
@@ -719,7 +719,7 @@ class IdentifierAnalyzer(NodeVisitor):
                 return scope[(name, namespace)]
         return None
 
-    def _get_typedecl(self, node: Node) -> TypeDecl | None:
+    def get_typedecl(self, node: Node) -> TypeDecl | None:
         """Recursively iterates through the type attributes of AST nodes in
         order to traverse pointer declaration or array declaration components
         and find the base type declaration.
@@ -733,7 +733,7 @@ class IdentifierAnalyzer(NodeVisitor):
         if node is None:
             return None
         if isinstance(node, (PtrDecl, ArrayDecl)):
-            return self._get_typedecl(node.type)
+            return self.get_typedecl(node.type)
         elif isinstance(node, TypeDecl):
             return node
         return None
@@ -862,7 +862,7 @@ class IdentifierAnalyzer(NodeVisitor):
             if child[0] != "args" or self._current_function is None:
                 self.visit(child[1])
         if node.type is not None:
-            typedecl = self._get_typedecl(node.type)
+            typedecl = self.get_typedecl(node.type)
             if typedecl is not None and typedecl.declname is not None:
                 self.functions.add(typedecl.declname)
                 locs = [(typedecl, "declname")]
@@ -902,7 +902,7 @@ class IdentifierAnalyzer(NodeVisitor):
         # Add the name identifier definition
         self.typedefs.add(node.name)
         locations = [(node, "name")]
-        typedecl = self._get_typedecl(node.type)
+        typedecl = self.get_typedecl(node.type)
         has_declname = typedecl is not None and typedecl.declname is not None
         if has_declname:
             locations.append((typedecl, "declname"))
@@ -923,7 +923,7 @@ class IdentifierAnalyzer(NodeVisitor):
     def _record_var_func_decl(self, node: Decl) -> None:
         """Records a regular function/variable/parameter declaration definition."""
         locations = [(node, "name")]
-        typedecl = self._get_typedecl(node.type)
+        typedecl = self.get_typedecl(node.type)
         if typedecl is not None and typedecl.declname is not None:
             locations.append((typedecl, "declname"))
         if self._current_struct is None:
