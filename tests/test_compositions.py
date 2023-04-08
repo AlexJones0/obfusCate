@@ -26,7 +26,7 @@ class UsedDepth(enum.Enum):
     EXTREME = 5
 
 
-INTEGRATION_TEST_STYLE = UsedDepth.LIGHTEST
+INTEGRATION_TEST_STYLE = UsedDepth.NONE
 
 
 def callfunc_neq(func: Callable, neq: Iterable[Any]) -> Any:
@@ -67,10 +67,10 @@ options = {
     IdentifierRenameUnit: list(  # 8 Options
         itertools.product(
             [
-                IdentifierRenamer.Style.COMPLETE_RANDOM,
-                IdentifierRenamer.Style.ONLY_UNDERSCORES,
-                IdentifierRenamer.Style.MINIMAL_LENGTH,
-                IdentifierRenamer.Style.I_AND_L,
+                IdentifierRenameUnit.Style.COMPLETE_RANDOM,
+                IdentifierRenameUnit.Style.ONLY_UNDERSCORES,
+                IdentifierRenameUnit.Style.MINIMAL_LENGTH,
+                IdentifierRenameUnit.Style.I_AND_L,
             ],
             [True, False],
         )

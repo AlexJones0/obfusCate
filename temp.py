@@ -64,3 +64,30 @@ v.visit(ast)
 #    if line.strip().startswith("#"):
 #        print(line)
 #print(generator.visit(ast))"""
+
+
+
+# Graveyard:
+# ClutterWhitespace method
+            # TODO do escape characters make this non-salvageable? How can I detect these cases?
+            #elif (
+            #    token.type
+            #    in (
+            #        "STRING_LITERAL",
+            #        "WSTRING_LITERAL",
+            #        "U8STRING_LITERAL",
+            #        "U16STRING_LITERAL",
+            #        "U32STRING_LITERAL",
+            #    )
+            #    and cur_line_length - len(token.value) >= 4
+            #):  # Split strings across multiple lines where possible and required
+                #split_size = self.target_length - cur_line_length + len(token.value) - 1
+                #if addSpace:
+                #    cur_line.append(" ")
+                #    split_size -= 1
+                #cur_line.append(token.value[:split_size] + token.value[0] + "\n")
+                #new_contents += "".join(cur_line)
+                #cur_line = []
+                #cur_line_length = 0
+                #token.value = token.value[0] + token.value[split_size:]
+                #continue
