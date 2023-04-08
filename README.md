@@ -34,7 +34,9 @@
 
     4.4. [**Supported Complexity Metrics**](#44-supported-complexity-metrics)
 
-    4.5. [**Other Notable Features**](#45-other-notable-features)
+    4.5. [**CLI/GUI Options**](#45-cligui-options)
+
+    4.6. [**GUI Shortcuts**](#46-gui-shortcuts)
 
 5. [**Project Structure / Documentation**](#5-project-structure--documentation)
 
@@ -44,9 +46,11 @@
 
 6. [**Testing**](#6-testing)
 
-    6.1. [**Unit, Integration and System Testing**](#61-unit-integration-and-system-testing)
+    6.1. [**Running Tests**](#61-running-tests)
 
-    6.2 [**Testing Obfuscation Correctness**](#62-testing-obfuscation-correctness)
+    6.2. [**Unit, Integration and System Testing**](#62-unit-integration-and-system-testing)
+
+    6.3. [**Testing Obfuscation Correctness**](#63-testing-obfuscation-correctness)
 
 7. [**Acknowledgements**](#7-acknowledgements)
 
@@ -56,7 +60,8 @@
 ----
 
 ###
-**obfusCate** is a C source-to-source obfuscator, meaning that it takes programs written in the C programming language, and translates them into obfuscated programs also written in the C programming language, which perform the same functionality but are incomprehensible and harder to understand. 
+
+**ObfusCate** is a C source-to-source obfuscator, meaning that it takes programs written in the C programming language, and translates them into obfuscated programs also written in the C programming language, which perform the same functionality but are incomprehensible and harder to understand. 
 
 obfusCate aims to provide a complete, whole package that makes C program obfuscation easy and approachable like never before - everyone should be able to secure their code, regardless of their knowledge about compiler and language design and information security! By providing a seamless and responsive GUI interface with flexible, modular obfuscation tools and a whole host of code complexity metrics and helfpul tooltips, we aim to enable *anybody* who wants to obfuscate their code to be able to do so, without having to battle with the interfaces of other complicated tools.
 
@@ -76,12 +81,12 @@ The following steps are all that is needed for installation:
     > python3 --version
     ``` 
     
-    or perhaps `python --version`, depending on your python setup options. Make note of your python command, and use it from here on. 
+    or perhaps `python --version` or `py --version`, depending on your python path setup options. Make note of your python command, and use it from here on. 
 
 2. In the project root directory, run the command
 
     ``` 
-    > py -m pip install -r requirements.txt
+    > python3 -m pip install -r requirements.txt
     ```
 
     to install the required python modules. *Hopefully*, installation of the *libclang* module will automatically install clang on your system if it is not already installed. If not, see the [Debugging section](#3-debugging) for possible help.
@@ -95,19 +100,27 @@ The following steps are all that is needed for installation:
 ## **3. Debugging**
 ---
 
-### **3.1 Python Installation Issues**
+### **3.1. Python Installation Issues**
 TODO: examples, discussion and bugfixes for python issues
 
-### **3.2 PyPi (pip) Issues**
+<br>
+
+### **3.2. PyPi (pip) Issues**
 TODO: examples, discussion and bugfixes for pip issues
 
-### **3.3 Clang Issues**
+<br>
+
+### **3.3. Clang Issues**
 TODO: examples, discussion and bugfixes for clang issues
 
-### **3.4 Python Script Issues**
+<br>
+
+### **3.4. Python Script Issues**
 TODO: examples, discussion and bugfixes for python script issues
 
-### **3.5 Other Issues**
+<br>
+
+### **3.5. Other Issues**
 TODO: examples, discussion and bugfixes for other misc issues.
 
 TODO: mention of bugs.md
@@ -126,6 +139,8 @@ TODO: Example Compositions
 
 TODO: Note on first time obfuscation runtime - generating `yacctab.py`, but quick after that.
 
+<br>
+
 ### **4.2. Making your program amenable to obfuscation**
 
 There are several steps you can take to make your program more amenable to obfuscation and allow more effective transformations, as there are a few cases in which the program behavious cautioutsly in case it cannot be 100% sure about certain properties of your program (e.g. side effects), and there are many things that it is simply not intelligent enough to reason about with regards to semantics. The following are suggested ways to make your program more amenable (and how they help!)
@@ -142,28 +157,231 @@ There are several steps you can take to make your program more amenable to obfus
 
 6. **Check the limitations of each method** - although most methods will work with almost every standard C feature, there are some limitations on certain methods, or on certain options of certain methods (e.g. no function signatures with minimised identifier renaming). These are sometimes due to limitations in `pycparser`, sometimes due to the complexity of supporting such a feature (e.g. even though it is supported, anonymous structs/unions cause *so many* issues...). Make sure you're not using any features that conflict with the options you want to use!
 
+<br>
+
 ### **4.3. Supported Transformations**
 
-TODO: Obfuscations
+Currently supported transformations are listed below. Please see relevant report / documentaton / GUI tooltips for further explanations.
+
+ - **Identity**: Does nothing. <br>
+ *Options*: None.
+ - **Identifier Renaming**: Replace the names of identifiers in code. <br>
+ *Options*:
+    - Style
+        - Complete Randomness (q3_fg4nif56fj)
+        - Only Underscores (____________)
+        - Minimal Length (a, b, c, d, ...) 
+        - Blocks of I's and l's (IllIIlllIlllIIl)
+    - Minimise identifiers (Yes/No)
+- **Array Index Reversing**: Probabilistically reverse indexes of arrays, making `A[i]` into `i[A]`. <br>
+*Options*:
+    - Probability (`0-1`)
+- **Whitespace Scrambling**: Remove/jumble code indentation <br>
+*Options*:
+    - Target Line Length (1+)
+    - Add Line Padding (Yes/No)
+- **Digraph / Trigraph Encoding**: Probabilistically encode program symbols as two character digraphs or three character trigraphs (e.g. `{` == `<%` == `??<`). <br>
+*Options*:
+    - Encoding Style
+        - Digraphs (e.g. `<%%>`)
+        - Trigraphs (e.g. `??<??>`)
+        - Mixed Digraphs/Trigraphs (e.g. `??<%>`)
+    - Probability (`0-1`)
+- **String Literal Encoding**: Encode strings using character arrays, string concatenation, and alternate character representations. <br>
+*Options*:
+    - Encoding Style
+        - Octal (e.g. `"\123\165\155\72""\40\45\144\x0A"`)
+        - Hexadecimal (e.g. `"\x53""\x75""\x6d\x3a""\x20\x25\x64""\x0A"`)
+        - Octal/Hexadecimal (e.g. `"\x53""\165\155""\x3a\x20\x25\x64""\x0A"`)
+        - Octal/Hexadecimal/Regular (e.g. `"\123""u\155\x3a\40""%""d\x0A"`)
+- **Integer Literal Encoding**: Encode integers as compound expressions, e.g. `5` == `((8129 * 3155) - 25646990)`<br>
+*Options*: None.
+- **Arithmetic Encoding**: Encode integer arithmetic operations through the use of Boolean Arithmetic identity substitution, e.g. `x + y` == `((x | y) << 1) - (x ^ y)` <br>
+*Options*:
+    - Recursive depth (`0+`)
+- **Function Interface Randomisation**: Insert spurious arguments into function signatures and/or randomise the order of their arguments. <br>
+*Options*:
+    - Extra arguments (`0+`)
+    - Randomise Argument Order (`Yes`/`No`)
+- **Opaque Predicate Augmentation**: Augment existing conditionals in code with opaque predicates, whose value is known to us but is not immediately obvious at deobfuscation time. <br>
+*Options*:
+    - Predicate argument style
+        - Dynamic user input (parameters)
+        - Entropic variables (random numbers)
+    - Probability (`0-1`)
+    - Number of predicates per condition (`0+`)
+- **Opaque Predicate Insertion**: Insert new conditionals in the code at varying granularities using opaque predicates, whose valeu is known to use but is not immediately obvious at deobfuscation time. <br>
+*Options*:
+    - Predicate Styles
+        - Dynamic user input (parameters)
+        - Entropic variables (random numbers)
+    - Predicate Granularities
+        - Procedural
+        - Block 
+        - Statement
+    - Predicate Kinds
+        - Check: `if (TRUE PREDICATE) { YOUR CODE }`
+        - False: `if (FALSE PREDICATE) { BUGGY CODE }`
+        - Else true: `if (TRUE PREDICATE) { YOUR CODE } ELSE { BUGGY CODE }`
+        - Else false: `if (FALSE PREDICATE) { BUGGY CODE } ELSE { YOUR CODE }`
+        - While false: `while (FALSE PREDICATE) { BUGGY CODE } `
+        - Either: `if (ANY PREDICATE) { YOUR CODE } else { YOUR CODE }`
+    - Number to insert per function (`0+`)
+- **Control Flow Flattening**: Flatten the control flow graph of the given function, encoding each basic block to be a case inside a while-loop-switch-statement dispatch structure. <br>
+*Options*:
+    - Case Expression Style
+        - Sequential Integers (e.g. `0`, `1`, `2`, `3`, `...`)
+        - Random Integers (e.g. `-5`, `4593`, `3459`, `-7365`, `...`)
+        - Random Enum Members (e.g. `case A`, `case B`, `case C`, `...`)
+    - Randomise Case Order (`Yes`/`No`)
+
+<br>
 
 ### **4.4. Supported Complexity Metrics**
 
-TODO: METRICS
+Currently supported code complexity metrics are listed below. Except where qualitative (e.g. a rating description), metrics are provided for the obfuscated program, alongside delta (change) values that describe how the obfuscated program differs from the original. Please see relevant report / documentaton / GUI tooltips for further explanations.
 
-### **4.5. Other Notable Features**
+- **Aggregates**: General aggregate information (totals and averages)
+    - File size
+    - Lines
+    - Tokens 
+    - Characters
+    - Functions
+    - Statements
+    - Statements per function
+    - AST Nodes (for pycparser AST)
+    - Constants
+    - Identifiers
+    - New Identifiers (from obfuscation)
+- **McCabe's Cyclomatic Complexity Index**: Measurement of the number of paths through code; roughly indicative of the complexity of code's structure. All **original** measurements indicated below are by the original definition for structured programs, incrementing on control flow structures. The **new** measurements are based on the definition from a control flow graph `M = E - N + P`, where labels, gotos etc. are considered to make this control flow graph representation.
+    - New Cyclomatic Complexity Rating
+    - Original Cyclomatic Complexity Rating
+    - Source New Cylcomatic Complexity Rating
+    - Source Original Cyclomatic Complexity Rating
+    - Average New Cyclomatic Complexity Index
+    - Average Original Cyclomatic Complexity Index
+    - Average Myers' Interval
+    - Total New Cyclomatic Complexity Index
+    - Total Original Cyclomatic Complexity Index
+    - Total Myers' Interval
+    - Average Nodes
+    - Average Edges
+    - Total Nodes
+    - Total Edges
+- **Cognitive Complexity Index**: a new measure based on cyclomatic complexity that instead aims to measure software *maintainability* by accounting for common complexity sources like nested control flow structures and recursion, etc.
+    - Average Cognitive Complexity 
+    - Max Cognitive Number
+    - Total Cognitive Number
+    - Cognitive Number Standard Deviation
+    - Average Nesting Depth
+    - Max Nesting Depth
+    - Nesting Depth Standard Deviation
+- **Halstead Complexity Measures**: measures for software complexity based on language features (the use of operators/operands), aiming to provide estimates for programmer effort etc.
+    - Program Vocabulary
+    - Program Length
+    - Program Estimated Length
+    - Halstead Volume
+    - Halstead Difficulty
+    - Halstead Effort
+    - Estimated Time to Program
+    - Estimated Delivered Bugs
+- **Maintainability Index**: a metric often used by code analysis tools, which combines aggregate information, cyclomatic complexity and Halstead volume.
+    - Maintainability Index
+    - Index Rating
+    - Virtual Studio (VS) Bounded Index
+    - Virtual Studio (VS) Index Rating
 
-TODO: OTHER NOTABLE FEATURES
+<br>
+
+### **4.5. CLI/GUI Options**
+- `-h`, `--help`: Displays the help menu.
+- `-v`, `--version`: Displays the program's name and current version.
+- `-L`, `--noLogs`: Stops a log file being created for this execution.
+- `-S`, `--seed x`: Initialises the program with the random seed x (some integer).
+- `-p`, `--progress`: Outputs obfuscation pipleline progress (transformation completion) during obfuscation.
+- `-c`, `--save-comp`: Saves the selected composition of obfuscation transformations as a JSON file to be reused.
+- `-l`, `--load-comp file`: Loads a given JSON file containing the composition of obfuscation transformations to use.
+- `-m`, `--no-metrics`: Disables calculation of code complexity metrics for the obfuscated programs.
+- `-a`, `--no-alloca`: Disables use of alloca() to replace Variable Length Arrays (VLA) in the program whilst control flow flattening, as this is not defined in the C standard and may not be available in all systems (though it is in most).
+- `-u`, `--unpatch-parser`: Unpatches the parser/lexer/grammar used by yacc, such that the default pycparser CParser class `yacctable.py` is used. Disabling the patch will mean you cannot use labels with the same name as defined types, but may fix any unknown issues that arise due to patching.
+
+<br>
+
+### **4.6. GUI Shortcuts** 
+- `Ctrl+R`: Obfuscate program
+- `Ctrl+D`: Delete selected transform
+- `Ctrl+S`: Save obfuscated C file
+- `Shift+S`: Save obfuscation composition scheme
+- `F11`: Enter/exit fullscreen
+- `Esc`: Deselect selected transform
+- `Up` / `Ctrl+B`: Select previous transform
+- `Down` / `Ctrl+Space`: Select next transform
+- `Ctrl+Up`: Move selected transformation up in composition
+- `Ctrl+Down`: Move selected transform down in  composition
+- `Ctrl+C`: Copy selected transform
+- `Ctrl+V`: Paste copied transform
 
 <br></br>
 
 ## **5. Project Structure / Documentation**
 ----
 
-### **5.1 Project Structure**
+### **5.1. Project Structure**
 
-TODO: Where different parts of the project are located
+This project is relatively large in scope. As such, I roughly describe the file structure below to help you find what you're looking for:
 
-### **5.2 Documentation**
+- `.github/workflows/test.yml`: the GitHub actions Continuous Integration (CI) testing script
+- `app/` - The main application code directory
+    - `graphics/` - Application graphics (images/fonts)
+    - `obfuscation/` - The main obfuscation code logic
+        - `__init__.py` - Python packaging file
+        - `cli.py` - Command-line interface subclasses of the different obfuscation methods, providing menu-driven interfaces for creating new transformations and for editing existing ones
+        - `encoding_obfs.py` - Implementation for encoding obfuscations, including: string literal encoding, integer literal encoding, and arithmetic encoding
+        - `expression_analysis.py` - Implementation of expression type and mutability analysis
+        - `gui.py` - Graphical user interface subclasses of the different obfuscation methods, providing default instantiation methods and graphical interfaces for editing existing transformations
+        - `identifier_analysis.py` - Implementation of identifier liveness and usage analysis
+        - `lexical_obfs.py` - Implementations of lexical obfuscations, including: identifier renaming, index reversal, whitespace cluttering, and digraph/trigraph encoding
+        - `pipeline.py` - The implementation of the obfuscation pipeline class.
+        - `procedural_obfs.py` - Implementation for procedural obfuscations, which only includes function interface randomisation
+        - `structural_obfs.py` - Implementation for structural obfuscations, including: opaque predicate augmentation, opaque predicate insertion, and control flow flattening
+        - `utils.py` - Miscallaneous utilities, including the `ObfuscationUnit` base clase and identity transformation among other things
+    - `__init__.py` - Python packaging file
+    - `cli.py` - General command line interface implementation
+    - `complexity.py` - Implementation of code complexity metrics
+    - `config.py` - Implementation of config information, including default settings and key bindings.
+    - `debug.py` - Implementation of custom logging and debug utilities.
+    - `gui.py` - General graphical user interface implementation
+    - `interaction.py` - IO & User interaction utilities: `CSource` class, system argument handling, generic IO methods (user inputs, outputs, file handling, etc.), patches for pycparser.
+    - `utils.py` - Miscallaneous project utilities
+- `compositions/` - Directory for storing obfuscation compositions.
+- `logs/` - Directory for storing any log files, if enabled
+- `tests/` - Main testing directory
+    - `data/` - Main testing data
+        - `benchmarks/` - C benchmark programs
+        - `compositions/` - Obfuscation compositions created for unit testing
+        - `constructs/` - C files each targetting different program constructs
+        - `examples/` - C files targetting typical program examples (e.g. quick sort, finding primes, fibonacci) and stress tests
+    - `testing/` - Temporary directory used while running tests; can be safely ignored
+    - `__init__.py` - Python packaging file
+    - `test_cli.py` - CLI unit tests
+    - `test_complexity.py` - Complexity metric unit tests
+    - `test_compositions.py` - Obfuscation composition correctness testing
+    - `test_gui.py` - GUI unit tests
+    - `test_obfuscation.py` - Obfuscation methods unit tests
+    - `test_system.py` - Whole system tests
+    - `test_utils.py` - Utility function unit tests
+- `utils/fake_libc_include/*` - Safely ignore this. Standard library header file handling for pycparser. Code is taken from pycparser (see the [**Acknowledgements**](#7-acknowledgements)) and slightly modified
+- `bugs.md` - List and explanation of known bugs
+- `install.bat` - Windows bat automatic install script
+- `install.sh` - Linux/Mac bash automatic install script
+- `obf_cli.py` - The python script for running the program CLI
+- `obf_gui.py` - The python script for running the program GUI
+- `README.md` - This documentation file.
+- `yacctab.py` - (may not exist until run) Safely ignore this. The automatically generated patched parser file; not directly my code
+
+<br>
+
+### **5.2. Documentation**
 
 Much of the project's functionality is created by extending the pycparser Abstract Syntax Tree (AST) `NodeVisitor` class, which defines an interface for in-order traversal of ASTs. This defined **49 unique methods** for visiting each AST node class - as such, documentation of these methods tend to be very repetitive and regurgitative within such classes. For this reason, explanation about the inputs of these methods (which are always just AST nodes of that given type) will be **omitted**, and in some cases function-level documentation will be shortened to describe something as *'visiting/traversing an X node',* only explaining the important added parts of functionality. For specific complex methods, the docstring may be listed **in full**, but just note that wherever you see such simplified documentation, it is specifically for the case of clarity, readability and brevity.
 
@@ -175,11 +393,42 @@ Documentation regarding the creation of this project, its motivation, background
 ----
 Continuous integration with Github Action assures me that the code definitely runs on the latest Mac, Ubuntu and Windows images, but I've only been able to manually test on **Windows 11**, **Rocky Linux** and **Ubuntu** - so no guarantee there are no OS-specific issues on other systems. At the very least given that the tests pass it is likely that at least the CLI version should work on most systems.
 
-### **6.1 Unit, Integration and System Testing**
-TODO: Discussion of integration and unit tests goes here!
+<br>
 
-### **6.2 Testing Obfuscation Correctness**
-TODO: Discussion of obfuscation test cases goes here!
+### **6.1. Running Tests**
+Provided that you have run the setup commands in the [**Section 2**](#2-installation), you should have **pytest** installed. As such, run the command:
+
+```
+> python3 -m pytest --capture=sys --verbose tests
+```
+
+replacing `python3` with `python` or `py` with your python path as is necessary. This will run the full test suite, including unit, integration, system and obfuscation correctness tests. As such, you can expect that these tests will take a while to run purely because of the obfuscation correctness testing (on default settings this takes about 5 minutes for me).
+
+If you navigate to `tests/test_compositions.py`, you can change the value of the `INTEGRATION_TEST_STYLE` variable to be different `UsedDepth` enumerated values, to run obfuscation correctness tests that fit your needs. Note that these test cases grow exponentially, so you can roughly expect (on a standard modern laptop, note these are rough estimates):
+- `UsedDepth.NONE`: 0 seconds, 0 tests
+- `UsedDepth.LIGHTEST`: 5 minutes, around 1,000 tests
+- `UsedDepth.LIGHT`: 2-3 hours, around 30,000 tests
+- `UsedDepth.MEDIUM`: 16-24 hours, around 150,000 tests
+- `UsedDepth.HEAVY`: 120-150 hours, around 1,000,000 tests
+- `UsedDepth.EXTREME`: 600-800 hours, around 5,000,000 tests
+
+The test scheme that was run for this project was `MEDIUM`. Generally, `LIGHTEST` should be run for very minor bugfixes like typos, etc., and any significant change should run at least a `LIGHT` test again. Every few updates `MEDIUM` should be performed to ensure that everything is still in working order. If you want to run the rest of the tests without the correctness testing, you should set this to `NONE` so you don't have to wait a long time.
+
+<br>
+
+### **6.2. Unit, Integration and System Testing**
+Unit tests are found in the `tests/test_*.py` files, and are designed to test different aspects of the program's utilities, classes, command line interface and graphical user interface. At the time of writing, there are currently **115** implemented unit tests.
+
+<br>
+
+### **6.3. Testing Obfuscation Correctness**
+Obfuscation correctness uses automatically generatesd tests, with customisable parameters to control the number of tests generated (see [**Section 6.1**](#61-running-tests) for more information, or the code in `tests/test_compositions.py`). Tests vary across a range of example programs each testing different C features, and randomise the parameters that are used in obfuscation methods also. Correctness testing is split into three phases:
+
+- **Single Method Tests**: Where compositions containing singular transforms are rigorously tested for all possible (where bounded) possible input parameters, for all `n` transforms, across a set of programs. This is to ensure individual methods are working as intended.
+- **Double Method Testing**: Where compositions containing pairs of transforms are rigorously tested for lots of possible input parameters, for all possible pairs of transforms (`n^2` pairings), across a set of programs. This is to ensure that no bugs are introduced with the integration and interaction of different methods (for example a bug introduced when mutating the AST in one method might not cause a problem during its operation, but might cause a problem during the second).
+- **Max Method Testing**: Where compositions containing random orderings of all `n` transforms are tested over several sets of possible input parameters, across a set of programs. This obviously cannot be exhaustive, but is essentially an extreme form of integration testing / system testing in which all methods are applied at once, in an attempt to find very niche edge cases and bugs in the implementation that do not reveal themselves until multiple obfuscations have been applied in sequence. 
+
+The intention is that through the implementation of these three testing schemes, performing tens of thousands of tests in each, we can be reasonably sure that we have created a strong, correct implementation that is likely to work for most real-world programs.
 
 <br></br>
 
@@ -191,4 +440,4 @@ TODO: Discussion of obfuscation test cases goes here!
 
 **[3] JetBrains Mono** is packaged with the installation, and one of its font files is found in the ***app/graphics/fonts/Jetbrains-Mono/*** directory. This font is a clean and clear monospace font with ligature support, used to render C code in the GUI interface. See: *https://www.jetbrains.com/lp/mono/*
 
-**[4]** **cppreference.com** was used as a source for several example C programs used as test cases for testing the code. In particular, they wer eused as they provided examples of several uncommon C features (showing edge cases and niche functionalities), providing more confidence in the program's robustness. See: *https://en.cppreference.com/w/*
+**[4]** **cppreference.com** was used as a source for several example C programs used as test cases for testing the code. In particular, they were used as they provided examples of several uncommon C features (showing edge cases and niche functionalities), providing more confidence in the program's robustness. See: *https://en.cppreference.com/w/*

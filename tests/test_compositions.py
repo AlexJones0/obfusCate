@@ -20,10 +20,10 @@ from random import uniform as randf, randint as randi
 class UsedDepth(enum.Enum):
     NONE = 0
     LIGHTEST = 1
-    VERY_LIGHT = 2
-    LIGHT = 3
-    MEDIUM = 4
-    HEAVY = 5
+    LIGHT = 2
+    MEDIUM = 3
+    HEAVY = 4
+    EXTREME = 5
 
 
 INTEGRATION_TEST_STYLE = UsedDepth.LIGHTEST
@@ -466,6 +466,8 @@ class TestObfuscationIntegrationSingle(unittest.TestCase):
             - P is the number of example programs."""
         # TODO the above is out of date now
         # Reset state, initialise testing directory and retrieve examples
+        if INTEGRATION_TEST_STYLE == UsedDepth.NONE:
+            return
         reset_config()
         test_path = os.path.join(os.getcwd(), "./tests/testing")
         if os.path.isdir(test_path):
@@ -478,10 +480,10 @@ class TestObfuscationIntegrationSingle(unittest.TestCase):
         # Calculate number of required tests from setting
         bounds = {
             UsedDepth.LIGHTEST: (1, 10, 3),  # Currently: around 240 tests
-            UsedDepth.VERY_LIGHT: (1, 20, 10),  # Currently: around 1170 tests
-            UsedDepth.LIGHT: (3, 50, 100),  # Currently: around 16461 tests
-            UsedDepth.MEDIUM: (5, 100, 100000),  # Currently: ...
-            UsedDepth.HEAVY: (10, 100000, 100000),  # Currently: ...
+            UsedDepth.LIGHT: (1, 20, 10),  # Currently: around 1170 tests
+            UsedDepth.MEDIUM: (3, 50, 100),  # Currently: around 16461 tests
+            UsedDepth.HEAVY: (5, 100, 100000),  # Currently: ...
+            UsedDepth.EXTREME: (10, 100000, 100000),  # Currently: ...
         }
         num_seeds, max_options, max_programs = bounds[INTEGRATION_TEST_STYLE]
         runs = (
@@ -523,6 +525,8 @@ class TestObfuscationIntegrationDouble(unittest.TestCase):
     def test_double_transforms(self) -> None:
         # TODO docstring
         # Reset state, initialise testing directory and retrieve examples
+        if INTEGRATION_TEST_STYLE == UsedDepth.NONE:
+            return
         reset_config()
         test_path = os.path.join(os.getcwd(), "./tests/testing")
         if os.path.isdir(test_path):
@@ -538,10 +542,10 @@ class TestObfuscationIntegrationDouble(unittest.TestCase):
         # Calculate number of required tests from setting
         bounds = {
             UsedDepth.LIGHTEST: (1, 2, 2),
-            UsedDepth.VERY_LIGHT: (1, 5, 5),
-            UsedDepth.LIGHT: (3, 5, 100),
-            UsedDepth.MEDIUM: (5, 25, 100000),
-            UsedDepth.HEAVY: (10, 1000, 100000),
+            UsedDepth.LIGHT: (1, 5, 5),
+            UsedDepth.MEDIUM: (3, 5, 100),
+            UsedDepth.HEAVY: (5, 25, 100000),
+            UsedDepth.EXTREME: (10, 1000, 100000),
         }
         num_seeds, max_options, max_programs = bounds[INTEGRATION_TEST_STYLE]
         runs = 0
@@ -601,6 +605,8 @@ class TestObfuscationIntegrationMax(unittest.TestCase):
     def test_max_transforms(self) -> None:
         # TODO docstring
         # Reset state, initialise testing directory and retrieve examples
+        if INTEGRATION_TEST_STYLE == UsedDepth.NONE:
+            return
         reset_config()
         test_path = os.path.join(os.getcwd(), "./tests/testing")
         if os.path.isdir(test_path):
@@ -616,10 +622,10 @@ class TestObfuscationIntegrationMax(unittest.TestCase):
         # Calculate number of required tests from setting
         bounds = {
             UsedDepth.LIGHTEST: (1, 10, 10, 2),
-            UsedDepth.VERY_LIGHT: (1, 20, 10, 5),
-            UsedDepth.LIGHT: (3, 20, 10, 100),
-            UsedDepth.MEDIUM: (5, 30, 30, 100000),
-            UsedDepth.HEAVY: (10, 250, 250, 100000),
+            UsedDepth.LIGHT: (1, 20, 10, 5),
+            UsedDepth.MEDIUM: (3, 20, 10, 100),
+            UsedDepth.HEAVY: (5, 30, 30, 100000),
+            UsedDepth.EXTREME: (10, 250, 250, 100000),
         }
         num_seeds, max_comps, max_options, max_programs = bounds[INTEGRATION_TEST_STYLE]
         runs = max_comps * max_options * min(len(programs), max_programs) * num_seeds
