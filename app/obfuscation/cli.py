@@ -661,14 +661,6 @@ class CliIntegerEncodeUnit(IntegerEncodeUnit):
 
         Returns:
             bool: True if editing successful, false if the user chose to quit."""
-        options = [s.value for s in IntegerEncodeTraverser.Style]
-        prompt = f"\nThe current encoding style is {self.style.value}.\n"
-        prompt += "Choose a new style for integer encoding.\n"
-        choice = interaction.menu_driven_option(options, prompt)
-        if choice == -1:
-            return False
-        self.style = IntegerEncodeTraverser.Style(options[choice])
-        self.traverser.style = self.style
         return True
 
     def get_cli() -> Optional["CliIntegerEncodeUnit"]:
@@ -678,13 +670,7 @@ class CliIntegerEncodeUnit(IntegerEncodeUnit):
         Returns:
             Optional[CliIntegerEncodeUnit]: the transform created from user CLI
             interaction. Returns None if the user chose to quit within the CLI."""
-        options = [s.value for s in IntegerEncodeTraverser.Style]
-        prompt = "\nChoose a style for the integer encoding.\n"
-        choice = interaction.menu_driven_option(options, prompt)
-        if choice == -1:
-            return None
-        style = IntegerEncodeTraverser.Style(options[choice])
-        return CliIntegerEncodeUnit(style)
+        return CliIntegerEncodeUnit()
 
     def from_json(json_str: str) -> Optional["CliIntegerEncodeUnit"]:
         """Loads the CLI obfuscation unit from its JSON string representation by
@@ -698,7 +684,7 @@ class CliIntegerEncodeUnit(IntegerEncodeUnit):
         unit = IntegerEncodeUnit.from_json(json_str)
         if unit is None:
             return None
-        return CliIntegerEncodeUnit(unit.style)
+        return CliIntegerEncodeUnit()
 
 
 class CliArithmeticEncodeUnit(ArithmeticEncodeUnit):

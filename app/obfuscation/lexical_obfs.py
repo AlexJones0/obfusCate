@@ -26,31 +26,32 @@ class IdentifierRenameUnit(ObfuscationUnit):
     name = "Identifier Renaming"
     description = "Renames variable/function names to make them incomprehensible."
     extended_description = (
-        """This transformation randomises identifiers in the program (e.g. variable names, type names,\n"""
-        """function names, etc.) to remove all symbolic meaning stored via these names in the source code.\n"""
-        """Note that this will not affect the compiled code in any way.\n\n"""
-        """One optional input is the style of randomisation to be used - you can choose between completely\n"""
-        """random variable names, names that use only underscore characters, and minimal length names.\n"""
-        """The other optional input allows you to enable identifier minimisation, where names are greedily\n"""
-        """reused whenever possible to achieve the maximal overlap between names, such that obfuscation is\n"""
-        """achieved by giving many different constructs the same symbolic name.\n\n"""
-        """WARNING: The `minimised identifiers` option does not currently work with function signatures\n"""
-        """(those without bodies). Whilst the program will work in some cases, there are no guarantees.\n\n"""
-        """WARNING: The 'minimised identifiers' option also cannot be used with nested tag scope (e.g. a\n"""
-        """struct/union/enum inside a struct/union etc.) - again, this may work in some cases but is never\n""" 
-        """guaranteed. """
+        "This transformation randomises identifiers in the program (e.g. variable names, type names,\n"
+        "function names, etc.) to remove all symbolic meaning stored via these names in the source code.\n"
+        "Note that this will not affect the compiled code in any way.\n\n"
+        "One optional input is the style of randomisation to be used - you can choose between completely\n"
+        "random variable names, names that use only underscore characters, and minimal length names.\n"
+        "The other optional input allows you to enable identifier minimisation, where names are greedily\n"
+        "reused whenever possible to achieve the maximal overlap between names, such that obfuscation is\n"
+        "achieved by giving many different constructs the same symbolic name.\n\n"
+        "WARNING: The `minimised identifiers` option does not currently work with function signatures\n"
+        "(those without bodies). Whilst the program will work in some cases, there are no guarantees.\n\n"
+        "WARNING: The 'minimised identifiers' option also cannot be used with nested tag scope (e.g. a\n"
+        "struct/union/enum inside a struct/union etc.) - again, this may work in some cases but is never\n"
+        "guaranteed. "
     )
     type = TransformType.LEXICAL
-    
+
     class Style(enum.Enum):
-        """ An enumerated type representing the four different identifier renaming styles. """
+        """An enumerated type representing the four different identifier renaming styles."""
+
         COMPLETE_RANDOM = "Complete Randomness"
         ONLY_UNDERSCORES = "Only underscores"
         MINIMAL_LENGTH = "Minimal length"
         I_AND_L = "Blocks of l's and I's"
 
     def __init__(self, style: Style, minimise_idents: bool):
-        """ A constructor for the IdentifierRenameUnit obfuscation transform.
+        """A constructor for the IdentifierRenameUnit obfuscation transform.
 
         Args:
             style (Style): The identifier renaming style to apply.
@@ -58,21 +59,21 @@ class IdentifierRenameUnit(ObfuscationUnit):
         """
         self.style = style
         self.minimise_idents = minimise_idents
-    
+
     def _reset(self) -> None:
-        """ Resets the IdentifierRenameUnit's state (tracking variables), allowing
-        it to perform obfuscation for a new program. """
+        """Resets the IdentifierRenameUnit's state (tracking variables), allowing
+        it to perform obfuscation for a new program."""
         self.banned_idents = set([kw.lower() for kw in CLexer.keywords])
         self.new_idents = []
         self._random_source = random.randint(0, 2**16)
         self.skip_idents = set(["main"])
-    
+
     def _generate_min_lenth_ident(self) -> str:
-        """ Generates a new identifier using the minimised identifier length renaming style,
-        generating the shortest length identifier that is not currently banned. 
+        """Generates a new identifier using the minimised identifier length renaming style,
+        generating the shortest length identifier that is not currently banned.
 
         Returns:
-            str: The new identifier to use. """
+            str: The new identifier to use."""
         cur_num = len(self.new_idents)
         choices = "_" + string.ascii_letters  # Idents cannot start with digits
         new_ident = ""
@@ -86,13 +87,13 @@ class IdentifierRenameUnit(ObfuscationUnit):
         return new_ident
 
     def _generate_i_and_l_ident(self) -> str:
-        """ Generates a new identifier using the "Block of I's and L's" renaming style,
+        """Generates a new identifier using the "Block of I's and L's" renaming style,
         generating indistinguishable identifiers like "IlllIIIlIlIllI". Random patterns
         (rather than sequential) are achieved by using an appropriate modular hash
         function alongside linear probing in the case of collisions.
 
         Returns:
-            str: The new identifier to use. """
+            str: The new identifier to use."""
         # Determine block size; resize if necessary
         cur_num = len(self.new_idents)
         num_chars = 8
@@ -106,7 +107,7 @@ class IdentifierRenameUnit(ObfuscationUnit):
         new_ident = bin(hash_val)[2:]
         new_ident = "0" * (num_chars - len(new_ident)) + new_ident
         new_ident = new_ident.replace("1", "l").replace("0", "I")
-        
+
         # Handle collision by linear probing for next available hash value
         while new_ident in self.banned_idents:
             hash_val += 1
@@ -146,44 +147,45 @@ class IdentifierRenameUnit(ObfuscationUnit):
             return self.generate_new_ident()
         self.banned_idents.add(new_ident)
         return new_ident
-        
-    def minimised_transform(self, source: interaction.CSource, analyzer: IdentifierAnalyzer) -> None:
-        """ Transforms the given provided source program by renaming its identifiers such that minimal
+
+    def minimised_transform(
+        self, source: interaction.CSource, analyzer: IdentifierAnalyzer
+    ) -> None:
+        """Transforms the given provided source program by renaming its identifiers such that minimal
         unique identifiers are used. This involves a first renaming clash to avoid naming conflicts
         during the name minimisation process.
 
         Args:
             source (interaction.CSource): The C Source program to obfuscate
-            analyzer (IdentifierAnalyzer): The identifier analyzer that has analysed the program. """
+            analyzer (IdentifierAnalyzer): The identifier analyzer that has analysed the program."""
         # Perform first renaming pass: rename to temporary names to avoid name clashes
         definition_uses = list(analyzer.definition_uses.keys())
         for i, def_use in enumerate(definition_uses):
             if def_use[1] in self.skip_idents:
                 continue
             analyzer.change_ident(*def_use, "obfusCate_tempvarname{}".format(i))
-            
+
         # Second renaming pass: performs actual greedy minimised identifier renaming
         definition_uses = list(analyzer.definition_uses.keys())
         members_defined = {}
         for def_use in definition_uses:
             if def_use[1] in self.skip_idents:
                 continue
-            
+
             # Retrieve the set of identifiers required to be defined from this point
             # onwards, with the exception of the current identifier
             definition_node, prev_ident, namespace = def_use
             function = analyzer.get_stmt_func(definition_node)
             required = analyzer.get_required_identifiers(
-                definition_node,
-                namespace,
-                None,
-                function
+                definition_node, namespace, None, function
             )
             required = required.difference(set((prev_ident, namespace)))
             if isinstance(namespace, tuple) and definition_node in members_defined:
                 members = members_defined[definition_node]
-                required = required.union(set(x[0] for x in members if x[1] == namespace))
-                
+                required = required.union(
+                    set(x[0] for x in members if x[1] == namespace)
+                )
+
             # Iteratively check through already-created identifiers; use the first one that
             # is no longer required if such an identifier already exists. If it does not,
             # then generate a new identifier
@@ -194,21 +196,23 @@ class IdentifierRenameUnit(ObfuscationUnit):
                     break
             if new_ident is None:
                 new_ident = self.generate_new_ident()
-                
+
             # Change the identifier to use its new name; update struct members accordingly
             if isinstance(namespace, tuple):
                 if definition_node not in members_defined:
                     members_defined[definition_node] = set()
                 members_defined[definition_node].add((new_ident, namespace))
             analyzer.change_ident(*def_use, new_ident)
-    
-    def normal_transform(self, source: interaction.CSource, analyzer: IdentifierAnalyzer) -> None:
-        """ Transforms the given provided source program by renaming its identifiers such that each unique
+
+    def normal_transform(
+        self, source: interaction.CSource, analyzer: IdentifierAnalyzer
+    ) -> None:
+        """Transforms the given provided source program by renaming its identifiers such that each unique
         identifier name in the original program receives a new unique name.
 
         Args:
             source (interaction.CSource): The C Source program to obfuscate
-            analyzer (IdentifierAnalyzer): The identifier analyzer that has analysed the program. """
+            analyzer (IdentifierAnalyzer): The identifier analyzer that has analysed the program."""
         definition_uses = list(analyzer.definition_uses.keys())
         ident_mappings = {}
         for def_use in definition_uses:
@@ -223,7 +227,7 @@ class IdentifierRenameUnit(ObfuscationUnit):
             analyzer.change_ident(*def_use, new_ident)
 
     def transform(self, source: interaction.CSource) -> interaction.CSource:
-        """ Performs the identifier renaming transformation on the given source program.
+        """Performs the identifier renaming transformation on the given source program.
 
         Args:
             source (interaction.CSource): The source code to transform.
@@ -236,13 +240,13 @@ class IdentifierRenameUnit(ObfuscationUnit):
         analyzer = IdentifierAnalyzer()
         analyzer.load(source)
         analyzer.process()
-        
+
         # Perform the transformation, and generate the new obfuscated CSource
         if self.minimise_idents:
             self.minimised_transform(source, analyzer)
         else:
             self.normal_transform(source, analyzer)
-        analyzer.update_funcspecs() # Backfill to update function specifications
+        analyzer.update_funcspecs()  # Backfill to update function specifications
 
         new_contents = generate_new_contents(source)
         return interaction.CSource(source.fpath, new_contents, source.t_unit)
@@ -329,7 +333,7 @@ class IdentifierRenameUnit(ObfuscationUnit):
         )
 
     def __str__(self) -> str:
-        """ Create a readable string representation of the IdentifierRenameUnit.
+        """Create a readable string representation of the IdentifierRenameUnit.
 
         Returns:
             str: The readable string representation.
@@ -342,10 +346,10 @@ class IdentifierRenameUnit(ObfuscationUnit):
 
 
 class IndexReverser(NodeVisitor):
-    """ An AST traversal class that performs index reversal obfuscation on a given AST. """
-    
+    """An AST traversal class that performs index reversal obfuscation on a given AST."""
+
     def __init__(self, probability: float) -> None:
-        """ The constructor for the IndexReverse, storing its probability.
+        """The constructor for the IndexReverse, storing its probability.
 
         Args:
             probability (float): The probability of index reversal (0-1).
@@ -354,7 +358,7 @@ class IndexReverser(NodeVisitor):
         self.analyzer = None
 
     def visit_ArrayRef(self, node: ArrayRef) -> None:
-        """ Visit an ArrayRef AST node, probabilistically reversing the index by swapping
+        """Visit an ArrayRef AST node, probabilistically reversing the index by swapping
         the 'name' and 'subscript' fields of the node, and then continuing in-order tree
         traversal. This is only applied if the two expressions are not mutating, in order
         to enforce correct obfuscation.
@@ -363,13 +367,15 @@ class IndexReverser(NodeVisitor):
             node (ArrayRef): The AST node corresponding to the array reference.
         """
         if node.name is not None and not self.analyzer.is_mutating(node.name):
-            if node.subscript is not None and not self.analyzer.is_mutating(node.subscript):
+            if node.subscript is not None and not self.analyzer.is_mutating(
+                node.subscript
+            ):
                 if random.random() < self.probability:
                     node.name, node.subscript = node.subscript, node.name
         NodeVisitor.generic_visit(self, node)
-        
+
     def visit_FileAST(self, node: FileAST) -> None:
-        """ Visit a FileAST node (the program root), initialising the expression analyzer and
+        """Visit a FileAST node (the program root), initialising the expression analyzer and
         using it to process the AST for use in the `visit_ArrayRef` method.
 
         Args:
@@ -397,7 +403,7 @@ class ReverseIndexUnit(ObfuscationUnit):
     type = TransformType.LEXICAL
 
     def __init__(self, probability: float) -> None:
-        """ The constructor for the ReverseIndexUnit transformation.
+        """The constructor for the ReverseIndexUnit transformation.
 
         Args:
             probability (float): The probability of index reversal.
@@ -477,7 +483,7 @@ class ReverseIndexUnit(ObfuscationUnit):
         return ReverseIndexUnit(json_obj["probability"])
 
     def __str__(self) -> str:
-        """ Create a readable string representation of the IndexReverseUnit.
+        """Create a readable string representation of the IndexReverseUnit.
 
         Returns:
             str: The readable string representation.
@@ -493,45 +499,75 @@ class ClutterWhitespaceUnit(ObfuscationUnit):
     name = "Clutter Whitespace"
     description = "Clutters program whitespace, making it difficult to read"
     extended_description = (
-        """This transformation clutters the whitespace of a program, removing all indentation and spacing\n"""
-        """where possible between program lexemes. Currently, text is wrapped to fit roughly 100 characters\n"""
-        """per line, completely destroying symbolic code readability via whitespace. Note that this only\n"""
-        """affects the source code - no change will be made to the compiled code. Note that any non-textual\n"""
-        """transformations applied after this point will undo its changes."""
+        "This transformation clutters the whitespace of a program, removing all indentation and spacing\n"
+        "where possible between program lexemes. Currently, text is wrapped to fit roughly 100 characters\n"
+        "per line, completely destroying symbolic code readability via whitespace. Note that this only\n"
+        "affects the source code - no change will be made to the compiled code. Note that any non-textual\n"
+        "transformations applied after this point will undo its changes."
     )
     type = TransformType.LEXICAL
 
-    spaced_tokens = pycparser.c_lexer.CLexer.keywords + pycparser.c_lexer.CLexer.keywords_new + ("ID",)
-    spaced_end_tokens = set(spaced_tokens + (
-        "INT_CONST_DEC",
-        "INT_CONST_OCT",
-        "INT_CONST_HEX",
-        "INT_CONST_BIN",
-        "INT_CONST_CHAR",
-        "FLOAT_CONST",
-        "HEX_FLOAT_CONST",
-    ))
+    spaced_tokens = (
+        pycparser.c_lexer.CLexer.keywords
+        + pycparser.c_lexer.CLexer.keywords_new
+        + ("ID",)
+    )
+    spaced_end_tokens = set(
+        spaced_tokens
+        + (
+            "INT_CONST_DEC",
+            "INT_CONST_OCT",
+            "INT_CONST_HEX",
+            "INT_CONST_BIN",
+            "INT_CONST_CHAR",
+            "FLOAT_CONST",
+            "HEX_FLOAT_CONST",
+        )
+    )
     spaced_tokens = set(spaced_tokens)
-    
-    # Ambiguous lexemes are lexemes of two or more characters that can in some way be split up into 
+
+    # Ambiguous lexemes are lexemes of two or more characters that can in some way be split up into
     # two other lexemes recognised by the program, such that those lexemes must be spaced so they are
     # not ambiguously greedily recognised as these larger lexemes.
-    ambiguous_lexemes = set(["+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", "++", "--", 
-                             ">>", "<<", "==", "!=", "<=", ">=", "&&", "||", "->"])
+    ambiguous_lexemes = set(
+        [
+            "+=",
+            "-=",
+            "*=",
+            "/=",
+            "%=",
+            "&=",
+            "|=",
+            "^=",
+            "<<=",
+            ">>=",
+            "++",
+            "--",
+            ">>",
+            "<<",
+            "==",
+            "!=",
+            "<=",
+            ">=",
+            "&&",
+            "||",
+            "->",
+        ]
+    )
 
     def __init__(self, target_length: int, pad_lines: bool):
-        """The constructor for the ClutterWhitespaceUnit transformation. 
+        """The constructor for the ClutterWhitespaceUnit transformation.
 
         Args:
             target_length (int): The target max line length to clutter contents towards
             pad_lines (bool): Whether to pad tokens (with evenly distributed spacing)
-            to exactly meet the target line length or not. 
+            to exactly meet the target line length or not.
         """
         self.target_length = target_length
         self.pad_lines = pad_lines
 
     def transform(self, source: interaction.CSource) -> interaction.CSource:
-        """ Performs the whitespace cluttering transformation on the given source program.
+        """Performs the whitespace cluttering transformation on the given source program.
 
         Args:
             source (interaction.CSource): The source code to transform.
@@ -539,7 +575,7 @@ class ClutterWhitespaceUnit(ObfuscationUnit):
         Returns:
             interaction.CSource: The transformed source code.
         """
-        
+
         # Preprocess contents to remove directives.
         new_contents = ""
         for line in source.contents.splitlines():
@@ -551,41 +587,41 @@ class ClutterWhitespaceUnit(ObfuscationUnit):
                 new_contents += line + "\n"
         generator = interaction.PatchedGenerator()
         contents = generator.visit(source.t_unit)
-        
+
         # Build lexer and lex tokens
         lexer = pycparser.c_lexer.CLexer(
             lambda: None, lambda: None, lambda: None, lambda tok: None
         )
         lexer.build()
         lexer.input(contents)
-        
+
         # Space out and pad tokens where appropriate
         cur_line_length = 0
         cur_line = []
         token = lexer.token()
         prev = None
         while token is not None:
-            
+
             # We add a space if the previous and current token are of types enforcing a space
-            # is requieed between the two (e.g. two identifiers), or if the combination of 
+            # is requieed between the two (e.g. two identifiers), or if the combination of
             # the two would cause an ambiguous lexeme (e.g. - and > make ->).
-            addSpace = (
-                prev is not None
-                and (
-                    (prev.type in self.spaced_tokens and token.type in self.spaced_end_tokens)
-                    or prev.value + token.value in self.ambiguous_lexemes
+            addSpace = prev is not None and (
+                (
+                    prev.type in self.spaced_tokens
+                    and token.type in self.spaced_end_tokens
                 )
+                or prev.value + token.value in self.ambiguous_lexemes
             )
-            
+
             cur_line_length += (1 if addSpace else 0) + len(token.value)
             if cur_line_length <= self.target_length:
                 if addSpace:
                     cur_line.append(" ")
                 cur_line.append(token.value)
-            else: # Current line has overflown
+            else:  # Current line has overflown
                 cur_line_length -= (1 if addSpace else 0) + len(token.value)
                 if len(cur_line) > 0 and cur_line_length <= self.target_length:
-                    # If space is left over, we pad if required in random 
+                    # If space is left over, we pad if required in random
                     # increments to spread padding out.
                     if self.pad_lines and len(cur_line) > 1:
                         token_index = random.randint(0, max(0, len(cur_line) - 2))
@@ -605,12 +641,12 @@ class ClutterWhitespaceUnit(ObfuscationUnit):
                     new_contents += "".join(cur_line)
                     cur_line = [token.value]
                     cur_line_length = len(token.value)
-                else:  
+                else:
                     # Nothing else on line and token size > max -> Must overflow
                     new_contents += token.value + "\n"
                     cur_line = []
                     cur_line_length = 0
-    
+
             prev = token
             token = lexer.token()
 
@@ -697,7 +733,7 @@ class ClutterWhitespaceUnit(ObfuscationUnit):
         return ClutterWhitespaceUnit(json_obj["target_length"], json_obj["pad_lines"])
 
     def __str__(self) -> str:
-        """ Create a readable string representation of the ClutterWhitespaceUnit.
+        """Create a readable string representation of the ClutterWhitespaceUnit.
 
         Returns:
             str: The readable string representation.
@@ -718,16 +754,16 @@ class DiTriGraphEncodeUnit(ObfuscationUnit):
         "Encodes certain symbols with Digraphs/Trigraphs to make them incomprehensible"
     )
     extended_description = (
-        """This transformation encodes certain symbols within the program (e.g. '{', '#', ']') as digraphs\n"""
-        """or trigraphs, which are respectively two- or three- character combinations that are replaced by\n"""
-        """C's preprocessor to allow keyboard with less symbols to type C programs. Note that this only affects\n"""
-        """the source code - no change will be made to the compiled code. Note that any non-textual\n"""
-        """transformations applied after this point will undo its changes.\n\n"""
-        """The first available option is the mapping type - you can choose to encode using only digraphs, only\n"""
-        """trigraphs, or a mixture of both digraphs and trigraphs. For the second option, you can choose the\n"""
-        """prorbability that an encoding takes place. 0.0 means no encoding, 0.5 means approximately half will\n"""
-        """be encoded, and 1.0 means all symbols are encoded. This can be used to achieve a mixture of digraphs,\n"""
-        """trigraphs and regular symbols as is desired."""
+        "This transformation encodes certain symbols within the program (e.g. '{', '#', ']') as digraphs\n"
+        "or trigraphs, which are respectively two- or three- character combinations that are replaced by\n"
+        "C's preprocessor to allow keyboard with less symbols to type C programs. Note that this only affects\n"
+        "the source code - no change will be made to the compiled code. Note that any non-textual\n"
+        "transformations applied after this point will undo its changes.\n\n"
+        "The first available option is the mapping type - you can choose to encode using only digraphs, only\n"
+        "trigraphs, or a mixture of both digraphs and trigraphs. For the second option, you can choose the\n"
+        "probability that an encoding takes place. 0.0 means no encoding, 0.5 means approximately half will\n"
+        "be encoded, and 1.0 means all symbols are encoded. This can be used to achieve a mixture of digraphs,\n"
+        "trigraphs and regular symbols as is desired."
     )
     type = TransformType.LEXICAL
 
@@ -752,7 +788,8 @@ class DiTriGraphEncodeUnit(ObfuscationUnit):
     }
 
     class Style(enum.Enum):
-        """ An enumerator storing the different encoding styles. """
+        """An enumerator storing the different encoding styles."""
+
         DIGRAPH = "Digraphs"
         TRIGRAPH = "Trigraphs"
         MIXED = "Mixed Digraph/Trigraphs"
@@ -774,7 +811,7 @@ class DiTriGraphEncodeUnit(ObfuscationUnit):
             self.chance = chance
 
     def transform(self, source: interaction.CSource) -> interaction.CSource:
-        """ Performs the digraph / trigraph encoding transformation on the given source program.
+        """Performs the digraph / trigraph encoding transformation on the given source program.
 
         Args:
             source (interaction.CSource): The source code to transform.
@@ -787,14 +824,14 @@ class DiTriGraphEncodeUnit(ObfuscationUnit):
         str_top = None
         # Iterate through each character in the program
         for char in source.contents:
-            
+
             # Determine when entering or existing a string.
             if (char == "'" or char == '"') and prev != "\\":
                 if str_top is None:
                     str_top = char
                 elif str_top == char:
                     str_top = None
-            
+
             # Encode probabilistically, outside of strings
             if str_top is not None or random.random() > self.chance:
                 new_contents += char
@@ -903,7 +940,7 @@ class DiTriGraphEncodeUnit(ObfuscationUnit):
         )
 
     def __str__(self) -> str:
-        """ Create a readable string representation of the DiTriGraphEncodeUnit.
+        """Create a readable string representation of the DiTriGraphEncodeUnit.
 
         Returns:
             str: The readable string representation.

@@ -26,7 +26,7 @@ class UsedDepth(enum.Enum):
     EXTREME = 5
 
 
-INTEGRATION_TEST_STYLE = UsedDepth.NONE
+INTEGRATION_TEST_STYLE = UsedDepth.LIGHTEST
 
 
 def callfunc_neq(func: Callable, neq: Iterable[Any]) -> Any:
@@ -122,7 +122,7 @@ options = {
         (StringEncodeTraverser.Style.MIXED,),
         (StringEncodeTraverser.Style.ALL,),
     ],
-    IntegerEncodeUnit: [(IntegerEncodeTraverser.Style.SIMPLE,)],  # 1 Option
+    IntegerEncodeUnit: [tuple()],  # 1 Option
     ArithmeticEncodeUnit: [  # 6 Options
         (0,),
         (1,),

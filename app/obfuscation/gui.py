@@ -346,21 +346,19 @@ class GuiStringEncodeUnit(StringEncodeUnit):
 
 class GuiIntegerEncodeUnit(IntegerEncodeUnit):
     def edit_gui(self, parent: QWidget) -> None:
-        # TODO this should have options in the future! But doesn't right now
         set_no_options_widget(parent)
 
     def load_gui_values(self) -> None:
-        # TODO see above edit_gui method comment
         return
 
     def from_json(json_str: str) -> None:
         unit = IntegerEncodeUnit.from_json(json_str)
         if unit is None:
             return None
-        return GuiIntegerEncodeUnit(unit.style)
+        return GuiIntegerEncodeUnit()
 
     def get_gui() -> "GuiIntegerEncodeUnit":
-        return GuiIntegerEncodeUnit(IntegerEncodeTraverser.Style.SIMPLE)
+        return GuiIntegerEncodeUnit()
 
 
 class GuiIdentifierRenameUnit(IdentifierRenameUnit):
