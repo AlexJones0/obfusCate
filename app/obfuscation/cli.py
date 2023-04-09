@@ -392,7 +392,7 @@ class CliIdentifierRenameUnit(IdentifierRenameUnit):
             return False
         self.style = IdentifierRenameUnit.Style(options[choice])
         options = [
-            "Minimise identifier usage [WARNING: EXPERIMENTAL]", # TODO WARNING
+            "Minimise identifier usage",
             "Do not minimise identifier usage",
         ]
         prompt = (
@@ -419,7 +419,7 @@ class CliIdentifierRenameUnit(IdentifierRenameUnit):
             return None
         style = IdentifierRenameUnit.Style(options[choice])
         options = [
-            "Minimise identifier usage [WARNING: EXPERIMENTAL]", # TODO WARNING
+            "Minimise identifier usage",
             "Do not minimise identifier usage",
         ]
         prompt = "Select whether you would like to minimise identifer usage or not.\n"

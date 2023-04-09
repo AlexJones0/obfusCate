@@ -547,7 +547,8 @@ class OpaqueAugmenter(NodeVisitor):
     class Style(enum.Enum):
         """An enumerated type representing currently supported opaque predicate generation styles."""
 
-        INPUT = "Construct predicates from dynamic user input"
+        INPUT = "Construct predicates from function parameter inputs"
+        VARIABLES = "Construct predicates from program variables"
         ENTROPY = "Construct predicates from entropic variables"
 
     def __init__(
@@ -573,6 +574,7 @@ class OpaqueAugmenter(NodeVisitor):
         """Resets the OpaqueAugmenter's state (tracking variables), allowing
         it to perform obfuscation for a new program."""
         self.global_typedefs = {}
+        self.functions = set()
         self.current_function = None
         self.parameters = None
         self.analyzer = None
@@ -611,13 +613,15 @@ class OpaqueAugmenter(NodeVisitor):
         vars = []
         for def_ in self.analyzer.get_definitions_at_stmt(stmt):
             if (
-                def_[0] not in self.func_args
+                def_[0] not in self.functions
                 and def_[0] != "main"
                 and def_[1] == NameSpace.ORDINARY
             ):
                 vars.append(def_)
+    
         # Retrieve the types of relevant variable identifiers
         for var in vars:
+            
             # Get the definition corresponding to the variable
             def_stmt = self.analyzer.get_last_ident_definition(stmt, var)
             definition = (def_stmt, *var)
@@ -626,6 +630,7 @@ class OpaqueAugmenter(NodeVisitor):
             defs = self.analyzer.definition_uses[(def_stmt, *var)]
             if defs is None or len(defs) == 0 or type(defs[0][0]) != Decl:
                 continue
+            
             # Get the type of the definition and check if it is a valid arg type.
             # If so, add it to the dictionary.
             typedecl = defs[0][0].type
@@ -634,22 +639,33 @@ class OpaqueAugmenter(NodeVisitor):
             ):
                 continue
             var_type = " ".join(typedecl.type.names)
-            if var_type in self.types.keys():
-                if var_type not in var_types:
-                    var_types[var_type] = []
-                var_types[var_type].append(var[0])
+            if var_type in ["char", "short", "int", "long", "long long"]:
+                var_type = "int"
+            elif var_type in ["float", "double", "long double"]:
+                var_type = "float"
+            else:
+                var_type = "other"
+            if var_type not in var_types:
+                var_types[var_type] = []
+            var_types[var_type].append(var[0])
+            
         # Return the dictionary of defined variables and their types.
         return var_types
 
-    def generate_opaque_predicate(self, cond_expr, source_ancestor):
-        # TODO: better approach - use expression analyzer to get any idents at the current point
-        #   in the program of the int/float types? Don't see why this wouldn't work, and would
-        #   avoid all these jank renaming issues
-        #  TODO could also just make this a seperate type - PARAMETERS, VARIABLES and ENTROPY
-        # Parse valid parameters at the definition - we don't allow any parameters that
-        # are redefined up to the conditional. We don't worry about not analyzing any
-        # copied declarations because it is enforced that declarations are not copied in
-        # opaque insertion, so this case cannot occur.
+    def generate_opaque_predicate(self, cond_expr: Node, source_ancestor: Node) -> Node | None:
+        """ Given a conditional expression, this function generates a tautological opaque 
+        predicate and augments the expression with that opaque expression, such that the 
+        expression is more complex but its truth value will remain the same. 
+
+        Args:
+            cond_expr (Node): The AST root node of the conditional expression subtree 
+            source_ancestor (Node): The ancestor node in the AST that is the first ancestor
+            (at the deepest level) defined in the original program, before any opaque 
+            predicates were added. Required to continue using identifier analysis tools. 
+
+        Returns:
+            Node | None: _description_
+        """
         parameters = []
         for param in self.parameters:
             def_node = self.analyzer.get_last_ident_definition(
@@ -657,6 +673,7 @@ class OpaqueAugmenter(NodeVisitor):
             )
             if isinstance(def_node, ParamList):  # Only non-redefined parameters
                 parameters.append(param)
+        variables = self.get_variables_at_node(source_ancestor)
         # Retrieve a random opaque predicate and check its parameters
         predicate = random.choice(OpaquePredicate.TRUE_PREDICATES)
         num_args = predicate.__code__.co_argcount
@@ -674,6 +691,8 @@ class OpaqueAugmenter(NodeVisitor):
                         parameters is not None
                         and len(set(parameters).difference(set(idents))) != 0
                     )  # TODO check logic here just in case
+                elif style == self.Style.VARIABLES:
+                    valid_style = "int" in variables or "float" in variables
                 elif style == self.Style.ENTROPY:
                     valid_style = True
             if valid_style == False:
@@ -687,23 +706,29 @@ class OpaqueAugmenter(NodeVisitor):
                 # some mess to generate entropic variables _afterwards_)
             if style == self.Style.INPUT:
                 # Choose a random function parameter (not used so far) to use
-                param = random.choice(parameters)
+                var_name = random.choice(parameters)
+            elif style == self.Style.VARIABLES:
+                int_vars = variables["int"] if "int" in variables else []
+                int_vars = [(var, "int") for var in int_vars]
+                float_vars = variables["float"] if "float" in variables else []
+                float_vars = [(var, "float") for var in float_vars]
+                var_name = random.choice(int_vars + float_vars)
             elif style == self.Style.ENTROPY:
                 # Randomly either choose an existing entropic variable or create a new one
                 available_vars = list(set(self.entropic_vars).difference(set(idents)))
                 use_new_var = len(available_vars) == 0 or random.random() >= 0.75
                 if use_new_var:
-                    param = OpaquePredicate.generate_entropic_var(
+                    var_name = OpaquePredicate.generate_entropic_var(
                         self.source, self.analyzer, self.entropic_vars
                     )
-                    if param is None:
+                    if var_name is None:
                         return cond_expr
-                    self.entropic_vars.append(param)
+                    self.entropic_vars.append(var_name)
                     # TODO could add float support in the future for entropic vars?
                 else:
                     # Choose a random existing entropic variable to use
-                    param = random.choice(available_vars)
-            idents.append(param)
+                    var_name = random.choice(available_vars)
+            idents.append(var_name)
         args = []
         for ident in idents:
             if ident[1] not in VALID_REAL_TYPES:
@@ -822,6 +847,8 @@ class OpaqueAugmenter(NodeVisitor):
         prev = self.current_function
         self.current_function = node
         self.parameters = []
+        if node.decl is not None and node.decl.name is not None:
+            self.functions.add(node.decl.name)
         NodeVisitor.generic_visit(self, node)
         self.current_function = prev
         self.parameters = None
@@ -1080,9 +1107,8 @@ class BugGenerator(NodeVisitor):
 class OpaqueInserter(NodeVisitor):
     class Style(enum.Enum):
         INPUT = "Construct predicates from dynamic user input"
+        VARIABLES = "Construct predicates from program variables"
         ENTROPY = "Construct predicates from entropic variables"
-        # LINKED_LIST = "Predicates constructed from intractable pointer aliasing on a linked list."
-        # TODO above is not implemented yet
 
     class Granularity(enum.Enum):
         PROCEDURAL = "PROCEDURAL: Predicates are constructed on a whole function-level"
@@ -1116,6 +1142,7 @@ class OpaqueInserter(NodeVisitor):
 
     def reset(self):
         self.functions = []
+        self.func_names = set()
         self.global_typedefs = {}
         self.parent = None
         self.parent_map = {}
@@ -1140,6 +1167,59 @@ class OpaqueInserter(NodeVisitor):
         self.source = source
         self.visit(source.t_unit)
 
+    def get_variables_at_node(self, node: Node) -> dict[str, list[str]]:
+        """Given an AST node, this function creates a list of variables (of certain valid types) 
+        defined at that point in the program where the function is called.
+
+        Args:
+            node (FuncCall): The AST node corresponding to a point in the program.
+
+        Returns:
+            dict[str, list[str]]: This variables are returned as a dictionary where each key is
+            a type e.g. "int", "long long", "double" and the values are a list of identifiers of
+            variables of that type defined at this point in the program.
+        """
+        var_types = {}
+        # Retrieve a list of variable identifiers defined at the function call.
+        stmt = self.analyzer.get_stmt_from_node(node)
+        vars = []
+        for def_ in self.analyzer.get_definitions_at_stmt(stmt):
+            if (
+                def_[0] not in self.functions
+                and def_[0] != "main"
+                and def_[1] == NameSpace.ORDINARY
+            ):
+                vars.append(def_)
+        # Retrieve the types of relevant variable identifiers
+        for var in vars:
+            # Get the definition corresponding to the variable
+            def_stmt = self.analyzer.get_last_ident_definition(stmt, var)
+            definition = (def_stmt, *var)
+            if def_stmt is None or definition not in self.analyzer.definition_uses:
+                continue
+            defs = self.analyzer.definition_uses[(def_stmt, *var)]
+            if defs is None or len(defs) == 0 or type(defs[0][0]) != Decl:
+                continue
+            # Get the type of the definition and check if it is a valid arg type.
+            # If so, add it to the dictionary.
+            typedecl = defs[0][0].type
+            if not isinstance(typedecl, TypeDecl) or not isinstance(
+                typedecl.type, IdentifierType
+            ):
+                continue
+            var_type = " ".join(typedecl.type.names)
+            if var_type in ["char", "short", "int", "long", "long long"]:
+                var_type = "int"
+            elif var_type in ["float", "double", "long double"]:
+                var_type = "float"
+            else:
+                var_type = "other"
+            if var_type not in var_types:
+                var_types[var_type] = []
+            var_types[var_type].append(var[0])
+        # Return the dictionary of defined variables and their types.
+        return var_types
+
     def _get_source_ancestor(self, node: Node) -> Node | None:
         while node is not None:
             if self.node_cache.node_in_AST(node):
@@ -1160,8 +1240,8 @@ class OpaqueInserter(NodeVisitor):
         # opaque insertion, so this case cannot occur.
         # TODO NEED DESPERATE OVERHALL OF HOW OPAQUES ARE CHOSEN TO BE CORRECT!
         parameters = []
+        source_ancestor = self._get_source_ancestor(node)
         if len(self.parameters) != 0:
-            source_ancestor = self._get_source_ancestor(node)
             if source_ancestor is not None:
                 for param in self.parameters:
                     # TODO double check compound stuff here didn't break anything
@@ -1170,6 +1250,10 @@ class OpaqueInserter(NodeVisitor):
                     )
                     if isinstance(def_node, ParamList):  # Only non-redefined parameters
                         parameters.append(param)
+        if source_ancestor is not None:
+            variables = self.get_variables_at_node(source_ancestor)
+        else:
+            variables = {}
         # Retrieve a random opaque predicate and check its parameters
         if predicate_sets is None:
             predicate = random.choice(OpaquePredicate.TRUE_PREDICATES)
@@ -1193,6 +1277,8 @@ class OpaqueInserter(NodeVisitor):
                         parameters is not None
                         and len(set(parameters).difference(set(idents))) != 0
                     )  # TODO check logic here just in case
+                elif style == self.Style.VARIABLES:
+                    valid_style = "int" in variables or "float" in variables
                 elif style == self.Style.ENTROPY:
                     valid_style = (  # TODO is there a better way to handle this to avoid rand decls etc.?
                         self.current_function is None
@@ -1203,23 +1289,30 @@ class OpaqueInserter(NodeVisitor):
             if valid_style == False:
                 return None  # No variables to use as parameters, so exit out
             if style == self.Style.INPUT:
-                param = random.choice(parameters)
+                # Choose a random function parameter (not used so far) to use
+                var_name = random.choice(parameters)
+            elif style == self.Style.VARIABLES:
+                int_vars = variables["int"] if "int" in variables else []
+                int_vars = [(var, "int") for var in int_vars]
+                float_vars = variables["float"] if "float" in variables else []
+                float_vars = [(var, "float") for var in float_vars]
+                var_name = random.choice(int_vars + float_vars)
             elif style == self.Style.ENTROPY:
                 # Randomly either choose an existing entropic variable or create a new one
                 available_vars = list(set(self.entropic_vars).difference(set(idents)))
                 use_new_var = len(available_vars) == 0 or random.random() >= 0.75
                 if use_new_var:
-                    param = OpaquePredicate.generate_entropic_var(
+                    var_name = OpaquePredicate.generate_entropic_var(
                         self.source, self.analyzer, self.entropic_vars
                     )
-                    if param is None:
+                    if var_name is None:
                         return None
-                    self.entropic_vars.append(param)
+                    self.entropic_vars.append(var_name)
                     # TODO could add float support in the future for entropic vars?
                 else:
                     # Choose a random existing entropic variable to use
-                    param = random.choice(available_vars)
-            idents.append(param)
+                    var_name = random.choice(available_vars)
+            idents.append(var_name)
         args = []
         for ident in idents:
             args.append(ID(ident[0]))
@@ -1494,6 +1587,8 @@ class OpaqueInserter(NodeVisitor):
         prev = self.current_function
         self.current_function = node
         self.functions.append(node)
+        if node.decl is not None and node.decl.name is not None:
+            self.func_names.add(node.decl.name)
         self.parameters = []
         self.generic_visit(node)
         if node.body is not None and node.decl is not None and node.decl.name != "main":

@@ -5,13 +5,10 @@ which are required both for identifier analysis techniques, and to determine
 when certain obfuscation methods can be safely applied without potentially changing
 the output of a program. 
 """
-from .. import interaction
 from ..debug import *
 from .utils import VALID_INT_TYPES, VALID_REAL_TYPES
 from pycparser.c_ast import *
-from pycparser.c_lexer import CLexer
-from typing import Optional, Tuple, Type, Any, Iterable
-import abc, enum, json, string, copy
+from typing import Type, Any, Iterable
 
 
 class ExpressionAnalyzer(NodeVisitor):
@@ -220,10 +217,8 @@ class ExpressionAnalyzer(NodeVisitor):
         elif any([t == self.SimpleType.REAL for t in types]):
             return self.SimpleType.REAL
         elif all([isinstance(t, self.Array) for t in types]):
-            # TODO not right but idk what it should be
             return self.Array(self.standard_coalesce_types([t.val for t in types]))
         elif any([isinstance(t, self.Ptr) for t in types]):
-            # TODO also not 100% sure if this is correct - seems to be?
             vals = [t.val if isinstance(t, self.Ptr) else t for t in types]
             return self.Ptr(self.standard_coalesce_types(vals))
         else:
