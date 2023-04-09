@@ -131,13 +131,43 @@ TODO: mention of bugs.md
 ----
 
 ### **4.1. Running the Program**
-TODO: Obf CLI - how to run / help / options
+Provided that you have run the setup commands in the [**Section 2**](#2-installation), you should have all required libraries installed. As such, run the command:
 
-TODO: Obf GUI - how to run / help / options
+```
+> python3 obf_gui.py input_file.c
+```
 
-TODO: Example Compositions
+replacing `python3` with `python` or `py` with your python path, and `input_file.c` with the name of the C file that you would like to obfuscate. A few such example files are included in the `test/data/` directory if you would like. You can also alternatively run
 
-TODO: Note on first time obfuscation runtime - generating `yacctab.py`, but quick after that.
+```
+> python3 obf_gui.py input_file.c output_file.c
+```
+
+replacing `output_file.c` with the name of the output file you would like to use - this will be written to when you save or exit. For comprehensive usage information outside of this, including a list of available arguments, please see sections [**4.5**](#45-cligui-options) and [**4.6**](#46-gui-shortcuts) below, or run the command
+
+```
+> python3 obf_gui.py --help
+```
+
+for more usage info.
+
+To instead access the command-line interface, run either of the below commands, using the same arguments as the GUI commands:
+
+```
+> python3 obf_cli.py input_file.c
+```
+
+```
+> python3 obf_cli.py input_file.c output_file.c
+```
+
+Again, please see sections [**4.5**](#45-cligui-options) and [**4.6**](#46-gui-shortcuts) below, or run the below command for more usage info.
+
+```
+> python3 obf_cli.py --help
+```
+
+**Important Note**: Please be aware that the very first obfuscation you run will likely take a few seconds, because patching of the parser means that it has to be recompiled by Yacc. The file `yacctab.py` must be generated in the project directory so that this parser can be used, and this tends to take a few seconds to build. After this has been built, you should not need to build it again so long as you do not delete the file.
 
 <br>
 
