@@ -413,7 +413,7 @@ This project is relatively large in scope. As such, I roughly describe the file 
 
 ### **5.2. Documentation**
 
-Much of the project's functionality is created by extending the pycparser Abstract Syntax Tree (AST) `NodeVisitor` class, which defines an interface for in-order traversal of ASTs. This defined **49 unique methods** for visiting each AST node class - as such, documentation of these methods tend to be very repetitive and regurgitative within such classes. For this reason, explanation about the inputs of these methods (which are always just AST nodes of that given type) will be **omitted**, and in some cases function-level documentation will be shortened to describe something as *'visiting/traversing an X node',* only explaining the important added parts of functionality. For specific complex methods, the docstring may be listed **in full**, but just note that wherever you see such simplified documentation, it is specifically for the case of clarity, readability and brevity.
+Much of the project's functionality is created by extending the pycparser Abstract Syntax Tree (AST) `NodeVisitor` class, which defines an interface for in-order traversal of ASTs. This defined **49 unique methods** for visiting each AST node class - as such, documentation of these methods tend to be very repetitive and regurgitative within such classes, and as such provided explanation will primarily focus on what the method does *aside from* simply traversing the AST, with mention to its traversal only being discussed if necessary (e.g. using a different traversal order). This allows documentation to focus on key specifics and implementation details, and reduces repetitiveness - I focus on clarity, readability, and brevity. For any such `NodeVisitor` subclass, be aware that methods prepended by `visit_` are for visiting a specific AST node class, such as e.g. `visit_FuncDef`, traversing that node.
 
 Documentation regarding the creation of this project, its motivation, background research, design decisions, management, evaluation and such can be found in the supporting final dissertation report pdf. Please see there for more detail. A `bugs.md` file is also included to provide more detailed documentation of the few specific known issues that cannot be easily fixed. This `README.md` file also contains some helpful documentation to get you started using the documentation. Apart from that, all other documentation can be found within file-, function- and statement-level comments throughout the code.
 
@@ -437,7 +437,7 @@ replacing `python3` with `python` or `py` with your python path as is necessary.
 If you navigate to `tests/test_compositions.py`, you can change the value of the `INTEGRATION_TEST_STYLE` variable to be different `UsedDepth` enumerated values, to run obfuscation correctness tests that fit your needs. Note that these test cases grow exponentially, so you can roughly expect (on a standard modern laptop, note these are rough estimates):
 - `UsedDepth.NONE`: 0 seconds, 0 tests
 - `UsedDepth.LIGHTEST`: 5 minutes, around 1,000 tests
-- `UsedDepth.LIGHT`: 1 hour, around 7500 tests
+- `UsedDepth.LIGHT`: 1 hour, around 7,500 tests
 - `UsedDepth.MEDIUM`: 16-24 hours, around 150,000 tests
 - `UsedDepth.HEAVY`: 120-150 hours, around 1,000,000 tests
 - `UsedDepth.EXTREME`: 600-800 hours, around 5,000,000 tests
