@@ -75,7 +75,7 @@ class IdentifierRenameUnit(ObfuscationUnit):
         Returns:
             str: The new identifier to use."""
         cur_num = len(self.new_idents)
-        choices = "_" + string.ascii_letters  # Idents cannot start with digits
+        choices = string.ascii_letters + "_"  # Idents cannot start with digits
         new_ident = ""
         while cur_num >= 0:
             new_ident += choices[cur_num % len(choices)]
@@ -83,7 +83,7 @@ class IdentifierRenameUnit(ObfuscationUnit):
             if cur_num == 0:
                 break
             if len(new_ident) == 1:  # But digits can appear later on in idents
-                choices = "_" + string.ascii_letters + string.digits
+                choices = string.ascii_letters + "_" + string.digits
         return new_ident
 
     def _generate_i_and_l_ident(self) -> str:
