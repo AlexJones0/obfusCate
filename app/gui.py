@@ -7,7 +7,7 @@ from .obfuscation import gui as obfs_gui
 from .complexity import *
 from .debug import print_error, create_log_file, log, logprint
 from .config import GuiDefaults as Df
-from app import settings as cfg
+from app import settings as config
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 from PyQt6.QtCore import Qt, QSize, QMimeData, QDir, QCoreApplication, QTimer, QRegularExpression
@@ -839,7 +839,7 @@ class MetricsForm(QFrame):
         self.scroll_widget.setWidget(self.metric_widget)
         self.layout.addWidget(self.scroll_widget)
         self.setLayout(self.layout)
-        if cfg.CALCULATE_COMPLEXITY:
+        if config.CALCULATE_COMPLEXITY:
             self.load_metrics(None, None)
 
     def toggle_checkbox(self, metric):
@@ -1094,7 +1094,7 @@ class GeneralOptionsForm(QFrame):
             self.__obfuscated_form_reference.add_source(
                 CSource(self.__obfuscated_form_reference.source.fpath, "", FileAST([]))
             )
-            if cfg.CALCULATE_COMPLEXITY:
+            if config.CALCULATE_COMPLEXITY:
                 self.parent().metrics_form.load_metrics(None, None)
             error_msg = (
                 "An error occurred whilst parsing your C source code, and so\n"
@@ -1110,7 +1110,7 @@ class GeneralOptionsForm(QFrame):
                 )
             display_error(error_msg)
             return
-        if cfg.CALCULATE_COMPLEXITY:
+        if config.CALCULATE_COMPLEXITY:
             original_source = deepcopy(source)
         if len(pipeline.transforms) != 0:
             # TODO add complexity metric calculations to progress bar? Seems hard
@@ -1119,7 +1119,7 @@ class GeneralOptionsForm(QFrame):
         obfuscated = pipeline.process(source, self.parent().update_progress)
         self.parent().update_progress(-1)
         self.__obfuscated_form_reference.add_source(obfuscated)
-        if cfg.CALCULATE_COMPLEXITY:
+        if config.CALCULATE_COMPLEXITY:
             self.parent().metrics_form.load_metrics(original_source, obfuscated)
 
     def load_source(self) -> None:

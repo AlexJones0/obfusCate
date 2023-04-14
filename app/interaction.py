@@ -157,10 +157,8 @@ class CSource:
                 cpp_path="clang",
                 cpp_args=["-E", r"-Iutils/fake_libc_include"],
                 parser=parser
-                # TODO add trigraph support?
             )
             fname = filepath.split("\\")[-1]
-            # TODO keep linked libraries to get functions etc.? Could do this?
             t_unit.ext = [x for x in t_unit.ext if fname in x.coord.file]
             self.t_unit = t_unit
             self.error_context = None

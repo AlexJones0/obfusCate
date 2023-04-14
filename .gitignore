@@ -143,3 +143,8 @@ demo/
 
 # YACC's parser table (for custom patched parser)
 yacctab.py
+
+# AST visualisation generation files
+/ast
+/ast*.pdf
+/ast*.exe
