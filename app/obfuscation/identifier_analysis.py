@@ -940,7 +940,7 @@ class IdentifierAnalyzer(NodeVisitor):
         types = []
         cur_node = node
         while cur_node.type is not None and isinstance(
-            cur_node.type, (PtrDecl, ArrayDecl)
+            cur_node.type, (TypeDecl, PtrDecl, ArrayDecl)
         ):
             types.append(cur_node.type)
             cur_node = cur_node.type
