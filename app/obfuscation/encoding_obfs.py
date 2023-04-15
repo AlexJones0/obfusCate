@@ -366,9 +366,9 @@ class IntegerEncodeTraverser(NodeVisitor):
             encoded_val = value // mul_const
             add_const = value % mul_const
         else:
-            # Otherwise, we choose random medimum-sized numbers to avoid trivial expressions
-            mul_const = random.randint(3000, 10000)
-            encoded_val = random.randint(3000, 10000)
+            # Otherwise, we choose random medimum-sized numbers
+            mul_const = random.randint(5, 10000)
+            encoded_val = random.randint(5, 10000)
             add_const = value - mul_const * encoded_val
 
         # From our generated and calculated constant values, we define an expression subtree
@@ -615,7 +615,6 @@ class ArithmeticEncodeTraverser(NodeVisitor):
             (i.e. how many encodes within encodes).
         """
         self.transform_depth = transform_depth
-        self.ignore_list = set()
         self.analyzer = None
 
     def generic_visit(self, node: Node) -> None:
@@ -631,8 +630,7 @@ class ArithmeticEncodeTraverser(NodeVisitor):
         Args:
             node (Node): The AST node to traverse.
         """
-        if node in self.ignore_list:
-            return
+        NodeVisitor.generic_visit(self, node)
 
         for child in node.children():
             # Check for unary/binary operation children that take integer operands and
@@ -671,10 +669,7 @@ class ArithmeticEncodeTraverser(NodeVisitor):
                         setattr(node, child[0], current)
                     else:
                         getattr(node, parts[0])[int(parts[1])] = current
-                    self.ignore_list.add(current)
                     applied_count += 1
-
-        NodeVisitor.generic_visit(self, node)
 
     def visit_FileAST(self, node: FileAST) -> None:
         """Visits a FileAST (root) node, creating an expression analyzer to determine
@@ -683,7 +678,6 @@ class ArithmeticEncodeTraverser(NodeVisitor):
         self.analyzer = ExpressionAnalyzer(node)
         self.analyzer.process()
         NodeVisitor.generic_visit(self, node)
-        self.ignore_list = set()
         self.analyzer = None
 
 
