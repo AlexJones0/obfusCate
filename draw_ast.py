@@ -5,6 +5,7 @@ import argparse
 from pycparser import parse_file, c_ast
 from dot2tex import dot2tex
 import math
+from app.obfuscation import ExpressionAnalyzer, IdentifierAnalyzer
 
 # Parse command line arguments
 parser = argparse.ArgumentParser()
@@ -12,6 +13,9 @@ parser.add_argument('file', help='C source file')
 parser.add_argument('output', help='Output file name')
 parser.add_argument('--tikz', action='store_true', help='Output to TikZ format in .tex file')
 parser.add_argument('--edgeLabels', action='store_true', help="Label edges with their attribute names.")
+parser.add_argument('--nodeTypes', action='store_true', help="Label nodes with their node types.")
+parser.add_argument('--nodeMutations', action='store_true', help="Label nodes with their mutations.")
+parser.add_argument('--treePorts', action='store_true', help="Labels use direct north/south edge ports.")
 args = parser.parse_args()
 
 # Get the file name argument
@@ -33,6 +37,17 @@ for i, c in enumerate(ast.ext):
     if not isinstance(c, c_ast.Typedef):
         break
 ast.ext = ast.ext[i:]
+
+# Derive node types and mutability
+if args.nodeTypes or args.nodeMutations:
+    analyzer = ExpressionAnalyzer(ast)
+    analyzer.process()
+else:
+    analyzer = None
+    
+############ PUT ANY AST TRAVERSAL COMMANDS (TO GET A SUBTREE) HERE #############
+ast = ast.ext[2].body
+#################################################################################
 
 # Function for checking if something is an empty list or empty tuple
 is_empty_iterable = lambda x: isinstance(x, (list, tuple)) and len(x) == 0
@@ -62,6 +77,26 @@ def format_label(node, extra):
 def tex_format_label(node, extra):
     return f'{node.__class__.__name__}{extra}'
 
+def get_type_str(type):
+    if type == ExpressionAnalyzer.SimpleType.INT:
+        return "int"
+    elif type == ExpressionAnalyzer.SimpleType.REAL:
+        return "float"
+    elif type == ExpressionAnalyzer.SimpleType.OTHER:
+        return "other"
+    elif isinstance(type, ExpressionAnalyzer.Array):
+        return get_type_str(type.val) + "[]"
+    elif isinstance(type, ExpressionAnalyzer.Ptr):
+        return get_type_str(type.val) + "*"
+    elif isinstance(type, c_ast.Struct):
+        return "Struct {x: float*, y: int*}"
+    elif isinstance(type, c_ast.Union):
+        return "Struct { ... }"
+    elif type is None:
+        return ""
+    else:
+        return str(type)
+
 # Define a function to recursively traverse the AST
 def traverse_ast(node, dot, format_func=format_attribute, label_func=format_label):
     # Collect attributes for different types of node
@@ -70,7 +105,7 @@ def traverse_ast(node, dot, format_func=format_attribute, label_func=format_labe
                          c_ast.Struct, c_ast.Union)):
         if node.name is not None:
             extra += format_func("name", node.name)
-    elif isinstance(node, (c_ast.UnaryOp, c_ast.BinaryOp)):
+    elif isinstance(node, (c_ast.UnaryOp, c_ast.BinaryOp, c_ast.Assignment)):
         if node.op is not None:
             extra += format_func("op", node.op)
     elif isinstance(node, c_ast.Constant):
@@ -127,7 +162,27 @@ def traverse_ast(node, dot, format_func=format_attribute, label_func=format_labe
             extra += format_func("string", node.string)
     # Format the node label and create the node
     label = label_func(node, extra)
-    dot.node(str(id(node)), label=label, shape='box',style='rounded,filled', fillcolor='#FFFFFF')
+    if args is not None and args.nodeTypes and analyzer is not None:
+        node_type = analyzer.get_type(node)
+        type_str = html.escape(get_type_str(node_type))
+        if len(type_str) == 0 or type_str == "other":
+            extra_label = ""
+        else:
+            extra_label = f'<<font point-size="13" color="black"><b>{type_str}</b></font>>'
+        style = "rounded,filled"
+        if type_str == "int":
+            style = "dashed," + style
+            #style = style
+        dot.node(str(id(node)), label=label, shape='box', style=style, 
+                 fillcolor='#FFFFFF', xlabel=extra_label, xlabelpos='above')
+    elif args is not None and args.nodeMutations and analyzer is not None:
+        if node in analyzer.mutating:
+            mutate_str = "True" if analyzer.is_mutating(node) else "False"
+            label = label[:-1] + f'<br/><font point-size="13" color="red"><b>{mutate_str}</b></font>>'
+        dot.node(str(id(node)), label=label, shape='box', style='rounded,filled', 
+                 fillcolor='#FFFFFF')
+    else:
+        dot.node(str(id(node)), label=label, shape='box', style='rounded,filled', fillcolor='#FFFFFF')
     # Recursively traverse the children of the current node
     children = [c for c in list(node.children()) if isinstance(c[1], c_ast.Node)]
     for i, (child_name, child) in enumerate(children):
@@ -152,9 +207,11 @@ def traverse_ast(node, dot, format_func=format_attribute, label_func=format_labe
                 lpadding = " " * (math.ceil(1.7 * len(child_name)))
                 rpadding = ""
             dot.edge(str(id(node)), str(id(child)), taillabel=(lpadding + child_name + rpadding),
-                        fontsize='10', labeldistance=distance, labelangle=angle, fontcolor='#666666')
+                        fontsize='10', labeldistance=distance, labelangle=angle, fontcolor='#666666',
+                        tailport=("s" if args.treePorts else None), headport=("n" if args.treePorts else None))
         else:
-            dot.edge(str(id(node)), str(id(child)))
+            dot.edge(str(id(node)), str(id(child)), 
+                     tailport=("s" if args.treePorts else None), headport=("n" if args.treePorts else None))
 
 # Create a Graphviz graph
 dot = graphviz.Graph(comment='AST')
@@ -163,7 +220,7 @@ traverse_ast(ast, dot)
 
 # Save the graph to a PDF file
 dot.engine = 'dot'
-dot.attr(rankdir='TB', ranksep="0.3", nodesep="0.125", margin="0", dpi="50")
+dot.attr(rankdir='TB', ranksep="0.5", nodesep="0.05", margin="0", dpi="50", overlap="true", splines="line")
 dot.render(output_name, view=True)
 
 if args.tikz:
