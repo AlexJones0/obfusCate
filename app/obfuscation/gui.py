@@ -493,7 +493,7 @@ class GuiArithmeticEncodeUnit(ArithmeticEncodeUnit):
         return GuiArithmeticEncodeUnit(unit.level)
 
     def get_gui() -> "GuiArithmeticEncodeUnit":
-        return GuiArithmeticEncodeUnit(1)
+        return GuiArithmeticEncodeUnit(2)
 
 
 class GuiAugmentOpaqueUnit(AugmentOpaqueUnit):
