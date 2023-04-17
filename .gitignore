@@ -144,8 +144,12 @@ demo/
 # YACC's parser table (for custom patched parser)
 yacctab.py
 
-# AST visualisation generation files
+# AST visualisation generation files and script
 /ast
 /ast*.pdf
 /ast*.exe
 backups/
+/draw_ast.py
+
+# Evaluation scripts
+/evaluation.py

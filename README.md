@@ -394,11 +394,9 @@ This project is relatively large in scope. As such, I roughly describe the file 
     - `testing/` - Temporary directory used while running tests; can be safely ignored
     - `__init__.py` - Python packaging file
     - `test_cli.py` - CLI unit tests
-    - `test_complexity.py` - Complexity metric unit tests
     - `test_compositions.py` - Obfuscation composition correctness testing
     - `test_gui.py` - GUI unit tests
-    - `test_obfuscation.py` - Obfuscation methods unit tests
-    - `test_system.py` - Whole system tests
+    - `test_obfuscation.py` - Obfuscation method correctness testing
     - `test_utils.py` - Utility function unit tests
 - `utils/fake_libc_include/*` - Safely ignore this. Standard library header file handling for pycparser. Code is taken from pycparser (see the [**Acknowledgements**](#7-acknowledgements)) and slightly modified
 - `bugs.md` - List and explanation of known bugs
@@ -434,7 +432,7 @@ Provided that you have run the setup commands in the [**Section 2**](#2-installa
 
 replacing `python3` with `python` or `py` with your python path as is necessary. This will run the full test suite, including unit, integration, system and obfuscation correctness tests. As such, you can expect that these tests will take a while to run purely because of the obfuscation correctness testing (on default settings this takes about 5 minutes for me).
 
-If you navigate to `tests/test_compositions.py`, you can change the value of the `INTEGRATION_TEST_STYLE` variable to be different `UsedDepth` enumerated values, to run obfuscation correctness tests that fit your needs. Note that these test cases grow exponentially, so you can roughly expect (on a standard modern laptop, note these are rough estimates):
+If you navigate to `tests/test_obfuscation.py`, you can change the value of the `INTEGRATION_TEST_STYLE` variable to be different `UsedDepth` enumerated values, to run obfuscation correctness tests that fit your needs. Note that these test cases grow exponentially, so you can roughly expect (on a standard modern laptop, note these are rough estimates):
 - `UsedDepth.NONE`: 0 seconds, 0 tests
 - `UsedDepth.LIGHTEST`: 5 minutes, around 1,000 tests
 - `UsedDepth.LIGHT`: 1 hour, around 7,500 tests
@@ -452,7 +450,7 @@ Unit tests are found in the `tests/test_*.py` files, and are designed to test di
 <br>
 
 ### **6.3. Testing Obfuscation Correctness**
-Obfuscation correctness uses automatically generatesd tests, with customisable parameters to control the number of tests generated (see [**Section 6.1**](#61-running-tests) for more information, or the code in `tests/test_compositions.py`). Tests vary across a range of example programs each testing different C features, and randomise the parameters that are used in obfuscation methods also. Correctness testing is split into three phases:
+Obfuscation correctness uses automatically generatesd tests, with customisable parameters to control the number of tests generated (see [**Section 6.1**](#61-running-tests) for more information, or the code in `tests/test_obfuscation.py`). Tests vary across a range of example programs each testing different C features, and randomise the parameters that are used in obfuscation methods also. Correctness testing is split into three phases:
 
 - **Single Method Tests**: Where compositions containing singular transforms are rigorously tested for all possible (where bounded) possible input parameters, for all `n` transforms, across a set of programs. This is to ensure individual methods are working as intended.
 - **Double Method Testing**: Where compositions containing pairs of transforms are rigorously tested for lots of possible input parameters, for all possible pairs of transforms (`n^2` pairings), across a set of programs. This is to ensure that no bugs are introduced with the integration and interaction of different methods (for example a bug introduced when mutating the AST in one method might not cause a problem during its operation, but might cause a problem during the second).

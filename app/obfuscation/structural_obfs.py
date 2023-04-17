@@ -3164,7 +3164,6 @@ class ControlFlowFlattener(NodeVisitor):
         assign = []
         for i, (expr, indexes) in enumerate(exprs):
             # For 1D arrays we do simple standard 1D indexing
-            print(indexes, dims)
             if indexes is None or indexes == [] or len(dims) == 1:
                 ref = ArrayRef(ID(node.name), Constant("int", str(i)))
                 assign.append(Assignment("=", ref, expr))

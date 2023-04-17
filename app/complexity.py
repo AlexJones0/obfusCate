@@ -1,15 +1,22 @@
 """ File: complexity.py
-Implements classes and functions for handling input and output. 
+Implements classes and functions for calculating quantitative and qualitative 
+obfuscation metrics, by calculating code complexity metrics for both the 
+original source program and obfuscated program and providing this information. 
+Implemented metrics include aggregates (counts), McCabe's Cyclomatic Complexity
+index, Halstead's Measures, Sonar's Cognitive Complexity, and the 
+Maintainability Index. 
 """
-from app import settings as config
 from .interaction import CSource, PatchedGenerator
 from abc import ABC, abstractmethod
-from typing import Iterable, Optional, Tuple, Any
+from typing import Iterable, Optional, Tuple, TypeAlias, Any
 from pycparser.c_ast import *
-from pycparser import c_generator, c_lexer
+from pycparser import c_lexer
 import statistics
 import networkx
 import math
+
+
+Metric: TypeAlias = Tuple[str,Tuple[str,str] | str]
 
 
 class CodeMetricUnit(ABC):
@@ -24,9 +31,21 @@ class CodeMetricUnit(ABC):
     predecessors = []
 
     def __init__(self):
+        """ The constructor for the CodeMetricUnit base class, which defines a list of metrics"""
         self.metrics = {}
 
     def add_metric(self, name: str, new: str, delta: Optional[str] = None) -> None:
+        """Adds a given metric to the list of metrics stored by the CodeMetricUnit,
+        either directly storing the value or storing a tuple if an optional delta value
+        us provided.
+
+        Args:
+            name (str): The name of the metric (that will be displayed to users)
+            new (str): The value of the metric for the obfuscated program
+            delta (Optional[str], optional): The change in value of the metric,
+            from original source program to obfuscated program, where one exists. 
+            Defaults to None, representing no delta.
+        """
         if delta is None:
             self.metrics[name] = new
         else:
@@ -34,9 +53,25 @@ class CodeMetricUnit(ABC):
 
     @abstractmethod
     def calculate_metrics(self, old_source: CSource, new_source: CSource) -> None:
+        """ Calculates a set of metrics given the original source C program and the
+        final obfuscated source C program, adding them to the list of stored metrics.
+
+        Args:
+            old_source (CSource): The original unobfuscated C source program
+            new_source (CSource): The final obfuscated C source program
+        """
         return NotImplemented
 
-    def get_metrics(self) -> Iterable[Any]:
+    def get_metrics(self) -> list[Metric]:
+        """Retrieves the list of metrics stored by the CodeMetricUnit, sorting them
+        according to the ordering defined in by the class' positions dictionary,
+        and 
+
+        Returns:
+            list[Metric]: The list of previously calculated metrics, in sorted order,
+            where each metric is a tuple (name, value) where value is either the string
+            value of that metric for the obfuscated program, or some tuple (new value, delta).
+        """
         if len(self.metrics) == 0:
             return [(x, "N/A") for x in self.positions]
         return sorted(
@@ -47,14 +82,39 @@ class CodeMetricUnit(ABC):
         )
 
 
-def int_delta(new: int, prev: int) -> str:
+def int_delta(new: int | str, prev: int | str) -> str:
+    """Given two integers metric values, this function calculates the delta 
+    (change) between the two values. If either value is the special "N/A" string
+    then the delta is likewise defined to be "N/A". Also, an unary "+" is prepended
+    to all positive numbers to make it clear that the value is a positive delta.
+
+    Args:
+        new (int | str): The metric value for the obfuscated program
+        prev (int | str): The metric value for the original program
+
+    Returns:
+        str: The string delta (change) from the original to the obfuscated metric.
+    """
     if new == "N/A" or prev == "N/A":
         return "N/A"
     delta = int(new - prev)
     return ("+" + str(delta)) if delta >= 0 else str(delta)
 
 
-def float_delta(new: float, prev: float) -> str:
+def float_delta(new: float | str, prev: float | str) -> str:
+    """Given two float metric values, this function calculates the delta (change) 
+    between the two values. If either value is the special "N/A" string then the 
+    delta is likewise defined to be "N/A". Also, an unary "+" is prepended to all 
+    positive numbers to make it clear that the value is a positive delta. All decimals
+    are formatted to one decimal place for display purposes.
+
+    Args:
+        new (float | str): The metric value for the obfuscated program
+        prev (float | str): The metric value for the original program
+
+    Returns:
+        str: The string delta (change) from the original to the obfuscated metric.
+    """
     if new == "N/A" or prev == "N/A":
         return "N/A"
     delta = new - prev
@@ -62,6 +122,17 @@ def float_delta(new: float, prev: float) -> str:
     return ("+" + f_str) if delta >= 0.0 else f_str
 
 def format_time(time: int | str) -> str:
+    """Given some duration of time in unit seconds, this function formats the time
+    into a more human readable format by converting it to a form %d %h %m %s
+    showing the different units of time. Only the largest scale unit needed to 
+    represent the duration is shown to improve readability.
+
+    Args:
+        time (int | str): The duration of time in unit seconds
+
+    Returns:
+        str: A human readable time duration string like "%d %h %m %s"
+    """
     if isinstance(time, str):
         return time
     fstring = "{}s".format(time % 60)
@@ -80,6 +151,23 @@ def format_time(time: int | str) -> str:
 
 
 def file_size(byte_size: int, binary_suffix: bool = False, signed: bool = True) -> str:
+    """This function calculates the file size of a given file in a format with
+    readable scaled units, given the size in bytes of the file, e.g. 4.5KB. All
+    values are given to one decimal place in terms of accuracy. 
+
+    Args:
+        byte_size (int): The number of bytes (8 bits) in the file.
+        binary_suffix (bool, optional): Whether to use binary suffixes e.g.
+        KiB, MiB, GiB, ... which increase by a factor of 2^10 = 1024, or not, instead
+        using decimal KB, MB, GB, ... formats which increase by a factor of
+        10^3 = 1000. Defaults to False, i.e. decimal suffixes.
+        signed (bool, optional): Whether to calculate the absolute file size, or to
+        include the plus or minus sign. Defaults to True, indicating to include the sign.
+        This is to cover the case of changes in file size (deltas).
+
+    Returns:
+        str: A string representing the file size with more comprehensible units.
+    """
     is_positive = byte_size >= 0
     byte_size = abs(byte_size)
     if binary_suffix:
@@ -205,7 +293,7 @@ class CountVisitor(NodeVisitor):
 
 class CountUnit(CodeMetricUnit):
 
-    name = "Counts"
+    name = "Aggregates"
     positions = dict(
         [
             (x, i)
@@ -1482,7 +1570,6 @@ class MaintainabilityUnit(CodeMetricUnit):
         # Get average lines of code per function
         new_loc, old_loc = count_metrics["Lines"]
         new_func, old_func = count_metrics["Functions"]
-        # Add 1 function to consider global definitions seperately
         new_func += 1
         old_func += 1
         new_loc /= new_func
@@ -1500,9 +1587,6 @@ class MaintainabilityUnit(CodeMetricUnit):
         if "Volume" not in halstead_metrics or halstead_metrics["Volume"][0] == 'N/A':
             return self.__skip_metrics()
         new_vol, old_vol = halstead_metrics["Volume"]
-        # TODO is this right? I don't think I'm calculating and aggregating
-        # volume right? Should calculate volume individually and then average?
-        # And probably do this in the Halstead function as well?
         if new_vol != 'N/A':
             new_vol /= new_func 
         if old_vol != 'N/A':
