@@ -851,6 +851,16 @@ class IdentifierAnalyzer(NodeVisitor):
         self._current_compound = prev_compound
 
     @_stmt_wrapper
+    def visit_For(self, node: For) -> None:
+        """ Visits a For node, traversing the for loop. Defines a seperate
+        definition scope (separate from the regular compound scoping structures)
+        to ensure that any values initialized in the for loop are only defined
+        within its body, and not elsewhere. """
+        self._current_definitions.append({})
+        NodeVisitor.generic_visit(self, node)
+        self._current_definitions = self._current_definitions[:-1]
+
+    @_stmt_wrapper
     def visit_FuncDecl(self, node: FuncDecl) -> None:
         """Visits a FuncDecl node, recording the declared function. Avoids
         traversing the parameter list, so that it is traversed in the function
