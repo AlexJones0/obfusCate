@@ -1231,6 +1231,7 @@ class OpaqueInserter(NodeVisitor):
             "ELSE_FALSE: if (false predicate) { buggy code } else { YOUR CODE } "
         )
         WHILE_FALSE = "WHILE_FALSE: while (false predicate) { buggy code } "
+        DO_WHILE = "DO_WHILE: do { YOUR CODE } while (false predicate); "
         EITHER = "EITHER: if (any predicate) { YOUR CODE } else { YOUR CODE } "
 
     def __init__(
@@ -1575,6 +1576,12 @@ class OpaqueInserter(NodeVisitor):
                 buggy = self.generate_buggy(stmt)
                 block_items = stmt.block_items if isinstance(stmt, Compound) else [stmt]
                 return Compound([While(cond, buggy)] + block_items)
+            case self.Kind.DO_WHILE:  # do { YOUR CODE } while (false)
+                cond = self.generate_opaque_predicate_cond(stmt)
+                if cond is None:
+                    return None
+                cond = OpaquePredicate.negate(cond)
+                return Compound([DoWhile(cond, stmt)])
             case _:
                 return None
 
@@ -1889,7 +1896,8 @@ class InsertOpaqueUnit(ObfuscationUnit):
         """ > FALSE:       if (false predicate) { buggy code } <br>\n"""
         """ > ELSE:        if (false predicate) { buggy code } else { YOUR CODE } <br>\n"""
         """ > EITHER:      if (any predicate) { YOUR CODE } else { YOUR CODE } <br>\n"""
-        """ > WHILE_FALSE: while (false predicate) { buggy code } <br><br>\n"""
+        """ > WHILE_FALSE: while (false predicate) { buggy code } <br>\n"""
+        """ > DO_WHILE:    do { YOUR CODE } while (false);<br><br>\n"""
         """The final input is the number of opaque predicates to insert in your function.<br><br>\n\n"""
         """Warning: "buggy code" generation currently just replicates the real code;\n"""
         """complexity is still increased but note this behaviour when choosing options."""
