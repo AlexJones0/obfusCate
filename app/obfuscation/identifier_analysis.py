@@ -968,7 +968,7 @@ class IdentifierAnalyzer(NodeVisitor):
                     self._record_usage(node, type_.name, locs, NameSpace.TAG)
             elif isinstance(type_, (Enum, Struct, Union)) and type_.name is not None:
                 locs = [(type_, "name")]
-                self._record_definition(node, type_.name, locs, NameSpace.TAG)
+                self._record_usage(node, type_.name, locs, NameSpace.TAG)
 
     def _record_funcspec_decl(self, node: Decl) -> None:
         """Records definitions of function specifications, including
