@@ -864,33 +864,3 @@ class TestObfuscationMethodsCLI(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-# TODO
-# TESTING TODO
-# Debug unit tests: YES                                                                 Documented/Refactored: YES
-# Interaction unit tests: YES                                                           Documented/Refactored: YES
-# Utils unit tests: YES                                                                 Documented/Refactored: YES
-# General CLI unit tests: YES                                                           Documented/Refactored: YES
-# CLI System Argument tests: YES                                                        Documented/Refactored: YES
-# Obfuscation CLI unit tests: NO                                                        Documented/Refactored: YES
-# Code Complexity CLI unit tests: NO                                                    Documented/Refactored: NO
-# CLI integration tests: NO                                                             Documented/Refactored: N/A
-# General GUI unit tests: NO                                                            Documented/Refactored: NO
-# Obfuscation GUI unit tests: NO                                                        Documented/Refactored: NO
-# Code Complexity GUI unit tests: NO                                                    Documented/Refactored: NO
-# GUI integration tests: NO                                                             Documented/Refactored: N/A
-# Obfuscation unit tests (per method, per construct): NO                                Documented/Refactored: NO
-# Obfucation construct integration tests (per method): NO                               Documented/Refactored: N/A
-# Obfuscation transformation integration tests (combinations of methods): NO            Documented/Refactored: NO
-# Code Complexity metric unit tests: NO                                                 Documented/Refactored: NO
-# Whole system tests: NO                                                                Documented/Refactored: N/A
-#
-# Evaluation stuff:
-#   - How does project meet objectives (show it does)
-#   - Test case passing
-#   - Demo
-#   - How does it compare to other solutions? - feature richness
-#   - Compare to Tigress - performance on similar transformations, using my own metrics
-#   - Evaluation using automatic deobfuscation software?
-#
