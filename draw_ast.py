@@ -16,6 +16,7 @@ parser.add_argument('--edgeLabels', action='store_true', help="Label edges with 
 parser.add_argument('--nodeTypes', action='store_true', help="Label nodes with their node types.")
 parser.add_argument('--nodeMutations', action='store_true', help="Label nodes with their mutations.")
 parser.add_argument('--treePorts', action='store_true', help="Labels use direct north/south edge ports.")
+parser.add_argument('--opaquePredMode', action='store_true', help="Replaces empty statement nodes with triangle ... nodes, and replaces '!' string constants with triangle opaque predicate nodes.")
 args = parser.parse_args()
 
 # Get the file name argument
@@ -46,7 +47,7 @@ else:
     analyzer = None
     
 ############ PUT ANY AST TRAVERSAL COMMANDS (TO GET A SUBTREE) HERE #############
-ast = ast.ext[2].body
+ast = ast#.ext[0].body.block_items[4]
 #################################################################################
 
 # Function for checking if something is an empty list or empty tuple
@@ -181,6 +182,13 @@ def traverse_ast(node, dot, format_func=format_attribute, label_func=format_labe
             label = label[:-1] + f'<br/><font point-size="13" color="red"><b>{mutate_str}</b></font>>'
         dot.node(str(id(node)), label=label, shape='box', style='rounded,filled', 
                  fillcolor='#FFFFFF')
+    elif args is not None and args.opaquePredMode:
+        if isinstance(node, c_ast.EmptyStatement):
+            dot.node(str(id(node)), label="...", shape='triangle', style='filled', fillcolor='#FFFFFF')
+        elif isinstance(node, c_ast.Constant) and node.value is not None and node.value == "'!'":
+            dot.node(str(id(node)), label="...", shape='triangle', style='filled', fillcolor='#FFFFFF')
+        else:
+            dot.node(str(id(node)), label=label, shape='box', style='rounded,filled', fillcolor='#FFFFFF')
     else:
         dot.node(str(id(node)), label=label, shape='box', style='rounded,filled', fillcolor='#FFFFFF')
     # Recursively traverse the children of the current node
