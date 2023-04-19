@@ -41,6 +41,15 @@ class Pipeline:
             self.transforms[:index] + [transform] + self.transforms[index:]
         )
 
+    def set_seed(self, seed: int) -> None:
+        """Sets a new random seed to be used by the pipeline for obfuscation.
+
+        Args:
+            seed (int): The new random seed to use.
+        """
+        self.seed = seed
+        random.seed(seed)
+
     def print_progress(self, index: int, start_time: datetime.datetime) -> None:
         """Prints the current progress of the transformation pipeline to the standard
         output stream, displaying the progress through the entire pipeline as well as
