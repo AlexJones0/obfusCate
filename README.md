@@ -130,6 +130,13 @@ Again, please see sections [**3.5**](#35-cligui-options) and [**3.6**](#36-gui-s
 > python3 obf_cli.py --help
 ```
 
+Your obfuscated programs are then perfectly syntactically and semantically valid C programs, which are targeted towards Clang but should work on any modern compiler including gcc. Note that if you use the **digraph / trigraph encoding** obfuscation option most modern compilers will have these off by default, requiring you to provide a **--trigraphs** flag. They might still spam you with warnings, so you should probably include **-Wno-everything** in Clang or an equivalent for other compilers, to free up your terminal. So, an example of using Clang to compile an obfuscated program with digraphs/trigraphs might like look like e.g.
+
+```
+> clang -o obfs obfs.c --trigraphs -Wno-everything
+> ./obfs
+```
+
 **Important Note**: Please be aware that the very first obfuscation you run will likely take a few seconds, because patching of the parser means that it has to be recompiled by Yacc. The file `yacctab.py` must be generated in the project directory so that this parser can be used, and this tends to take a few seconds to build. After this has been built, you should not need to build it again so long as you do not delete the file.
 
 <br>
