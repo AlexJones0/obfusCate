@@ -450,7 +450,7 @@ Unit tests are found in the `tests/test_*.py` files, and are designed to test di
 <br>
 
 ### **6.3. Testing Obfuscation Correctness**
-Obfuscation correctness uses automatically generatesd tests, with customisable parameters to control the number of tests generated (see [**Section 6.1**](#61-running-tests) for more information, or the code in `tests/test_obfuscation.py`). Tests vary across a range of example programs each testing different C features, and randomise the parameters that are used in obfuscation methods also. Correctness testing is split into three phases:
+Obfuscation correctness uses automatically generated tests, with customisable parameters to control the number of tests generated (see [**Section 6.1**](#61-running-tests) for more information, or the code in `tests/test_obfuscation.py`). Tests vary across a range of example programs each testing different C features, and randomise the parameters that are used in obfuscation methods also. Correctness testing is split into three phases:
 
 - **Single Method Tests**: Where compositions containing singular transforms are rigorously tested for all possible (where bounded) possible input parameters, for all `n` transforms, across a set of programs. This is to ensure individual methods are working as intended.
 - **Double Method Testing**: Where compositions containing pairs of transforms are rigorously tested for lots of possible input parameters, for all possible pairs of transforms (`n^2` pairings), across a set of programs. This is to ensure that no bugs are introduced with the integration and interaction of different methods (for example a bug introduced when mutating the AST in one method might not cause a problem during its operation, but might cause a problem during the second).
