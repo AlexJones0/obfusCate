@@ -1136,6 +1136,19 @@ class GeneralOptionsForm(QFrame):
             return
         source = CSource(files[0])
         if source.contents is None or not source.valid_parse:
+            error_msg = (
+                "An error occurred whilst parsing your C file, and so it cannot\n"
+                "be loaded."
+            )
+            if source.error_context is not None:
+                error_msg = "<html>" + error_msg
+                error_msg.replace("\n", "<br></br>")
+                error_msg += " Here is some more context for your error:<br></br>"
+                error_msg += " <b>/{}:{}</b></html>".format(
+                    self.__source_form_reference.get_fname(),
+                    source.error_context
+                )
+            display_error(error_msg)
             return False
         self.__source_form_reference.add_source(source)
 
@@ -1157,6 +1170,11 @@ class GeneralOptionsForm(QFrame):
             with open(files[0], "r") as f:
                 transform_pipeline = obfs.Pipeline.from_json(f.read(), use_gui=True)
                 if transform_pipeline is None:
+                    display_error(
+                        "The given composition file is corrupted, and so it cannot be loaded.\n"
+                        "Please check the most recent log file if you are attempting to make\n"
+                        "manual changes. Otherwise, you should remake your obfuscation scheme."
+                    )
                     return
                 if config.SEED is None:  # Only use the saved seed if no seed was given
                     self.seed = transform_pipeline.seed
