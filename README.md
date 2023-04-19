@@ -1,4 +1,9 @@
 
+[//]: # (Hello! This README.md documentation file is a Markdown file, and so if you're reading this,)
+[//]: # (you aren't reading it in the intended way! It's probably still readable but some parts are)
+[//]: # (just going to look a lot like code. Ideally, you should use a markdown renderer to view the)
+[//]: # (intended contents of this file, for example using an applicable virtual studio code extension.)
+
 ***<img src="app/graphics/icons/logo.png" width="40" height="40"></img> obfusCate*: An automated, approachable C source-to-source obfuscator**
 ===============
 
@@ -12,47 +17,35 @@
 
 2. [**Installation**](#2-installation)
 
-3. [**Debugging**](#3-debugging)
-    
-    3.1. [**Python Installation Issues**](#31-python-installation-issues)
-    
-    3.2. [**Pip Issues**](#32-pip-issues)
+3. [**Usage**](#3-usage)
 
-    3.3. [**Clang Issues**](#33-clang-issues)
+    3.1. [**Running the Program**](#31-running-the-program)
 
-    3.4. [**Python Script Issues**](#34-python-script-issues)
+    3.2. [**Making your program amenable to obfuscation**](#32-making-your-program-amenable-to-obfuscation)
 
-    3.5. [**Other Issues**](#35-other-issues)
+    3.3. [**Supported Transformations**](#33-supported-transformations)
 
-4. [**Usage**](#4-usage)
+    3.4. [**Supported Complexity Metrics**](#34-supported-complexity-metrics)
 
-    4.1. [**Running the Program**](#41-running-the-program)
+    3.5. [**CLI/GUI Options**](#35-cligui-options)
 
-    4.2. [**Making your program amenable to obfuscation**](#42-making-your-program-amenable-to-obfuscation)
+    3.6. [**GUI Shortcuts**](#36-gui-shortcuts)
 
-    4.3. [**Supported Transformations**](#43-supported-transformations)
+4. [**Project Structure / Documentation**](#4-project-structure--documentation)
 
-    4.4. [**Supported Complexity Metrics**](#44-supported-complexity-metrics)
+    4.1. [**Project Structure**](#41-project-structure)
 
-    4.5. [**CLI/GUI Options**](#45-cligui-options)
+    4.2. [**Documentation**](#42-documentation)
 
-    4.6. [**GUI Shortcuts**](#46-gui-shortcuts)
+5. [**Testing**](#5-testing)
 
-5. [**Project Structure / Documentation**](#5-project-structure--documentation)
+    5.1. [**Running Tests**](#51-running-tests)
 
-    5.1. [**Project Structure**](#51-project-structure)
+    5.2. [**Unit, Integration and System Testing**](#52-unit-integration-and-system-testing)
 
-    5.2. [**Documentation**](#52-documentation)
+    5.3. [**Testing Obfuscation Correctness**](#53-testing-obfuscation-correctness)
 
-6. [**Testing**](#6-testing)
-
-    6.1. [**Running Tests**](#61-running-tests)
-
-    6.2. [**Unit, Integration and System Testing**](#62-unit-integration-and-system-testing)
-
-    6.3. [**Testing Obfuscation Correctness**](#63-testing-obfuscation-correctness)
-
-7. [**Acknowledgements**](#7-acknowledgements)
+6. [**Acknowledgements**](#6-acknowledgements)
 
 <br></br>
 
@@ -75,7 +68,7 @@ For those that cannot access (or would rather not access) a GUI interface, we al
 ----
 The following steps are all that is needed for installation:
 
-1. Make sure Python 3.8 or later is installed on your system, and is being used by your python path. You can check this using the command 
+1. Make sure Python 3.10 or later is installed on your system, and is being used by your python path. You can check this using the command 
 
     ```
     > python3 --version
@@ -89,48 +82,18 @@ The following steps are all that is needed for installation:
     > python3 -m pip install -r requirements.txt
     ```
 
-    to install the required python modules. *Hopefully*, installation of the *libclang* module will automatically install clang on your system if it is not already installed. If not, see the [Debugging section](#3-debugging) for possible help.
+    to install the required python modules. *Hopefully*, installation of the *libclang* module will automatically install clang on your system if it is not already installed. If not, please install clang using normal procedures. 
 
-3. Everything needed to run the project should now be installed! You can see the [Usage section](#4-usage) to see how you are intended to run the program!
+3. Everything needed to run the project should now be installed! You can see the [Usage section](#3-usage) to see how you are intended to run the program!
 
 *Note:* Alternatively, you can just try running some install scripts I have set up that will try and determine your python executable alias for you - but there is no guarantees that these will work for your OS! On Windows open Powershell / Windows Terminal / cmd and run `./install.bat`, and on Linux / Mac open a terminal and run `./install.sh`. This should complete this installation process for you.
 
 <br></br>
 
-## **3. Debugging**
----
-
-### **3.1. Python Installation Issues**
-TODO: examples, discussion and bugfixes for python issues
-
-<br>
-
-### **3.2. PyPi (pip) Issues**
-TODO: examples, discussion and bugfixes for pip issues
-
-<br>
-
-### **3.3. Clang Issues**
-TODO: examples, discussion and bugfixes for clang issues
-
-<br>
-
-### **3.4. Python Script Issues**
-TODO: examples, discussion and bugfixes for python script issues
-
-<br>
-
-### **3.5. Other Issues**
-TODO: examples, discussion and bugfixes for other misc issues.
-
-TODO: mention of bugs.md
-
-<br></br>
-
-## **4. Usage**
+## **3. Usage**
 ----
 
-### **4.1. Running the Program**
+### **3.1. Running the Program**
 Provided that you have run the setup commands in the [**Section 2**](#2-installation), you should have all required libraries installed. As such, run the command:
 
 ```
@@ -143,7 +106,7 @@ replacing `python3` with `python` or `py` with your python path, and `input_file
 > python3 obf_gui.py input_file.c output_file.c
 ```
 
-replacing `output_file.c` with the name of the output file you would like to use - this will be written to when you save or exit. For comprehensive usage information outside of this, including a list of available arguments, please see sections [**4.5**](#45-cligui-options) and [**4.6**](#46-gui-shortcuts) below, or run the command
+replacing `output_file.c` with the name of the output file you would like to use - this will be written to when you save or exit. For comprehensive usage information outside of this, including a list of available arguments, please see sections [**3.5**](#35-cligui-options) and [**3.6**](#36-gui-shortcuts) below, or run the command
 
 ```
 > python3 obf_gui.py --help
@@ -161,7 +124,7 @@ To instead access the command-line interface, run either of the below commands, 
 > python3 obf_cli.py input_file.c output_file.c
 ```
 
-Again, please see sections [**4.5**](#45-cligui-options) and [**4.6**](#46-gui-shortcuts) below, or run the below command for more usage info.
+Again, please see sections [**3.5**](#35-cligui-options) and [**3.6**](#36-gui-shortcuts) below, or run the below command for more usage info.
 
 ```
 > python3 obf_cli.py --help
@@ -171,7 +134,7 @@ Again, please see sections [**4.5**](#45-cligui-options) and [**4.6**](#46-gui-s
 
 <br>
 
-### **4.2. Making your program amenable to obfuscation**
+### **3.2. Making your program amenable to obfuscation**
 
 There are several steps you can take to make your program more amenable to obfuscation and allow more effective transformations, as there are a few cases in which the program behavious cautioutsly in case it cannot be 100% sure about certain properties of your program (e.g. side effects), and there are many things that it is simply not intelligent enough to reason about with regards to semantics. The following are suggested ways to make your program more amenable (and how they help!)
 
@@ -189,7 +152,7 @@ There are several steps you can take to make your program more amenable to obfus
 
 <br>
 
-### **4.3. Supported Transformations**
+### **3.3. Supported Transformations**
 
 Currently supported transformations are listed below. Please see relevant report / documentaton / GUI tooltips for further explanations.
 
@@ -267,7 +230,7 @@ Currently supported transformations are listed below. Please see relevant report
 
 <br>
 
-### **4.4. Supported Complexity Metrics**
+### **3.4. Supported Complexity Metrics**
 
 Currently supported code complexity metrics are listed below. Except where qualitative (e.g. a rating description), metrics are provided for the obfuscated program, alongside delta (change) values that describe how the obfuscated program differs from the original. Please see relevant report / documentaton / GUI tooltips for further explanations.
 
@@ -323,7 +286,7 @@ Currently supported code complexity metrics are listed below. Except where quali
 
 <br>
 
-### **4.5. CLI/GUI Options**
+### **3.5. CLI/GUI Options**
 - `-h`, `--help`: Displays the help menu.
 - `-v`, `--version`: Displays the program's name and current version.
 - `-L`, `--noLogs`: Stops a log file being created for this execution.
@@ -337,7 +300,7 @@ Currently supported code complexity metrics are listed below. Except where quali
 
 <br>
 
-### **4.6. GUI Shortcuts** 
+### **3.6. GUI Shortcuts** 
 - `Ctrl+R`: Obfuscate program
 - `Ctrl+D`: Delete selected transform
 - `Ctrl+S`: Save obfuscated C file
@@ -353,10 +316,10 @@ Currently supported code complexity metrics are listed below. Except where quali
 
 <br></br>
 
-## **5. Project Structure / Documentation**
+## **4. Project Structure / Documentation**
 ----
 
-### **5.1. Project Structure**
+### **4.1. Project Structure**
 
 This project is relatively large in scope. As such, I roughly describe the file structure below to help you find what you're looking for:
 
@@ -398,7 +361,7 @@ This project is relatively large in scope. As such, I roughly describe the file 
     - `test_gui.py` - GUI unit tests
     - `test_obfuscation.py` - Obfuscation method correctness testing
     - `test_utils.py` - Utility function unit tests
-- `utils/fake_libc_include/*` - Safely ignore this. Standard library header file handling for pycparser. Code is taken from pycparser (see the [**Acknowledgements**](#7-acknowledgements)) and slightly modified
+- `utils/fake_libc_include/*` - Safely ignore this. Standard library header file handling for pycparser. Code is taken from pycparser (see the [**Acknowledgements**](#6-acknowledgements)) and slightly modified
 - `bugs.md` - List and explanation of known bugs
 - `install.bat` - Windows bat automatic install script
 - `install.sh` - Linux/Mac bash automatic install script
@@ -409,7 +372,7 @@ This project is relatively large in scope. As such, I roughly describe the file 
 
 <br>
 
-### **5.2. Documentation**
+### **4.2. Documentation**
 
 Much of the project's functionality is created by extending the pycparser Abstract Syntax Tree (AST) `NodeVisitor` class, which defines an interface for in-order traversal of ASTs. This defined **49 unique methods** for visiting each AST node class - as such, documentation of these methods tend to be very repetitive and regurgitative within such classes, and as such provided explanation will primarily focus on what the method does *aside from* simply traversing the AST, with mention to its traversal only being discussed if necessary (e.g. using a different traversal order). This allows documentation to focus on key specifics and implementation details, and reduces repetitiveness - I focus on clarity, readability, and brevity. For any such `NodeVisitor` subclass, be aware that methods prepended by `visit_` are for visiting a specific AST node class, such as e.g. `visit_FuncDef`, traversing that node.
 
@@ -417,13 +380,13 @@ Documentation regarding the creation of this project, its motivation, background
 
 <br></br>
 
-## **6. Testing**
+## **5. Testing**
 ----
 Continuous integration with Github Action assures me that the code definitely runs on the latest Mac, Ubuntu and Windows images, but I've only been able to manually test on **Windows 11**, **Rocky Linux** and **Ubuntu** - so no guarantee there are no OS-specific issues on other systems. At the very least given that the tests pass it is likely that at least the CLI version should work on most systems.
 
 <br>
 
-### **6.1. Running Tests**
+### **5.1. Running Tests**
 Provided that you have run the setup commands in the [**Section 2**](#2-installation), you should have **pytest** installed. As such, run the command:
 
 ```
@@ -444,12 +407,12 @@ The test scheme that was run for this project was `MEDIUM`. Generally, `LIGHTEST
 
 <br>
 
-### **6.2. Unit, Integration and System Testing**
+### **5.2. Unit, Integration and System Testing**
 Unit tests are found in the `tests/test_*.py` files, and are designed to test different aspects of the program's utilities, classes, command line interface and graphical user interface. At the time of writing, there are currently **115** implemented unit tests.
 
 <br>
 
-### **6.3. Testing Obfuscation Correctness**
+### **5.3. Testing Obfuscation Correctness**
 Obfuscation correctness uses automatically generated tests, with customisable parameters to control the number of tests generated (see [**Section 6.1**](#61-running-tests) for more information, or the code in `tests/test_obfuscation.py`). Tests vary across a range of example programs each testing different C features, and randomise the parameters that are used in obfuscation methods also. Correctness testing is split into three phases:
 
 - **Single Method Tests**: Where compositions containing singular transforms are rigorously tested for all possible (where bounded) possible input parameters, for all `n` transforms, across a set of programs. This is to ensure individual methods are working as intended.
@@ -460,7 +423,7 @@ The intention is that through the implementation of these three testing schemes,
 
 <br></br>
 
-## **7. Acknowledgements**
+## **6. Acknowledgements**
 ----
 **[1] pycparser**, created primarily by Eli Bendersky, was used heavily in the creation of this project, providing a C source code lexer, parser and generator created using yacc, which provides an intuitive pythonic interface for generating, traversing and manipulating Abstract Syntax Trees (ASTs) of C source code programs. In addition to using the library, all files in the ***utils/fake_libc_include/*** directory are code included (and very slightly modified) from pycparser in order to allow programs using standard library headers to be modified. See: *https://github.com/eliben/pycparser*
 
