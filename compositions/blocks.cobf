@@ -1,0 +1,1 @@
+{"seed": null, "version": "v0.18.3", "transformations": ["{\"type\": \"Identifier Renaming\", \"style\": \"I_AND_L\", \"minimise_idents\": false}", "{\"type\": \"Clutter Whitespace\", \"target_length\": 40, \"pad_lines\": true}"]}

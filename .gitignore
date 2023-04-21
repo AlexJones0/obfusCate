@@ -135,7 +135,7 @@ logs/
 out/
 demo/
 /examples/
-/compositions/
+/compositions/auto/
 /tests/testing/*
 
 # VScode
@@ -153,3 +153,6 @@ backups/
 
 # Evaluation scripts
 /evaluation.py
+
+# Obfuscated program search scripts
+/prog_finder.py
