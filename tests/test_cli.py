@@ -9,7 +9,7 @@ from tests import *
 import io
 
 
-class CountUnit(obfs.ObfuscationUnit):
+class AggregateUnit(obfs.ObfuscationUnit):
     "A simple obfuscation class made for testing purposes."
     count = 1
     type = obfs.TransformType.STRUCTURAL
@@ -28,17 +28,21 @@ class CountUnit(obfs.ObfuscationUnit):
         return None
     
     def __str__(self) -> str:
-        return f"CountUnit(c={self.count_})"
+        return f"AggregateUnit(c={self.count_})"
 
 
-class CliCountUnit(CountUnit):
+class CliAggregateUnit(AggregateUnit):
+    """ A simple obfuscaion unit class made for testing purposes,
+    extending the existing aggregate unit. This simply increments the 
+    aggregate unit's count every time a new unit is created, such that
+    each aggreage unit has its own unique number that can be tested for. """
 
-    def edit_cli(self):
+    def edit_cli(self) -> None:
         print(f"Edited {self.count_}")
     
-    def get_cli() -> "CountUnit":
-        CountUnit.count += 1
-        return CliCountUnit(CountUnit.count)
+    def get_cli() -> "AggregateUnit":
+        AggregateUnit.count += 1
+        return CliAggregateUnit(AggregateUnit.count)
 
 
 class TestMainCLIFunctions(unittest.TestCase):
@@ -368,33 +372,33 @@ class TestMainCLIFunctions(unittest.TestCase):
         """ Tests that the transform selection CLI displays the available transforms
         and the cursor correctly."""
         source = CSource(os.path.join(os.getcwd(),  "./tests/data/minimal.c"))
-        CountUnit.count = 0
+        AggregateUnit.count = 0
         inp = str(len(obfs.ObfuscationUnit.__subclasses__()))
         inputs = [inp, inp, inp, inp, inp, "quit"]
         out = io.StringIO()
         with patch("builtins.input", side_effect=inputs), redirect_stdout(out):
             cli_obfuscation(source)
         out = out.getvalue()
-        self.assertIn("Current transforms: CountUnit(c=1) -> CountUnit(c=2) -> CountUnit(c=3) -> CountUnit(c=4) -> CountUnit(c=5) >>>", out)
+        self.assertIn("Current transforms: AggregateUnit(c=1) -> AggregateUnit(c=2) -> AggregateUnit(c=3) -> AggregateUnit(c=4) -> AggregateUnit(c=5) >>>", out)
 
     def test_cli_create_transform(self) -> None:
         """ Tests that the option to create a transform in the CLI correctly
         calls the `get_cli` function and adds the created transform to the list. """
         source = CSource(os.path.join(os.getcwd(),  "./tests/data/minimal.c"))
-        CountUnit.count = 0
+        AggregateUnit.count = 0
         inp = str(len(obfs.ObfuscationUnit.__subclasses__()))
         inputs = [inp, "quit"]
         out = io.StringIO()
         with patch("builtins.input", side_effect=inputs), redirect_stdout(out):
             cli_obfuscation(source)
         out = out.getvalue()
-        self.assertIn("Current transforms: CountUnit(c=1) >>>", out)
+        self.assertIn("Current transforms: AggregateUnit(c=1) >>>", out)
 
     def test_cli_move_cursor(self) -> None:
         """ Tests that the cursor can be properly moved left and right within the
         current composition of selected transforms in the CLI. """
         source = CSource(os.path.join(os.getcwd(),  "./tests/data/minimal.c"))
-        CountUnit.count = 0
+        AggregateUnit.count = 0
         inp = len(obfs.ObfuscationUnit.__subclasses__())
         left = str(inp + 1)
         right = str(inp + 2)
@@ -405,13 +409,13 @@ class TestMainCLIFunctions(unittest.TestCase):
         with patch("builtins.input", side_effect=inputs), redirect_stdout(out):
             cli_obfuscation(source)
         out = out.getvalue()
-        self.assertIn("Current transforms: CountUnit(c=3) -> CountUnit(c=2) -> CountUnit(c=1) -> CountUnit(c=7) >>> CountUnit(c=4) -> CountUnit(c=6) -> CountUnit(c=5)", out)
+        self.assertIn("Current transforms: AggregateUnit(c=3) -> AggregateUnit(c=2) -> AggregateUnit(c=1) -> AggregateUnit(c=7) >>> AggregateUnit(c=4) -> AggregateUnit(c=6) -> AggregateUnit(c=5)", out)
 
     def test_cli_delete_transform(self) -> None:
         """ Tests that transforms can be deleted from the selection menu
         within the CLI, deleting the transform after the cursor only if one exists. """
         source = CSource(os.path.join(os.getcwd(),  "./tests/data/minimal.c"))
-        CountUnit.count = 0
+        AggregateUnit.count = 0
         inp = len(obfs.ObfuscationUnit.__subclasses__())
         left = str(inp + 1)
         delete = str(inp + 3)
@@ -421,13 +425,13 @@ class TestMainCLIFunctions(unittest.TestCase):
         with patch("builtins.input", side_effect=inputs), redirect_stdout(out):
             cli_obfuscation(source)
         out = out.getvalue()
-        self.assertIn("Current transforms: CountUnit(c=1) -> CountUnit(c=2) -> CountUnit(c=4) -> CountUnit(c=5) >>>", out)
+        self.assertIn("Current transforms: AggregateUnit(c=1) -> AggregateUnit(c=2) -> AggregateUnit(c=4) -> AggregateUnit(c=5) >>>", out)
 
     def test_cli_edit_transform(self) -> None:
         """ Tests that the user can select to edit the transform after the cursor
         in the CLI, if such a transform exists. """
         source = CSource(os.path.join(os.getcwd(),  "./tests/data/minimal.c"))
-        CountUnit.count = 0
+        AggregateUnit.count = 0
         inp = len(obfs.ObfuscationUnit.__subclasses__())
         left = str(inp + 1)
         edit = str(inp + 4)
@@ -448,7 +452,7 @@ class TestMainCLIFunctions(unittest.TestCase):
         obfuscate their code with the GUI selection menu. """
         source = CSource(os.path.join(os.getcwd(),  "./tests/data/minimal.c"))
         original_contents = source.contents
-        CountUnit.count = 0
+        AggregateUnit.count = 0
         inp = len(obfs.ObfuscationUnit.__subclasses__())
         finish = str(inp + 5)
         inp = str(inp)
@@ -857,10 +861,7 @@ class TestObfuscationMethodsCLI(unittest.TestCase):
         output = io.StringIO()
         with patch("builtins.input", side_effect=["3", "0.5", "quit"]), redirect_stdout(output):
             obfscli.CliIdentityUnit.get_cli()
-        print(output.getvalue())
-    
-    # TODO[TESTING] add more CLI transform tests here!
-        
+        print(output.getvalue())        
 
 if __name__ == "__main__":
     unittest.main()

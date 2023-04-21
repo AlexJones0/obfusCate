@@ -1024,3 +1024,6 @@ class TestGeneralUtilities(unittest.TestCase):
         result = is_initialised(source, ['<time.h>', 'math.h', '<stdio.h>', 'stdlib.h', '<string.h>'])
         self.assertTrue(result[0] and result[2] and result[3])
         self.assertFalse(result[1] or result[4])
+
+if __name__ == "__main__":
+    unittest.main()
