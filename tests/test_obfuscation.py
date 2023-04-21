@@ -9,14 +9,16 @@ import itertools, subprocess, shutil, enum, unittest
 
 
 class UsedDepth(enum.Enum):
-    """ An enumerated type used to control the scale of property-based testing performed
+    """An enumerated type used to control the scale of property-based testing performed
     when checking correctness."""
+
     NONE = 0
     LIGHTEST = 1
     LIGHT = 2
     MEDIUM = 3
     HEAVY = 4
     EXTREME = 5
+
 
 # Set the scale of property-based testing to be performed here.
 INTEGRATION_TEST_STYLE = UsedDepth.LIGHTEST
@@ -39,6 +41,7 @@ def callfunc_neq(func: Callable, neq: Iterable[Any]) -> Any:
     while x in neq:
         x = func()
     return x
+
 
 # List of all available transformations to test
 transforms = [
@@ -203,7 +206,7 @@ options = {
                             OpaqueInserter.Kind.ELSE_FALSE,
                             OpaqueInserter.Kind.EITHER,
                             OpaqueInserter.Kind.WHILE_FALSE,
-                            OpaqueInserter.Kind.DO_WHILE
+                            OpaqueInserter.Kind.DO_WHILE,
                         ],
                         r,
                     )
@@ -276,13 +279,17 @@ def get_program_output(filepath: str, inputs: list[str]) -> str | None:
                 "./tests/testing/obfs.exe",
                 filepath,
                 "-trigraphs",
-            ], capture_output=True, text=True
+            ],
+            capture_output=True,
+            text=True,
         )
         output = output.stdout + "\n" + output.stderr
         if "error" in output:
             return None
         os.chmod("./tests/testing/obfs.exe", 0o777)
-        output = subprocess.run(["./tests/testing/obfs.exe"] + inputs, capture_output=True, text=True)
+        output = subprocess.run(
+            ["./tests/testing/obfs.exe"] + inputs, capture_output=True, text=True
+        )
         return output.stdout + "\n" + output.stderr
     except Exception as e:
         return None
@@ -364,10 +371,10 @@ def run_test(
         messages.
 
     Returns:
-        bool: True if the test passed, False if the test failed. 
+        bool: True if the test passed, False if the test failed.
     """
-    
-    # Try to obfuscate the program. If an exception occurs, log this and return. 
+
+    # Try to obfuscate the program. If an exception occurs, log this and return.
     exception_handled = None
     try:
         result = pipeline.process(deepcopy(source))
@@ -394,7 +401,7 @@ def run_test(
             err=False,
         )
         return False
-    
+
     # Save and try to compile and run the program. If this fails, log this and return.
     obfs_filepath = os.path.join(os.getcwd(), "./tests/testing/obfs.c")
     with open(obfs_filepath, "w+") as f:
@@ -418,9 +425,9 @@ def run_test(
             err=False,
         )
         return False
-    
+
     # Compare the actual obfusacted program output to the expected original program output.
-    # If this is wrong, log this error and then return. 
+    # If this is wrong, log this error and then return.
     if output != expected_output:
         debug.logprint(
             (
@@ -445,7 +452,7 @@ def run_test(
             err=False,
         )
         return False
-    
+
     # All checks pass and so the test is passed, which should aso be logged before returning.
     passed += 1
     debug.logprint(
@@ -453,11 +460,12 @@ def run_test(
     )
     return True
 
+
 def get_bounded(
     options: Iterable[Any], max_: int, first_last: bool = False
 ) -> Iterable[Any]:
-    """Given a large set of options, this function returns a bounded number of these 
-    options, which are randomly sampled. Optionally the first and last option can 
+    """Given a large set of options, this function returns a bounded number of these
+    options, which are randomly sampled. Optionally the first and last option can
     be guaranteed to be included to account for bondary options.
 
     Args:
@@ -494,6 +502,7 @@ class TestObfuscationIntegrationParams(unittest.TestCase):
             for parameters in options[transform]:
                 transform(*parameters)
 
+
 class TestObfuscationIntegrationSingle(unittest.TestCase):
     """Implements integration tests for the obfuscation transformations,
     checking that these methods, for different combinations of options/parameters
@@ -509,7 +518,7 @@ class TestObfuscationIntegrationSingle(unittest.TestCase):
         definitely works independently of each other."""
         if INTEGRATION_TEST_STYLE == UsedDepth.NONE:
             return
-        
+
         # Initialise testing environment and retrieve example programs
         reset_config()
         test_path = os.path.join(os.getcwd(), "./tests/testing")
@@ -524,7 +533,7 @@ class TestObfuscationIntegrationSingle(unittest.TestCase):
         bounds = {
             UsedDepth.LIGHTEST: (1, 10, 3),
             UsedDepth.LIGHT: (1, 20, 10),
-            UsedDepth.MEDIUM: (3, 50, 100),  
+            UsedDepth.MEDIUM: (3, 50, 100),
             UsedDepth.HEAVY: (5, 100, 100000),
             UsedDepth.EXTREME: (10, 100000, 100000),
         }
@@ -558,6 +567,7 @@ class TestObfuscationIntegrationSingle(unittest.TestCase):
         # Assert that all tests passed
         self.assertEqual(passed, runs)
 
+
 class TestObfuscationIntegrationDouble(unittest.TestCase):
     """Implements integration tests for the obfuscation transformations,
     checking that these methods, for different combinations of options/parameters
@@ -570,10 +580,10 @@ class TestObfuscationIntegrationDouble(unittest.TestCase):
         of predefined options/parameters, for some example programs, for some random seeds,
         that the obfusaction runs correctly, and that the resulting program compiles correctly
         and provides the same result as the original program. This tests that a transformations
-        work when combined with each other. """
+        work when combined with each other."""
         if INTEGRATION_TEST_STYLE == UsedDepth.NONE:
             return
-        
+
         # Initialise testing environment and retrieve example programs
         reset_config()
         test_path = os.path.join(os.getcwd(), "./tests/testing")
@@ -629,6 +639,7 @@ class TestObfuscationIntegrationDouble(unittest.TestCase):
         # Assert that all tests passed
         self.assertEqual(passed, runs)
 
+
 class TestObfuscationIntegrationMax(unittest.TestCase):
     """Implements integration tests for the obfuscation transformations,
     checking that these methods, for different combinations of options/parameters
@@ -639,7 +650,7 @@ class TestObfuscationIntegrationMax(unittest.TestCase):
     def __get_composition_options(
         self, composition: list[Type[ObfuscationUnit]], n: int
     ) -> list[Tuple[Tuple[Any]]]:
-        """Retrieves a set of n random options for a specific sequence of 
+        """Retrieves a set of n random options for a specific sequence of
         obfuscation units, such that the given sequence of obfuscation units can
         be run with these options in procedural testing. These options are chosen
         entirely at random and combined with each other.
@@ -650,7 +661,7 @@ class TestObfuscationIntegrationMax(unittest.TestCase):
             n (int): The number of unique combinations of options to generate.
 
         Returns:
-            list[Tuple[Tuple[Any]]]: A list of n tuples, where each tuple is a list 
+            list[Tuple[Tuple[Any]]]: A list of n tuples, where each tuple is a list
             of selected options for the sequence of transforms (corresponding to one
             test environment), where each element of that option tuple is itself
             a tuple containing options that can be given to each obfuscation
@@ -671,10 +682,10 @@ class TestObfuscationIntegrationMax(unittest.TestCase):
         in some random orders with some random options, for some example programs, for some
         random seeds, that the obfuscation runs correctly, and that the resulting program
         compiles correctly and provides the same result as the original program. This tests that
-        the system works at scale, combining all transformations together with each other. """
+        the system works at scale, combining all transformations together with each other."""
         if INTEGRATION_TEST_STYLE == UsedDepth.NONE:
             return
-        
+
         # Initialise testing environment and retrieve example programs
         reset_config()
         test_path = os.path.join(os.getcwd(), "./tests/testing")
@@ -728,6 +739,7 @@ class TestObfuscationIntegrationMax(unittest.TestCase):
 
         # Assert that all tests passed
         self.assertEqual(passed, runs)
+
 
 if __name__ == "__main__":
     unittest.main()

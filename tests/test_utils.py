@@ -46,15 +46,23 @@ class TestDebugFunctions(unittest.TestCase):
         if os.path.isdir(os.path.join(os.getcwd(), "./tests/testing/dir/")):
             log_files = os.listdir(os.path.join(os.getcwd(), "./tests/testing/dir/"))
             for file_ in log_files:
-                os.remove(os.path.join(os.path.join(os.getcwd(), "./tests/testing/dir/", file_)))
+                os.remove(
+                    os.path.join(
+                        os.path.join(os.getcwd(), "./tests/testing/dir/", file_)
+                    )
+                )
             os.rmdir(os.path.join(os.getcwd(), "./tests/testing/dir/"))
         cfg.LOG_PATH = "./tests/testing/dir/"
         cfg.LOGS_ENABLED = True
         self.assertTrue(create_log_file(cfg.LOG_PATH))
-        self.assertTrue(os.path.isdir(os.path.join(os.getcwd(), "./tests/testing/dir/")))
+        self.assertTrue(
+            os.path.isdir(os.path.join(os.getcwd(), "./tests/testing/dir/"))
+        )
         log_files = os.listdir(os.path.join(os.getcwd(), "./tests/testing/dir/"))
         for file_ in log_files:
-            os.remove(os.path.join(os.path.join(os.getcwd(), "./tests/testing/dir/", file_)))
+            os.remove(
+                os.path.join(os.path.join(os.getcwd(), "./tests/testing/dir/", file_))
+            )
         os.rmdir(os.path.join(os.getcwd(), "./tests/testing/dir/"))
 
     def test_normal_log_creation(self) -> None:
@@ -98,14 +106,16 @@ class TestDebugFunctions(unittest.TestCase):
         self.assertTrue(log("Test message!"))
         log_files = os.listdir(os.path.join(os.getcwd(), "./tests/testing"))
         self.assertEqual(len(log_files), 1)
-        with open(os.path.join(os.getcwd(), "./tests/testing/") + log_files[0], "r") as log_file:
+        with open(
+            os.path.join(os.getcwd(), "./tests/testing/") + log_files[0], "r"
+        ) as log_file:
             content = log_file.read().split("\n")[-2]
             self.assertNotEqual(content.find("Test message!"), -1)
         clean_dir()
 
     def test_error_printing(self) -> None:
         """Tests that errors are printed to the standard error stream, and not
-        the standard output stream. """
+        the standard output stream."""
         clean_dir()
         err = io.StringIO()
         out = io.StringIO()
@@ -125,19 +135,19 @@ class TestDebugFunctions(unittest.TestCase):
         self.assertIn("logger.txt", os.listdir("./tests/testing/"))
         delete_log_file()
         self.assertNotIn("logger.txt", os.listdir("./tests/testing/"))
-    
+
     def test_log_deletion_no_file(self) -> None:
-        """Tests that the `delete_log_file()` function works with no log 
-        file specified. """
+        """Tests that the `delete_log_file()` function works with no log
+        file specified."""
         clean_dir()
         cfg.LOG_FILE = None
         self.assertFalse(delete_log_file())
         cfg.LOG_FILE = ""
         self.assertFalse(delete_log_file())
-    
+
     def test_log_deletion_no_longer_exists(self) -> None:
-        """Tests that the `delete_log_file()` function can handle the case 
-        where the log file no longer exists. """
+        """Tests that the `delete_log_file()` function can handle the case
+        where the log file no longer exists."""
         clean_dir()
         cfg.LOG_PATH = "./tests/testing/"
         cfg.LOG_FILE = "./tests/testing/logger.txt"
@@ -157,7 +167,9 @@ class TestDebugFunctions(unittest.TestCase):
         self.assertNotIn("Test message!", out)
         log_files = os.listdir(os.path.join(os.getcwd(), "./tests/testing"))
         self.assertEqual(len(log_files), 1)
-        with open(os.path.join(os.getcwd(), "./tests/testing/") + log_files[0], "r") as log_file:
+        with open(
+            os.path.join(os.getcwd(), "./tests/testing/") + log_files[0], "r"
+        ) as log_file:
             content = log_file.read().split("\n")[-2]
             self.assertNotEqual(content.find("Test message!"), -1)
         clean_dir()
@@ -171,7 +183,9 @@ class TestDebugFunctions(unittest.TestCase):
         self.garbage_func()
         log_files = os.listdir(os.path.join(os.getcwd(), "./tests/testing"))
         self.assertEqual(len(log_files), 1)
-        with open(os.path.join(os.getcwd(), "./tests/testing/") + log_files[0], "r") as log_file:
+        with open(
+            os.path.join(os.getcwd(), "./tests/testing/") + log_files[0], "r"
+        ) as log_file:
             content = log_file.read().split("\n")[-2]
             self.assertNotEqual(content.find("garbage_func"), -1)
         clean_dir()
@@ -195,7 +209,9 @@ class TestInteractionFunctions(unittest.TestCase):
 
     def test_csource_fname_and_contents(self) -> None:
         """Tests that the CSource constructor works correctly when taking a file name and contents."""
-        source = CSource(os.path.join(os.getcwd(), "./tests/data/minimal.c"), "int main() {}")
+        source = CSource(
+            os.path.join(os.getcwd(), "./tests/data/minimal.c"), "int main() {}"
+        )
         self.assertIsNotNone(source.t_unit)
         del source
 
@@ -254,15 +270,19 @@ class TestInteractionFunctions(unittest.TestCase):
         del source
 
     def test_parse_patching(self) -> None:
-        """ Tests that the CSource constructor correctly uses the patched
+        """Tests that the CSource constructor correctly uses the patched
         parser instead of the normal pycparser parser if the relevant
         option is set. Also tests that the PatchedParser does indeed
-        patch the label identifier issue as intended. """
+        patch the label identifier issue as intended."""
         cfg.USE_PATCHED_PARSER = False
-        source = CSource(os.path.join(os.getcwd(), "./tests/data/examples/cppref_name_space.c"))
+        source = CSource(
+            os.path.join(os.getcwd(), "./tests/data/examples/cppref_name_space.c")
+        )
         self.assertFalse(source.valid_parse)
         cfg.USE_PATCHED_PARSER = True
-        source = CSource(os.path.join(os.getcwd(), "./tests/data/examples/cppref_name_space.c"))
+        source = CSource(
+            os.path.join(os.getcwd(), "./tests/data/examples/cppref_name_space.c")
+        )
         self.assertTrue(source.valid_parse)
         del source
 
@@ -303,9 +323,9 @@ class TestInteractionFunctions(unittest.TestCase):
         self.assertIsNotNone(copied.t_unit)
         self.assertIsNot(source.t_unit, copied.t_unit)
         del source
-    
+
     def test_update_t_unit(self) -> None:
-        """ Tests that the CSource can update its AST (t_unit) from its contents
+        """Tests that the CSource can update its AST (t_unit) from its contents
         without changing the original file by writing to and reading from a temp file."""
         source = CSource(os.path.join(os.getcwd(), "./tests/data/minimal.c"))
         prev_contents = source.contents
@@ -320,10 +340,10 @@ class TestInteractionFunctions(unittest.TestCase):
         self.assertEqual(prev_contents, new_source.contents)
         self.assertNotEqual(new_source.contents, source.contents)
         self.assertFalse(os.path.exists(cfg.TEMP_FILE_PATH))
-    
+
     def test_update_t_unit_no_temp(self) -> None:
-        """ Tests that the CSource's `update_t_unit()` method can handle
-        the case where No (or an empty) temporary file path is given. """
+        """Tests that the CSource's `update_t_unit()` method can handle
+        the case where No (or an empty) temporary file path is given."""
         cfg.TEMP_FILE_PATH = None
         source = CSource(os.path.join(os.getcwd(), "./tests/data/minimal.c"))
         prev_t_unit = source.t_unit
@@ -333,9 +353,9 @@ class TestInteractionFunctions(unittest.TestCase):
         cfg.TEMP_FILE_PATH = ""
         self.assertIsNone(source.update_t_unit())
         self.assertIs(prev_t_unit, source.t_unit)
-        
+
     def test_construct_systemopt(self) -> None:
-        """ Test that a SystemOpt object can be constructed successfully. """
+        """Test that a SystemOpt object can be constructed successfully."""
         opt_func = clean_dir
         names = ["One", "Two", "Three"]
         desc = "This is a description."
@@ -345,9 +365,9 @@ class TestInteractionFunctions(unittest.TestCase):
         self.assertIs(opt.names, names)
         self.assertIs(opt.desc, desc)
         self.assertIs(opt.param_names, param_names)
-    
+
     def test_systemopt_str(self) -> None:
-        """ Tests that valid string representations of SystemOpts can be created. """
+        """Tests that valid string representations of SystemOpts can be created."""
         opt_func = clean_dir
         names = ["One", "Two", "Three"]
         param_names = ["x", "y", "z"]
@@ -358,10 +378,10 @@ class TestInteractionFunctions(unittest.TestCase):
         self.assertEqual(str(opt), "One Two Three")
         opt.param_names = param_names
         self.assertEqual(str(opt), "One Two Three x y z")
-        
+
     def test_systemopt_desc_str(self) -> None:
-        """ Tests that valid help menu description strings can be created for
-        system options, both with one and multiple lines. """
+        """Tests that valid help menu description strings can be created for
+        system options, both with one and multiple lines."""
         opt_func = clean_dir
         names = ["One", "Two", "Three"]
         desc = "This is a description."
@@ -370,11 +390,15 @@ class TestInteractionFunctions(unittest.TestCase):
         self.assertEqual(desc, opt.get_desc_str(0))
         self.assertEqual(desc, opt.get_desc_str(10000))
         opt.desc += "\nThis is a second line.\nThis is a third line."
-        self.assertEqual("This is a description.\n| This is a second line.\n| This is a third line.",
-                         opt.get_desc_str(0))
-        self.assertEqual("This is a description.\n      | This is a second line.\n      | This is a third line.",
-                         opt.get_desc_str(6))
-        
+        self.assertEqual(
+            "This is a description.\n| This is a second line.\n| This is a third line.",
+            opt.get_desc_str(0),
+        )
+        self.assertEqual(
+            "This is a description.\n      | This is a second line.\n      | This is a third line.",
+            opt.get_desc_str(6),
+        )
+
     def test_menu_driven_no_args(self) -> None:
         """Tests that the menu_driven_option function in the `io.py` file can correctly
         handle the case where no options to select from are given."""
@@ -615,18 +639,18 @@ class TestInteractionFunctions(unittest.TestCase):
         ]
         self.assertEqual(output, expected_out)
         del inputs, output, result
-    
+
     def test_get_float_valid(self) -> None:
-        """ Tests that the `get_float()` function works for valid inputs."""
+        """Tests that the `get_float()` function works for valid inputs."""
         inputs = ["2.596", "4"]
         with patch("builtins.input", side_effect=inputs):
             result1 = get_float(2.5, 2.6)
             result2 = get_float(3, 5)
         self.assertEqual(result1, 2.596)
         self.assertEqual(result2, 4.0)
-    
+
     def test_get_float_not_number(self) -> None:
-        """ Tests that the `get_float()` function handles non-numeric inputs. """
+        """Tests that the `get_float()` function handles non-numeric inputs."""
         inputs = ["", "abcdefgh", "5.70000O", ".596"]
         out = io.StringIO()
         with patch("builtins.input", side_effect=inputs), redirect_stdout(out):
@@ -636,13 +660,13 @@ class TestInteractionFunctions(unittest.TestCase):
         expected_out = [
             "Invalid input for a decimal number. Please try again...",
             "Invalid input for a decimal number. Please try again...",
-            "Invalid input for a decimal number. Please try again..."
+            "Invalid input for a decimal number. Please try again...",
         ]
         for i, line in enumerate(expected_out):
             self.assertEqual(out[i], line)
-    
+
     def test_get_float_lower_bound(self) -> None:
-        """ Tests that the `get_float()` function correctly implements lower bounds. """
+        """Tests that the `get_float()` function correctly implements lower bounds."""
         inputs = ["-4.505", "-4.5045", "-4.504", "-4.5035"]
         out = io.StringIO()
         with patch("builtins.input", side_effect=inputs), redirect_stdout(out):
@@ -659,7 +683,7 @@ class TestInteractionFunctions(unittest.TestCase):
             self.assertEqual(out[i], line)
 
     def test_get_float_upper_bound(self) -> None:
-        """ Tests that the `get_float()` function correctly implements upper bounds. """
+        """Tests that the `get_float()` function correctly implements upper bounds."""
         inputs = ["4.505", "4.5045", "4.504", "4.5035"]
         out = io.StringIO()
         with patch("builtins.input", side_effect=inputs), redirect_stdout(out):
@@ -674,27 +698,26 @@ class TestInteractionFunctions(unittest.TestCase):
         ]
         for i, line in enumerate(expected_out):
             self.assertEqual(out[i], line)
-    
+
     def test_get_float_quit(self) -> None:
-        """ Tests that the user can quit the `get_float()` input function. """
+        """Tests that the user can quit the `get_float()` input function."""
         inputs = ["q", "quit", "exit", "leave", "x"]
         with patch("builtins.input", side_effect=inputs):
             for _ in inputs:
                 result = get_float(0, 10)
                 self.assertTrue(math.isnan(result))
-    
 
     def test_get_int_valid(self) -> None:
-        """ Tests that the `get_int()` function works for valid inputs."""
+        """Tests that the `get_int()` function works for valid inputs."""
         inputs = ["2", "-5"]
         with patch("builtins.input", side_effect=inputs):
             result1 = get_int(1, 19)
             result2 = get_int(-100, 100)
         self.assertEqual(result1, 2)
         self.assertEqual(result2, -5)
-    
+
     def test_get_int_not_number(self) -> None:
-        """ Tests that the `get_int()` function handles non-numeric inputs. """
+        """Tests that the `get_int()` function handles non-numeric inputs."""
         inputs = ["", "abcdefgh", "5.70000O", ".596", "3"]
         out = io.StringIO()
         with patch("builtins.input", side_effect=inputs), redirect_stdout(out):
@@ -705,13 +728,13 @@ class TestInteractionFunctions(unittest.TestCase):
             "Invalid input for an integer. Please try again...",
             "Invalid input for an integer. Please try again...",
             "Invalid input for an integer. Please try again...",
-            "Invalid input for an integer. Please try again..."
+            "Invalid input for an integer. Please try again...",
         ]
         for i, line in enumerate(expected_out):
             self.assertEqual(out[i], line)
-    
+
     def test_get_int_lower_bound(self) -> None:
-        """ Tests that the `get_int()` function correctly implements lower bounds. """
+        """Tests that the `get_int()` function correctly implements lower bounds."""
         inputs = ["-4", "-3", "-2", "-1"]
         out = io.StringIO()
         with patch("builtins.input", side_effect=inputs), redirect_stdout(out):
@@ -728,7 +751,7 @@ class TestInteractionFunctions(unittest.TestCase):
             self.assertEqual(out[i], line)
 
     def test_get_int_upper_bound(self) -> None:
-        """ Tests that the `get_int()` function correctly implements upper bounds. """
+        """Tests that the `get_int()` function correctly implements upper bounds."""
         inputs = ["7", "6", "5", "4"]
         out = io.StringIO()
         with patch("builtins.input", side_effect=inputs), redirect_stdout(out):
@@ -743,9 +766,9 @@ class TestInteractionFunctions(unittest.TestCase):
         ]
         for i, line in enumerate(expected_out):
             self.assertEqual(out[i], line)
-    
+
     def test_get_int_quit(self) -> None:
-        """ Tests that the user can quit the `get_int()` input function. """
+        """Tests that the user can quit the `get_int()` input function."""
         inputs = ["q", "quit", "exit", "leave", "x"]
         with patch("builtins.input", side_effect=inputs):
             for _ in inputs:
@@ -753,36 +776,46 @@ class TestInteractionFunctions(unittest.TestCase):
                 self.assertIsNone(result)
 
     def test_save_valid_composition_file(self) -> None:
-        """ Tests that the user can save a valid composition file."""
+        """Tests that the user can save a valid composition file."""
         clean_dir()
         result = save_composition_file("{}", "./tests/testing/")
         self.assertTrue(result)
         if os.path.isdir(os.path.join(os.getcwd(), "./tests/testing")):
             log_files = os.listdir(os.path.join(os.getcwd(), "./tests/testing"))
             self.assertEqual(len(log_files), 1)
-            with open(os.path.join(os.getcwd(), "./tests/testing/") + log_files[0], "r") as f:
+            with open(
+                os.path.join(os.getcwd(), "./tests/testing/") + log_files[0], "r"
+            ) as f:
                 self.assertEqual(f.read(), "{}")
-    
+
     def test_save_composition_dir_creation(self) -> None:
-        """ Tests that the user can save a valid composition file, even if
-        directories have to be created to meet the required path. """
+        """Tests that the user can save a valid composition file, even if
+        directories have to be created to meet the required path."""
         clean_dir()
         if os.path.isdir(os.path.join(os.getcwd(), "./tests/testing/dir/")):
             log_files = os.listdir(os.path.join(os.getcwd(), "./tests/testing/dir/"))
             for file_ in log_files:
-                os.remove(os.path.join(os.path.join(os.getcwd(), "./tests/testing/dir/"), file_))
+                os.remove(
+                    os.path.join(
+                        os.path.join(os.getcwd(), "./tests/testing/dir/"), file_
+                    )
+                )
             os.rmdir(os.path.join(os.getcwd(), "./tests/testing/dir/"))
         result = save_composition_file("{}", "./tests/testing/dir/")
         self.assertTrue(result)
-        self.assertTrue(os.path.isdir(os.path.join(os.getcwd(), "./tests/testing/dir/")))
+        self.assertTrue(
+            os.path.isdir(os.path.join(os.getcwd(), "./tests/testing/dir/"))
+        )
         comp_files = os.listdir(os.path.join(os.getcwd(), "./tests/testing/dir/"))
         for file_ in comp_files:
-            os.remove(os.path.join(os.path.join(os.getcwd(), "./tests/testing/dir/"), file_))
+            os.remove(
+                os.path.join(os.path.join(os.getcwd(), "./tests/testing/dir/"), file_)
+            )
         os.rmdir(os.path.join(os.getcwd(), "./tests/testing/dir/"))
-    
+
     def test_save_composition_no_path(self) -> None:
-        """ Tests that the `save_composition_file` defaults to using the config
-        composition path if no filepath is supplied. """
+        """Tests that the `save_composition_file` defaults to using the config
+        composition path if no filepath is supplied."""
         clean_dir()
         cfg.COMP_PATH = "./tests/testing/"
         result = save_composition_file("{}")
@@ -790,12 +823,14 @@ class TestInteractionFunctions(unittest.TestCase):
         if os.path.isdir(os.path.join(os.getcwd(), "./tests/testing")):
             log_files = os.listdir(os.path.join(os.getcwd(), "./tests/testing"))
             self.assertEqual(len(log_files), 1)
-            with open(os.path.join(os.getcwd(), "./tests/testing/" + log_files[0]), "r") as f:
+            with open(
+                os.path.join(os.getcwd(), "./tests/testing/" + log_files[0]), "r"
+            ) as f:
                 self.assertEqual(f.read(), "{}")
-    
+
     def test_load_valid_composition_file(self) -> None:
-        """ Tests that the `load_composition_file` function works when given
-        a valid file path to read from. """
+        """Tests that the `load_composition_file` function works when given
+        a valid file path to read from."""
         clean_dir()
         with open("./tests/testing/test.cobf", "w+") as f:
             f.write("{}")
@@ -804,22 +839,22 @@ class TestInteractionFunctions(unittest.TestCase):
         cfg.COMPOSITION = "./tests/testing/test.cobf"
         result = load_composition_file()
         self.assertEqual(result, "{}")
-    
+
     def test_load_valid_composition_no_path(self) -> None:
-        """ Tests that the `load_composition_file` function can handle the case
-        where no file path is given nor specified as a system default. """
+        """Tests that the `load_composition_file` function can handle the case
+        where no file path is given nor specified as a system default."""
         cfg.COMPOSITION = None
         self.assertIsNone(load_composition_file())
-    
+
     def test_load_invalid_composition(self) -> None:
-        """ Tests that the `load_composition_file` function can handle the case
-        where the file that is specified does not exist or cannot be read. """
+        """Tests that the `load_composition_file` function can handle the case
+        where the file that is specified does not exist or cannot be read."""
         self.assertIsNone(load_composition_file("tests/testing/does_not_exist.abc"))
         self.assertFalse(os.path.exists("./tests/testing/does_not_exist.abc"))
-    
+
     def test_disable_logging_func(self) -> None:
-        """ Tests that the `disable_logging` func does indeed disable logging
-        and delete any existing log file. """
+        """Tests that the `disable_logging` func does indeed disable logging
+        and delete any existing log file."""
         clean_dir()
         cfg.LOG_PATH = "./tests/testing/"
         cfg.LOGS_ENABLED = True
@@ -827,50 +862,50 @@ class TestInteractionFunctions(unittest.TestCase):
         self.assertIsNone(disable_logging())
         self.assertFalse(cfg.LOGS_ENABLED)
         self.assertFalse(os.path.exists(cfg.LOG_FILE))
-    
+
     def test_set_seed_func(self) -> None:
-        """ Tests that the `set_seed` func works as intended, setting the 
-        seed if valid args are supplied and returning False otherwise. """
+        """Tests that the `set_seed` func works as intended, setting the
+        seed if valid args are supplied and returning False otherwise."""
         cfg.SEED = None
         self.assertFalse(set_seed([]))
         self.assertIsNone(cfg.SEED)
-        self.assertFalse(set_seed(['abc']))
+        self.assertFalse(set_seed(["abc"]))
         self.assertIsNone(cfg.SEED)
-        self.assertTrue(set_seed(['123']))
+        self.assertTrue(set_seed(["123"]))
         self.assertEqual(cfg.SEED, 123)
-    
+
     def test_suppress_errors_func(self) -> None:
-        """ Tests that the `supress_errors` func works as intended, setting
-        the relevant option. """
+        """Tests that the `supress_errors` func works as intended, setting
+        the relevant option."""
         cfg.SUPPRESS_ERRORS = False
         self.assertIsNone(suppress_errors())
         self.assertTrue(cfg.SUPPRESS_ERRORS)
-    
+
     def test_display_progress_func(self) -> None:
-        """ Tests that the `display_progress` func works as intended, setting
-        the relevant option. """
+        """Tests that the `display_progress` func works as intended, setting
+        the relevant option."""
         cfg.DISPLAY_PROGRESS = False
         self.assertIsNone(display_progress())
         self.assertTrue(cfg.DISPLAY_PROGRESS)
-    
+
     def test_save_composition_func(self) -> None:
-        """ Tests that the `save_composition` func works as intended, setting
-        the relevant option. """
+        """Tests that the `save_composition` func works as intended, setting
+        the relevant option."""
         cfg.SAVE_COMPOSITION = False
         self.assertIsNone(save_composition())
         self.assertTrue(cfg.SAVE_COMPOSITION)
-    
+
     def test_disable_metrics_func(self) -> None:
-        """ Tests that the `disable_metrics` func works as intended, setting
-        the relevant option. """
+        """Tests that the `disable_metrics` func works as intended, setting
+        the relevant option."""
         cfg.CALCULATE_COMPLEXITY = True
         self.assertIsNone(disable_metrics())
         self.assertFalse(cfg.CALCULATE_COMPLEXITY)
-    
+
     def test_display_version_func(self) -> None:
-        """ Tests that the `display_version` system option func works as
+        """Tests that the `display_version` system option func works as
         intended, printing out the name and version of the program, and then
-        returning false to indicate stopped execution. """
+        returning false to indicate stopped execution."""
         cfg.NAME = "Program Name"
         cfg.VERSION = "v1.2.3.4.5.6"
         out = io.StringIO()
@@ -878,42 +913,42 @@ class TestInteractionFunctions(unittest.TestCase):
             self.assertFalse(display_version())
         out = out.getvalue()
         self.assertEqual(out, "Program Name v1.2.3.4.5.6\n")
-    
+
     def test_disable_alloca_func(self) -> None:
-        """ Tests that the `disable_alloca` system option func works as
-        intended, setting the relevant config option. """
+        """Tests that the `disable_alloca` system option func works as
+        intended, setting the relevant config option."""
         cfg.USE_ALLOCA = True
         self.assertIsNone(disable_alloca())
         self.assertFalse(cfg.USE_ALLOCA)
-    
+
     def test_disable_patched_parser_func(self) -> None:
-        """ Tests that the `disable_patched_parser` system option func
-        works as intended, setting the relevant config option. """
+        """Tests that the `disable_patched_parser` system option func
+        works as intended, setting the relevant config option."""
         cfg.USE_PATCHED_PARSER = True
         self.assertIsNone(disable_patched_parser())
         self.assertFalse(cfg.USE_PATCHED_PARSER)
-    
+
     def test_load_composition_func(self) -> None:
         """Tests that the `load_composition` system option func correctly
-        parses provided system arguments for the composition file name, and 
-        can handle the case where no such argument is supplied. """
+        parses provided system arguments for the composition file name, and
+        can handle the case where no such argument is supplied."""
         cfg.COMPOSITION = None
         self.assertFalse(load_composition([]))
         self.assertIsNone(cfg.COMPOSITION)
-        self.assertTrue(load_composition(['abc.cobf']))
-        self.assertEqual(cfg.COMPOSITION, 'abc.cobf')
-    
+        self.assertTrue(load_composition(["abc.cobf"]))
+        self.assertEqual(cfg.COMPOSITION, "abc.cobf")
+
     def test_extract_valid_argumens(self) -> None:
-        """ Tests that the `handle_arguments` function can correctly handle
+        """Tests that the `handle_arguments` function can correctly handle
         extracting a set of valid arguments interspersed with options."""
         supplied_args = ["one", "-S", "123", "two", "three", "--noLogs", "four"]
         result = handle_arguments(supplied_args, shared_options)
         self.assertEqual(len(result), 4)
         for i, arg in enumerate(["one", "two", "three", "four"]):
             self.assertEqual(result[i], arg)
-    
+
     def test_system_option_synonyms(self) -> None:
-        """ Tests that the `handle_arguments` function can correctly handle 
+        """Tests that the `handle_arguments` function can correctly handle
         names/synonyms for system options."""
         supplied_args = ["-a", "--two", "-c", "--four"]
         options = [SystemOpt(lambda: print("test", end=""), supplied_args, "", [])]
@@ -922,9 +957,9 @@ class TestInteractionFunctions(unittest.TestCase):
             result = handle_arguments(supplied_args, options)
         self.assertEqual(len(result), 0)
         self.assertEqual(out.getvalue(), "testtesttesttest")
-        
+
     def test_no_parameter_options(self) -> None:
-        """ Tests that the `handle_arguments` function can correctly handle
+        """Tests that the `handle_arguments` function can correctly handle
         system options that take no parameters."""
         supplied_args = ["abc", "def", "-a", "egh", "jik"]
         options = [SystemOpt(lambda: print("test", end=""), ["-a"], "", [])]
@@ -935,9 +970,9 @@ class TestInteractionFunctions(unittest.TestCase):
         for i, arg in enumerate(["abc", "def", "egh", "jik"]):
             self.assertEqual(result[i], arg)
         self.assertEqual(out.getvalue(), "test")
-    
+
     def test_one_parameter_options(self) -> None:
-        """ Tests that the `handle_arguments` function can correctly handle
+        """Tests that the `handle_arguments` function can correctly handle
         system options that take one parameter."""
         supplied_args = ["one", "two", "-a", "three", "four", "-a", "five", "six"]
         options = [SystemOpt(lambda x: print("test", x[0], end=""), ["-a"], "", ["x"])]
@@ -948,72 +983,113 @@ class TestInteractionFunctions(unittest.TestCase):
         for i, arg in enumerate(["one", "two", "four", "six"]):
             self.assertEqual(result[i], arg)
         self.assertEqual(out.getvalue(), "test threetest five")
-    
+
     def test_many_parameter_options(self) -> None:
-        """ Tests that the `handle_arguments` function can correctly handle
+        """Tests that the `handle_arguments` function can correctly handle
         system options that take many parameters."""
-        supplied_args = ["one", "two", "-a", "three", "four", "-b", "five", "six", "seven", "-c", "eight", "nine", "ten", "eleven", "twelve", "thirteen"]
-        options = [SystemOpt(lambda x: print("test", x[0], end=""), ["-a"], "", ["x"]),
-                   SystemOpt(lambda x: print("test2", x[0], x[1], end=""), ["-b"], "", ["x", "y"]),
-                   SystemOpt(lambda x: print("test3", x[0], x[1], x[2], x[3], x[4], end=""), ["-c"], "", ["a", "b", "c", "d", "e"])]
+        supplied_args = [
+            "one",
+            "two",
+            "-a",
+            "three",
+            "four",
+            "-b",
+            "five",
+            "six",
+            "seven",
+            "-c",
+            "eight",
+            "nine",
+            "ten",
+            "eleven",
+            "twelve",
+            "thirteen",
+        ]
+        options = [
+            SystemOpt(lambda x: print("test", x[0], end=""), ["-a"], "", ["x"]),
+            SystemOpt(
+                lambda x: print("test2", x[0], x[1], end=""), ["-b"], "", ["x", "y"]
+            ),
+            SystemOpt(
+                lambda x: print("test3", x[0], x[1], x[2], x[3], x[4], end=""),
+                ["-c"],
+                "",
+                ["a", "b", "c", "d", "e"],
+            ),
+        ]
         out = io.StringIO()
         with redirect_stdout(out):
             result = handle_arguments(supplied_args, options)
         self.assertEqual(len(result), 5)
         for i, arg in enumerate(["one", "two", "four", "seven", "thirteen"]):
             self.assertEqual(result[i], arg)
-        self.assertEqual(out.getvalue(), "test threetest2 five sixtest3 eight nine ten eleven twelve")
-    
+        self.assertEqual(
+            out.getvalue(), "test threetest2 five sixtest3 eight nine ten eleven twelve"
+        )
+
     def test_quit_from_option(self) -> None:
-        """ Tests that the `handle_arguments` function propagates errors from
-        called functions and quits appropriately. """
+        """Tests that the `handle_arguments` function propagates errors from
+        called functions and quits appropriately."""
         supplied_args = ["abc", "def", "ghi", "-x", "--print"]
-        options = [SystemOpt(lambda: False, ["-x"], "", []),
-                   SystemOpt(lambda: print("hi"), ["--print"], "", [])]
+        options = [
+            SystemOpt(lambda: False, ["-x"], "", []),
+            SystemOpt(lambda: print("hi"), ["--print"], "", []),
+        ]
         out = io.StringIO()
         with redirect_stdout(out):
             result = handle_arguments(supplied_args, options)
         self.assertFalse(result)
-        self.assertEqual(out.getvalue(), '')
-    
+        self.assertEqual(out.getvalue(), "")
+
     def test_unknown_option(self) -> None:
-        """ Tests that the `handle_arguments` function can correctly handle
-        the case in which an unknown option is used. """
+        """Tests that the `handle_arguments` function can correctly handle
+        the case in which an unknown option is used."""
         supplied_args = ["abc", "def", "ghi", "-x", "--print", "-y", "--print"]
-        options = [SystemOpt(lambda: True, ["-x"], "", []),
-                   SystemOpt(lambda: print("hi"), ["--print"], "", [])]
+        options = [
+            SystemOpt(lambda: True, ["-x"], "", []),
+            SystemOpt(lambda: print("hi"), ["--print"], "", []),
+        ]
         out = io.StringIO()
         with redirect_stdout(out):
             result = handle_arguments(supplied_args, options)
         self.assertFalse(result)
-        self.assertEqual(out.getvalue(), 'hi\n')
-    
+        self.assertEqual(out.getvalue(), "hi\n")
+
     def test_set_help_menu_func(self) -> None:
-        """ Tests that the `set_help_menu` function does indeed set the help
+        """Tests that the `set_help_menu` function does indeed set the help
         menu of the list `shared_options` of system options available."""
         shared_options[0].func = None
         set_help_menu(print)
         self.assertEqual(shared_options[0].func, print)
         shared_options[0].func = None
-    
+
     def test_default_options(self) -> None:
-        """ Tests that the `shared_options` list of default system options 
-        contains the following system options at bare minimum: --help, 
+        """Tests that the `shared_options` list of default system options
+        contains the following system options at bare minimum: --help,
         --version, --noLogs, --seed, --progress, --save-comp, --load-comp,
         --no-metrics, --no-alloca and --unpatch-parser"""
         names = sum([opt.names for opt in shared_options], [])
-        targets = ["--help", "--version", "--noLogs", "--seed", "--progress",
-                   "--save-comp", "--load-comp", "--no-metrics", "--no-alloca",
-                   "--unpatch-parser"]
+        targets = [
+            "--help",
+            "--version",
+            "--noLogs",
+            "--seed",
+            "--progress",
+            "--save-comp",
+            "--load-comp",
+            "--no-metrics",
+            "--no-alloca",
+            "--unpatch-parser",
+        ]
         for target in targets:
             self.assertIn(target, names)
-        
+
 
 class TestGeneralUtilities(unittest.TestCase):
     """Implements unit tests for the utils.py functions"""
 
     def test_is_initialised(self) -> None:
-        """ Tests that the general `is_initialised` utility function can correctly detect
+        """Tests that the general `is_initialised` utility function can correctly detect
         when a library is being initialised in the file or not."""
         source = CSource(os.path.join(os.getcwd(), "./tests/data/minimal.c"))
         source.contents = source.contents + (
@@ -1021,9 +1097,12 @@ class TestGeneralUtilities(unittest.TestCase):
             "           #include    <stdlib.h>\n\n\n"
             "#include <time.h>\n"
         )
-        result = is_initialised(source, ['<time.h>', 'math.h', '<stdio.h>', 'stdlib.h', '<string.h>'])
+        result = is_initialised(
+            source, ["<time.h>", "math.h", "<stdio.h>", "stdlib.h", "<string.h>"]
+        )
         self.assertTrue(result[0] and result[2] and result[3])
         self.assertFalse(result[1] or result[4])
+
 
 if __name__ == "__main__":
     unittest.main()

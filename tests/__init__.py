@@ -1,7 +1,8 @@
 import os
 from app import settings as cfg
 
-def clean_dir():
+
+def clean_dir() -> None:
     """A small utility to clean the testing directory, such that it can be reused."""
     test_path = os.path.join(os.getcwd(), "./tests/testing")
     if not os.path.isdir(test_path):
@@ -9,8 +10,11 @@ def clean_dir():
     files = os.listdir(test_path)
     for file_ in files:
         os.remove(os.path.join(test_path, file_))
-        
-def reset_config():
+
+
+def reset_config() -> None:
+    """Resets the state of the config used during testing to a default state,
+    such that the config can be re-used between tests without mutation of state."""
     cfg.LOG_PATH = ".\\logs\\"
     cfg.COMP_PATH = ".\\compositions\\auto\\"
     cfg.TEMP_FILE_PATH = ".\\obfuscate_temp.c"

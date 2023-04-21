@@ -16,8 +16,8 @@ import networkx
 import math
 
 
-Metric: TypeAlias = Tuple[str, Tuple[str,str] | str]
-Metrics: TypeAlias = dict[str, Tuple[str,str] | str]
+Metric: TypeAlias = Tuple[str, Tuple[str, str] | str]
+Metrics: TypeAlias = dict[str, Tuple[str, str] | str]
 
 
 class CodeMetricUnit(ABC):
@@ -32,7 +32,7 @@ class CodeMetricUnit(ABC):
     predecessors = []
 
     def __init__(self):
-        """ The constructor for the CodeMetricUnit base class, which defines a list of metrics"""
+        """The constructor for the CodeMetricUnit base class, which defines a list of metrics"""
         self.metrics = {}
 
     def add_metric(self, name: str, new: str, delta: Optional[str] = None) -> None:
@@ -44,7 +44,7 @@ class CodeMetricUnit(ABC):
             name (str): The name of the metric (that will be displayed to users)
             new (str): The value of the metric for the obfuscated program
             delta (Optional[str], optional): The change in value of the metric,
-            from original source program to obfuscated program, where one exists. 
+            from original source program to obfuscated program, where one exists.
             Defaults to None, representing no delta.
         """
         if delta is None:
@@ -54,7 +54,7 @@ class CodeMetricUnit(ABC):
 
     @abstractmethod
     def calculate_metrics(self, old_source: CSource, new_source: CSource) -> None:
-        """ Calculates a set of metrics given the original source C program and the
+        """Calculates a set of metrics given the original source C program and the
         final obfuscated source C program, adding them to the list of stored metrics.
 
         Args:
@@ -66,7 +66,7 @@ class CodeMetricUnit(ABC):
     def get_metrics(self) -> list[Metric]:
         """Retrieves the list of metrics stored by the CodeMetricUnit, sorting them
         according to the ordering defined in by the class' positions dictionary,
-        and 
+        and
 
         Returns:
             list[Metric]: The list of previously calculated metrics, in sorted order,
@@ -84,7 +84,7 @@ class CodeMetricUnit(ABC):
 
 
 def int_delta(new: int | str, prev: int | str) -> str:
-    """Given two integers metric values, this function calculates the delta 
+    """Given two integers metric values, this function calculates the delta
     (change) between the two values. If either value is the special "N/A" string
     then the delta is likewise defined to be "N/A". Also, an unary "+" is prepended
     to all positive numbers to make it clear that the value is a positive delta.
@@ -103,9 +103,9 @@ def int_delta(new: int | str, prev: int | str) -> str:
 
 
 def float_delta(new: float | str, prev: float | str) -> str:
-    """Given two float metric values, this function calculates the delta (change) 
-    between the two values. If either value is the special "N/A" string then the 
-    delta is likewise defined to be "N/A". Also, an unary "+" is prepended to all 
+    """Given two float metric values, this function calculates the delta (change)
+    between the two values. If either value is the special "N/A" string then the
+    delta is likewise defined to be "N/A". Also, an unary "+" is prepended to all
     positive numbers to make it clear that the value is a positive delta. All decimals
     are formatted to one decimal place for display purposes.
 
@@ -122,10 +122,11 @@ def float_delta(new: float | str, prev: float | str) -> str:
     f_str = "{:.1f}".format(delta)
     return ("+" + f_str) if delta >= 0.0 else f_str
 
+
 def format_time(time: int | str) -> str:
     """Given some duration of time in unit seconds, this function formats the time
     into a more human readable format by converting it to a form %d %h %m %s
-    showing the different units of time. Only the largest scale unit needed to 
+    showing the different units of time. Only the largest scale unit needed to
     represent the duration is shown to improve readability.
 
     Args:
@@ -154,7 +155,7 @@ def format_time(time: int | str) -> str:
 def file_size(byte_size: int, binary_suffix: bool = False, signed: bool = True) -> str:
     """This function calculates the file size of a given file in a format with
     readable scaled units, given the size in bytes of the file, e.g. 4.5KB. All
-    values are given to one decimal place in terms of accuracy. 
+    values are given to one decimal place in terms of accuracy.
 
     Args:
         byte_size (int): The number of bytes (8 bits) in the file.
@@ -189,9 +190,9 @@ def file_size(byte_size: int, binary_suffix: bool = False, signed: bool = True) 
 
 
 class AggregateVisitor(NodeVisitor):
-    """ A class that traverses an Abstract Syntax Tree (AST) to count a variety
+    """A class that traverses an Abstract Syntax Tree (AST) to count a variety
     of occurrences of program constructs in the AST such that aggregate metrics
-    can be computed. """
+    can be computed."""
 
     __ident_attrs = (
         "name",
@@ -200,12 +201,11 @@ class AggregateVisitor(NodeVisitor):
     )
 
     def __init__(self):
-        """ The constructor for the AggregateVisitor object, initialising its state.
-        """
+        """The constructor for the AggregateVisitor object, initialising its state."""
         self.__reset()
 
     def __reset(self) -> None:
-        """ Resets the state of the AggregateVisitor, replcing existing counts
+        """Resets the state of the AggregateVisitor, replcing existing counts
         and contextual parsing information to their default initial state.
         """
         self.constants = 0
@@ -217,7 +217,7 @@ class AggregateVisitor(NodeVisitor):
         self.ident_set = set()
 
     def record_stmt(self) -> None:
-        """ Records an occurrence of a given statement, incrementing both the
+        """Records an occurrence of a given statement, incrementing both the
         global statement counter, and the local function statement counter (so
         long as the AST is currently traversing a function).
         """
@@ -226,7 +226,7 @@ class AggregateVisitor(NodeVisitor):
             self.stmts_in_functions += 1
 
     def visit_FileAST(self, node: FileAST) -> None:
-        """ Traverses a FileAST root node in the AST, resetting the state of
+        """Traverses a FileAST root node in the AST, resetting the state of
         the AggregateVisitor before traversing the AST as normal so that
         it can be reused. It also counts all non-compound children of the
         AST as individual statements
@@ -263,8 +263,8 @@ class AggregateVisitor(NodeVisitor):
         self.__in_function = False
 
     def visit_Compound(self, node: Compound) -> None:
-        """Traverses a Compound node in the AST, individually recording each 
-        non-compound child node to be a statement. 
+        """Traverses a Compound node in the AST, individually recording each
+        non-compound child node to be a statement.
 
         Args:
             node (Compound): The Compound AST node to traverse.
@@ -279,9 +279,9 @@ class AggregateVisitor(NodeVisitor):
         """Traverses an If statement in the AST, individually recording each
         branch of the if-statement to be its own individual statement (where
         such branches exist).
-        
+
         Args:
-            node (If): The If statement AST node to record and traverse. """
+            node (If): The If statement AST node to record and traverse."""
         if node.iftrue is not None and not isinstance(node.iftrue, Compound):
             self.record_stmt()
         if node.iffalse is not None and not isinstance(node.iffalse, Compound):
@@ -337,10 +337,10 @@ class AggregateVisitor(NodeVisitor):
 
 
 class AggregateUnit(CodeMetricUnit):
-    """A class for calculating aggregate/count metrics of varying types, implementing 
+    """A class for calculating aggregate/count metrics of varying types, implementing
     methods for calculating and formatting these complexity metrics given some code.
     These metrics measure varied program units and provide aggregate cost/size information
-    at different granularities. """
+    at different granularities."""
 
     name = "Aggregates"
     positions = dict(
@@ -397,9 +397,9 @@ class AggregateUnit(CodeMetricUnit):
     }
     predecessors = []
     cached = {}
-    
+
     def __cache_metrics(self, metrics: Metrics) -> None:
-        """ Caches the provided set of metrics within the class' cache, such that
+        """Caches the provided set of metrics within the class' cache, such that
         any future metric group that wishes to use aggregate metrics in their
         calculations can access these cached values without recomputing them.
 
@@ -433,7 +433,7 @@ class AggregateUnit(CodeMetricUnit):
         new_f, old_f = new_counter.functions, old_counter.functions
         self.add_metric("Functions", str(new_f), int_delta(new_f, old_f))
         self.__cache_metrics({"Functions": (new_f, old_f)})
-        
+
         # Comptue metrics related to the number of identifiers and new identifiers
         new_id, old_id = new_counter.ident_set, old_counter.ident_set
         num_new_id, num_old_id = len(new_id), len(old_id)
@@ -442,7 +442,7 @@ class AggregateUnit(CodeMetricUnit):
         )
         self.add_metric("New Identifiers", str(len(new_id.difference(old_id))))
         new_stmts, old_stmts = new_counter.stmts, old_counter.stmts
-        
+
         # Comptue aggreagtes for the number of statements, and statements per function
         self.add_metric("Statements", str(new_stmts), int_delta(new_stmts, old_stmts))
         if new_counter.functions != 0:
@@ -459,7 +459,7 @@ class AggregateUnit(CodeMetricUnit):
 
     def preprocess_contents(self, source: CSource) -> str:
         """Given a CSource object, preprocess its contents by generating its C source
-        code using a patched generator. 
+        code using a patched generator.
 
         Args:
             source (CSource): The CSource source program to preprocess.
@@ -493,7 +493,7 @@ class AggregateUnit(CodeMetricUnit):
     def add_lexer_metrics(self, old_source: CSource, new_source: CSource) -> None:
         """Computes and formats a subset of aggregate metrics related to lexical
         information, including the number of lines, tokens, characters and file
-        size. These are not computed using any AST representation. 
+        size. These are not computed using any AST representation.
 
         Args:
             old_source (CSource): The original C source file before obfuscation.
@@ -504,21 +504,21 @@ class AggregateUnit(CodeMetricUnit):
             lambda: None, lambda: None, lambda: None, lambda tok: None
         )
         lexer.build()
-        
+
         # Get line counts
         old_contents = old_source.contents
         new_contents = new_source.contents
         old_lines, new_lines = old_contents.count("\n"), new_contents.count("\n")
         self.add_metric("Lines", str(new_lines), int_delta(new_lines, old_lines))
         self.__cache_metrics({"Lines": (new_lines, old_lines)})
-        
+
         # Preprocess contents and lex to get token counts
         old_contents = self.preprocess_contents(old_source)
         new_contents = self.preprocess_contents(new_source)
         old_toks = self.get_token_count(lexer, old_contents)
         new_toks = self.get_token_count(lexer, new_contents)
         self.add_metric("Tokens", str(new_toks), int_delta(new_toks, old_toks))
-        
+
         # Also consider simple character counts and file size metrics.
         old_chars, new_chars = len(old_contents), len(new_contents)
         self.add_metric("Characters", str(new_chars), int_delta(new_chars, old_chars))
@@ -544,15 +544,14 @@ class AggregateUnit(CodeMetricUnit):
 
 
 class CFGGenerator(NodeVisitor):
-    """ This class traverses and AST to compute a directed graph representation of 
-    the source-level control flow graph for (each function in) the program, such 
-    that metrics can be computed from he CFG. This also records additional information 
+    """This class traverses and AST to compute a directed graph representation of
+    the source-level control flow graph for (each function in) the program, such
+    that metrics can be computed from he CFG. This also records additional information
     about the number of compound logical statements in expressions for calculation
-    of Myers' Interval. """
-    
+    of Myers' Interval."""
+
     def __init__(self):
-        """The constructor for the CFGGenerator, resetting its state.
-        """
+        """The constructor for the CFGGenerator, resetting its state."""
         super(CFGGenerator, self).__init__()
         self.__reset()
 
@@ -592,9 +591,9 @@ class CFGGenerator(NodeVisitor):
             node (int): The nubmer of the node to add.
         """
         self.cfgraph[node] = set()
-    
+
     def __add_edge(self, from_node: int, to_node: int) -> None:
-        """ Adds an edge (between two nodes represented by unique integers) to the control
+        """Adds an edge (between two nodes represented by unique integers) to the control
         flow graph (CFG), by addnig it to the relevant node's adjacency list.
 
         Args:
@@ -602,9 +601,9 @@ class CFGGenerator(NodeVisitor):
             to_node (int): The node the direct edge is entering towards.
         """
         self.cfgraph[from_node].add(to_node)
-    
+
     def __new_node(self) -> int:
-        """ Create a new graph node by generating a unique integer label for that node, and
+        """Create a new graph node by generating a unique integer label for that node, and
         adding it to the current CFG representation.
 
         Returns:
@@ -616,7 +615,7 @@ class CFGGenerator(NodeVisitor):
         return new_node
 
     def __set_entry_exit(self, entry: int, exit: int) -> None:
-        """Sets the entry and exit CFG node at the current level of program traversal, 
+        """Sets the entry and exit CFG node at the current level of program traversal,
         pushing them to the top of the relevant entry and exit node stacks.
 
         Args:
@@ -625,27 +624,27 @@ class CFGGenerator(NodeVisitor):
         """
         self.entry_stack.append(entry)
         self.exit_stack.append(exit)
-    
+
     def __pop_entry_exit(self) -> None:
         """Removes the top values from the entry and exit stacks, such that when traversal
         of some program construct is complete, information about its control flow can be removed.
         """
         self.entry_stack = self.entry_stack[:-1]
         self.exit_stack = self.exit_stack[:-1]
-    
-    def __get_entry_exit(self) -> Tuple[int,int]:
-        """Retrieves the current entry and exit nodes from the top of the relevant stacks, 
+
+    def __get_entry_exit(self) -> Tuple[int, int]:
+        """Retrieves the current entry and exit nodes from the top of the relevant stacks,
         determining where the current construct should begin and exit in control flow.
 
         Returns:
             Tuple[int,int]: The tuple (entry node, exit node).
         """
         return (self.entry_stack[-1], self.exit_stack[-1])
-        
+
     def __modify_entry_exit(self, entry: int, exit: int) -> None:
-        """Modifies the values of the current entry and exit nodes at the top of the 
+        """Modifies the values of the current entry and exit nodes at the top of the
         relevant stacks, which is used to handle labels (branching targets) disrupting
-        conventional control flow in structured code. 
+        conventional control flow in structured code.
 
         Args:
             entry (int): The new entry node of the current control flow.
@@ -653,11 +652,18 @@ class CFGGenerator(NodeVisitor):
         """
         self.entry_stack[-1] = entry
         self.exit_stack[-1] = exit
-        
-    def __visit(self, node: Node, entry: int, exit: int, modify: bool = False, escape_link: bool = True) -> None:
-        """Visits a node in the AST wih a specific entry and exit control flow node in the CFG. 
+
+    def __visit(
+        self,
+        node: Node,
+        entry: int,
+        exit: int,
+        modify: bool = False,
+        escape_link: bool = True,
+    ) -> None:
+        """Visits a node in the AST wih a specific entry and exit control flow node in the CFG.
         This function handles the appropriate state representation of entry and exit nodes on the
-        stack, and creates corresponding edges between end blocks and exit blocks so long as 
+        stack, and creates corresponding edges between end blocks and exit blocks so long as
         some control flow statement (break; continue), return statement or GOTO statement has not
         disrupted regualr control flow. Such exceptions are handled on a case by case basis.
 
@@ -673,7 +679,7 @@ class CFGGenerator(NodeVisitor):
             only be used when handling branches (e.g. GOTO, return). Defaults to True.
         """
         if modify:
-            # Modify the top of the entry/exit stack, visit the node, and then create new 
+            # Modify the top of the entry/exit stack, visit the node, and then create new
             # entry and exit nodes.
             self.__modify_entry_exit(entry, exit)
             if isinstance(node, list):
@@ -698,7 +704,7 @@ class CFGGenerator(NodeVisitor):
                 self.__add_edge(new_entry, new_exit)
             self.__pop_entry_exit()
             self.escaped = self.escaped[:-1]
-    
+
     def __visit_cond(self, cond: Node) -> None:
         """Visits a condition node (some expression in a conditional program construct),
         recording the condition by incrementing relevant counters and updating state
@@ -760,7 +766,7 @@ class CFGGenerator(NodeVisitor):
         """Visits a Compound node in the AST, separating the block into linear
         blocs of control flow which are each individually handled using during
         their traversal. Handles the transitions of control flow between such
-        sequences. 
+        sequences.
 
         Args:
             node (Compound): The Compound statement AST node to traverse.
@@ -782,10 +788,10 @@ class CFGGenerator(NodeVisitor):
                 current_seq.append((stmt, label))
         if len(current_seq) > 0:
             block_parts.append(current_seq)
-        
+
         # Sequentially traverse each block part, chaining control flow as is appropriate
         for part in block_parts:
-            
+
             # The last node exits at the exit, all other nodes exit to a new control flow node.
             if part == block_parts[-1]:
                 new_node = exit
@@ -793,18 +799,24 @@ class CFGGenerator(NodeVisitor):
                 new_node = self.__new_node()
             part_exit = new_node
             is_escape = part == block_parts[-1]
-            
+
             # Visit each node in each sequence, providing label information and creating edges
             # where necessary.
             if isinstance(part, tuple):
                 part, label = part
-                self.__visit(part if label is None else label, entry, part_exit, modify=True, escape_link=is_escape)
+                self.__visit(
+                    part if label is None else label,
+                    entry,
+                    part_exit,
+                    modify=True,
+                    escape_link=is_escape,
+                )
             elif isinstance(part, list):
                 part = [p[0] if p[1] is None else p[1] for p in part]
-                self.__visit(part, entry, exit, modify=True, escape_link=is_escape) 
+                self.__visit(part, entry, exit, modify=True, escape_link=is_escape)
                 if part != block_parts[-1]:
                     self.__add_edge(entry, part_exit)
-                    
+
             # Each new block enters at the exit of the previous block.
             entry = part_exit
 
@@ -818,13 +830,13 @@ class CFGGenerator(NodeVisitor):
         if not self.in_function or self.escaped[-1] or node.stmt is None:
             return self.generic_visit(node)
         entry, exit = self.__get_entry_exit()
-        
+
         # First add an edge for the conditional block
         cond_entry = self.__new_node()
         self.__add_edge(entry, cond_entry)
         self.__modify_entry_exit(cond_entry, exit)
         self.breaks.append((self.levels, exit))
-        
+
         # Add a node/edge for each respective case entry and visit these cases.
         # we visit in reverse order to appropriately handle node exits.
         prev_exit = exit
@@ -846,7 +858,7 @@ class CFGGenerator(NodeVisitor):
         new_entry = cond_entry
         for stmt in node.stmt.block_items[::-1]:
             if not isinstance(stmt, (Case, Default)):
-                if is_first_other: # Must add edge for first non-case/default in switch
+                if is_first_other:  # Must add edge for first non-case/default in switch
                     new_entry = self.__new_node()
                     self.__add_edge(cond_entry, new_entry)
                 self.__visit(stmt, new_entry, exit)
@@ -926,7 +938,7 @@ class CFGGenerator(NodeVisitor):
         self.continues = self.continues[:-1]
 
     def visit_Continue(self, node: Continue) -> None:
-        """Visits a Continue statement node in the AST, creating an edge in the 
+        """Visits a Continue statement node in the AST, creating an edge in the
         control flow graph between the current CFG node and the node recorded as
         being at the beginning of the loop body. Also records that we have escaped
         so that an extra outgoing edge after this statement is not created.
@@ -965,15 +977,20 @@ class CFGGenerator(NodeVisitor):
         Args:
             node (Label): The Label AST node to traverse.
         """
-        if not self.in_function or self.levels == 0 or node.name is None \
-            or node.stmt is None or self.escaped[-1]:
-                return self.generic_visit(node)
+        if (
+            not self.in_function
+            or self.levels == 0
+            or node.name is None
+            or node.stmt is None
+            or self.escaped[-1]
+        ):
+            return self.generic_visit(node)
         entry, exit = self.__get_entry_exit()
         labelled_entry = self.__new_node()
         self.__add_edge(entry, labelled_entry)
         self.label_blocks[node.name] = entry
         self.escaped[-1] = False  # we can no longer assume we have escaped the current
-                                  # control flow, as it may be jumped to via the label.
+        # control flow, as it may be jumped to via the label.
         self.__visit(node.stmt, labelled_entry, exit, modify=True)
 
     def visit_Goto(self, node: Goto) -> None:
@@ -986,7 +1003,12 @@ class CFGGenerator(NodeVisitor):
         Args:
             node (Goto): The Goto statement AST node to traverse.
         """
-        if not self.in_function or self.levels == 0 or node.name is None or self.escaped[-1]:
+        if (
+            not self.in_function
+            or self.levels == 0
+            or node.name is None
+            or self.escaped[-1]
+        ):
             return self.generic_visit(node)
         entry, _ = self.__get_entry_exit()
         if node.name not in self.gotos:
@@ -1011,7 +1033,7 @@ class CFGGenerator(NodeVisitor):
 
     def visit_BinaryOp(self, node: BinaryOp) -> None:
         """Visits a Binary operator (expression) node in the AST, counting instances
-        of logical binary operators in conditions to implement Myers' Interval for 
+        of logical binary operators in conditions to implement Myers' Interval for
         extending cyclomatic complexity.
 
         Args:
@@ -1019,12 +1041,12 @@ class CFGGenerator(NodeVisitor):
         """
         if not self.in_function or not self.in_cond or self.escaped[-1]:
             return self.generic_visit(node)
-        if node.op is not None and node.op in ["&&", "||", "^"]: 
+        if node.op is not None and node.op in ["&&", "||", "^"]:
             self.myers += 1
             self.generic_visit(node)
 
     def visit_FuncDef(self, node: FuncDef) -> None:
-        """Visits a Function Definition node in the AST, initialising a variety 
+        """Visits a Function Definition node in the AST, initialising a variety
         of structures and tracking variables related to the creation and storage
         of a control flow graph for that function. This also performs appropriate
         control flow updates when backfilling GOTO statements with their branch
@@ -1035,7 +1057,7 @@ class CFGGenerator(NodeVisitor):
         """
         if node.decl is None or node.body is None:
             return self.generic_visit(node)
-        
+
         # Update tracking variables and structures
         self.functions += 1
         was_in_function = self.in_function
@@ -1051,7 +1073,7 @@ class CFGGenerator(NodeVisitor):
         self.graphs[node] = self.cfgraph
         self.decisions = 1
         self.myers = 1
-        
+
         # Create entry and exit nodes for the function's CFG, and visit the function.
         entry, exit = self.__new_node(), self.__new_node()
         self.__set_entry_exit(entry, exit)
@@ -1059,9 +1081,9 @@ class CFGGenerator(NodeVisitor):
         self.__pop_entry_exit()
         self.func_decisions[node] = self.decisions
         self.func_myers[node] = self.myers
-        
+
         # Backfill goto branch statements with their labels (branch targets), adding
-        # corresponding edges in the AST. 
+        # corresponding edges in the AST.
         for label_name, goto_entries in self.gotos.items():
             if label_name not in self.label_blocks:
                 continue
@@ -1070,7 +1092,9 @@ class CFGGenerator(NodeVisitor):
                 self.__add_edge(goto_entry, label_entry)
 
         # Remove redundant exit node for single-block (straight-line) graphs
-        if len(self.cfgraph[entry]) == 0 or (len(self.cfgraph[entry]) == 1 and list(self.cfgraph[entry])[0] == exit):
+        if len(self.cfgraph[entry]) == 0 or (
+            len(self.cfgraph[entry]) == 1 and list(self.cfgraph[entry])[0] == exit
+        ):
             self.cfgraph = {entry: set()}
             self.graphs[node] = self.cfgraph
         self.levels -= 1
@@ -1179,27 +1203,29 @@ class CyclomaticComplexityUnit(CodeMetricUnit):
     }
     predecessors = []
     cached = {}
-    
+
     def __cache_metrics(self, metrics) -> None:
-        """ Caches the provided set of metrics within the class' cache, such that
-        any future metric group that wishes to use cyclomatic complexity metrics in 
+        """Caches the provided set of metrics within the class' cache, such that
+        any future metric group that wishes to use cyclomatic complexity metrics in
         their calculations can access these cached values without recomputing them.
 
         Args:
             metrics (Metrics): The dictionary of metrics to cache.
         """
-        CyclomaticComplexityUnit.cached = dict(x for x in CyclomaticComplexityUnit.cached.items())
+        CyclomaticComplexityUnit.cached = dict(
+            x for x in CyclomaticComplexityUnit.cached.items()
+        )
         for k, v in metrics.items():
             CyclomaticComplexityUnit.cached[k] = v
 
-    def get_edges(self, graph: dict[int,Iterable[int]]) -> int:
-        """ Given a control flow graph, calculate the total number of directed edges in the CFG.
+    def get_edges(self, graph: dict[int, Iterable[int]]) -> int:
+        """Given a control flow graph, calculate the total number of directed edges in the CFG.
 
         Args:
             graph (dict[int,Iterable[int]]): The CFG in its adjacency-list representation.
 
         Returns:
-            int: The nubmer of unique directed edges in the CFG. 
+            int: The nubmer of unique directed edges in the CFG.
         """
         return sum([len(vals) for _, vals in graph.items()])
 
@@ -1228,7 +1254,7 @@ class CyclomaticComplexityUnit(CodeMetricUnit):
         return interpretation
 
     def calculate_metrics(self, old_source: CSource, new_source: CSource) -> None:
-        """Computes and formats the set of cyclomatic complexity metrics for the given 
+        """Computes and formats the set of cyclomatic complexity metrics for the given
         programs, by computing the control flow graph and then performing relevant
         calculations and conversions.
 
@@ -1247,7 +1273,7 @@ class CyclomaticComplexityUnit(CodeMetricUnit):
         new_graphs = list(new_cfg_generator.graphs.values())
         new_nodes = [len(graph.values()) for graph in new_graphs]
         new_edges = [self.get_edges(graph) for graph in new_graphs]
-        
+
         # Compute the average numbers of nodes and edges
         if len(old_graphs) != 0:
             old_total_nodes = sum(old_nodes)
@@ -1256,7 +1282,7 @@ class CyclomaticComplexityUnit(CodeMetricUnit):
             old_avg_edges = old_total_edges / len(old_edges)
         else:
             old_total_nodes = 0
-            old_avg_edges = 'N/A'
+            old_avg_edges = "N/A"
             old_total_edges = 0
         if len(new_graphs) != 0:
             new_total_nodes = sum(new_nodes)
@@ -1267,22 +1293,28 @@ class CyclomaticComplexityUnit(CodeMetricUnit):
             edge_new = "{:.1f}".format(new_avg_edges)
         else:
             new_total_nodes = 0
-            node_new = 'N/A'
+            node_new = "N/A"
             new_total_edges = 0
-            edge_new = 'N/A'
+            edge_new = "N/A"
         if len(old_graphs) == 0 or len(new_graphs) == 0:
-            node_delta = 'N/A'
-            edge_delta = 'N/A'
+            node_delta = "N/A"
+            edge_delta = "N/A"
         else:
             node_delta = float_delta(new_avg_nodes, old_avg_nodes)
             edge_delta = float_delta(new_avg_edges, old_avg_edges)
         self.add_metric("Avg. Nodes (N\u0305)", node_new, node_delta)
-        self.add_metric("Total Nodes (\u03A3N)", str(new_total_nodes), 
-                        int_delta(new_total_nodes, old_total_nodes))
+        self.add_metric(
+            "Total Nodes (\u03A3N)",
+            str(new_total_nodes),
+            int_delta(new_total_nodes, old_total_nodes),
+        )
         self.add_metric("Avg. Edges (E\u0305)", edge_new, edge_delta)
-        self.add_metric("Total Edges (\u03A3E)", str(new_total_edges),
-                        int_delta(new_total_edges, old_total_edges))
-        
+        self.add_metric(
+            "Total Edges (\u03A3E)",
+            str(new_total_edges),
+            int_delta(new_total_edges, old_total_edges),
+        )
+
         # Compute the cyclomatic number and ratings
         old_cyclo_numbers = []
         for i in range(len(old_graphs)):
@@ -1309,13 +1341,15 @@ class CyclomaticComplexityUnit(CodeMetricUnit):
             avg_new_cyclo = "N/A"
             avg_new_cyclo_str = "N/A"
             avg_cyclo_delta = "N/A"
-        self.add_metric("Total Cyclomatic \u03A3M", str(total_new_cyclo),
-                        int_delta(total_new_cyclo, total_old_cyclo))
-        self.add_metric("Avg. Cyclomatic M\u0305", avg_new_cyclo_str,
-                        avg_cyclo_delta)
+        self.add_metric(
+            "Total Cyclomatic \u03A3M",
+            str(total_new_cyclo),
+            int_delta(total_new_cyclo, total_old_cyclo),
+        )
+        self.add_metric("Avg. Cyclomatic M\u0305", avg_new_cyclo_str, avg_cyclo_delta)
         self.add_metric("Rating", self.get_interpretation(avg_new_cyclo))
         self.add_metric("Source Rating", self.get_interpretation(avg_old_cyclo))
-        
+
         # Compute the original cyclomatic complexity values and corresponding ratings
         old_orig_values = old_cfg_generator.func_decisions.values()
         new_orig_values = new_cfg_generator.func_decisions.values()
@@ -1331,16 +1365,24 @@ class CyclomaticComplexityUnit(CodeMetricUnit):
         else:
             avg_new_orig_values = "N/A"
             avg_new_orig_values_str = "N/A"
-        self.add_metric("Total Orig. \u03A3M", str(total_new_orig_values),
-                        int_delta(total_new_orig_values, total_old_orig_values))
-        self.add_metric("Avg. Orig. M\u0305", avg_new_orig_values_str,
-                        float_delta(avg_new_orig_values, avg_old_orig_values))
-        self.add_metric("Orig. Rating", 
-                        self.get_interpretation(avg_new_orig_values))
-        self.add_metric("Orig. Source Rating", 
-                        self.get_interpretation(avg_old_orig_values))
-        self.__cache_metrics({"Cyclomatic Complexity": (avg_new_orig_values, avg_old_orig_values)})
-        
+        self.add_metric(
+            "Total Orig. \u03A3M",
+            str(total_new_orig_values),
+            int_delta(total_new_orig_values, total_old_orig_values),
+        )
+        self.add_metric(
+            "Avg. Orig. M\u0305",
+            avg_new_orig_values_str,
+            float_delta(avg_new_orig_values, avg_old_orig_values),
+        )
+        self.add_metric("Orig. Rating", self.get_interpretation(avg_new_orig_values))
+        self.add_metric(
+            "Orig. Source Rating", self.get_interpretation(avg_old_orig_values)
+        )
+        self.__cache_metrics(
+            {"Cyclomatic Complexity": (avg_new_orig_values, avg_old_orig_values)}
+        )
+
         # Compute the Myers' Interval representations of Cyclomatic Complexity
         old_myers = old_cfg_generator.func_myers.values()
         new_myers = new_cfg_generator.func_myers.values()
@@ -1356,27 +1398,30 @@ class CyclomaticComplexityUnit(CodeMetricUnit):
         else:
             avg_new_myers = "N/A"
             avg_new_myers_str = "N/A"
-        self.add_metric("Avg. Myers' Interval", avg_new_myers_str, "{}".format(
-            float_delta(avg_new_myers, avg_old_myers)
-        ))
-        self.add_metric("Total Myers' Interval", str(total_new_myers), "{}".format(
-            int_delta(total_new_myers, total_old_myers)
-        ))
+        self.add_metric(
+            "Avg. Myers' Interval",
+            avg_new_myers_str,
+            "{}".format(float_delta(avg_new_myers, avg_old_myers)),
+        )
+        self.add_metric(
+            "Total Myers' Interval",
+            str(total_new_myers),
+            "{}".format(int_delta(total_new_myers, total_old_myers)),
+        )
 
 
 class CognitiveAnalyzer(NodeVisitor):
-    """ This class traverses an Abstract Syntax Tree (AST) to compute the Cognitive
-    Complexity metric as according to its whitepaper definition. """
-    
+    """This class traverses an Abstract Syntax Tree (AST) to compute the Cognitive
+    Complexity metric as according to its whitepaper definition."""
+
     def __init__(self):
-        """The constructor for the CognitiveAnalyzer constructor.
-        """
+        """The constructor for the CognitiveAnalyzer constructor."""
         super(CognitiveAnalyzer, self).__init__()
         self.__reset()
 
     def __reset(self) -> None:
         """Resets the state of the CognitiveAnalyzer, resetting state tracking variables
-        to their initial vaues and clearing graphs/dict data structures. 
+        to their initial vaues and clearing graphs/dict data structures.
         """
         self.current_function = None
         self.cognitive = 0
@@ -1384,11 +1429,14 @@ class CognitiveAnalyzer(NodeVisitor):
         self.func_nestings = dict()
         self.func_cognitives = dict()
         self.call_graph = dict()  # To detect direct/indirect recursion
-        self.logical_op_seq = (None, 0)  # To detect sequences (chains) of logical binary ops
-    
+        self.logical_op_seq = (
+            None,
+            0,
+        )  # To detect sequences (chains) of logical binary ops
+
     def __find_recursion_cycles(self) -> None:
         """Finds recursion cycles in the call graph of a given program, adding 1 to the cognitive
-        complexity of each function involved in each unique recursion cycle. 
+        complexity of each function involved in each unique recursion cycle.
         """
         # Donald B' Johnson's algorithm to find all simple cycles in a graph
         # using the networkx library implementation
@@ -1400,7 +1448,7 @@ class CognitiveAnalyzer(NodeVisitor):
             # We increment for each method in a recursion cycle, whether direct or indirect.
             for func in cycle:
                 self.func_cognitives[func] += 1
-        
+
     def visit_FileAST(self, node: FileAST) -> None:
         """Visits the FileAST root AST node, first traversing the AST and then finding
         recursion cycles.
@@ -1410,7 +1458,7 @@ class CognitiveAnalyzer(NodeVisitor):
         """
         self.generic_visit(node)
         self.__find_recursion_cycles()
-    
+
     def visit_FuncDef(self, node: FuncDef) -> None:
         """Visits a Function Definition AST node, initialising the value of integer variables
         for tracking nesting levels and cognitive values, an creating the call graph.
@@ -1430,14 +1478,14 @@ class CognitiveAnalyzer(NodeVisitor):
         self.func_cognitives[node.decl.name] = self.cognitive
         self.func_nestings[node] = self.max_nesting
         self.current_function = prev_function
-    
+
     def visit_FuncCall(self, node: FuncCall) -> None:
         """Visits a Function Call AST node, recording the ocurrence of the function
-        call in the call graph (creating an edge between the current function and 
+        call in the call graph (creating an edge between the current function and
         the called function))
 
         Args:
-            node (FuncCall): The function call AST node to visit and record. 
+            node (FuncCall): The function call AST node to visit and record.
         """
         if self.current_function is None or node.name is None or node.name.name is None:
             return self.generic_visit(node)
@@ -1446,9 +1494,9 @@ class CognitiveAnalyzer(NodeVisitor):
         if name not in reached_set and name in self.call_graph:
             reached_set.add(name)
         self.generic_visit(node)
-    
+
     def visit_BinaryOp(self, node: BinaryOp) -> None:
-        """Visits a Binary Operator AST node, traversing sequences of logical binary 
+        """Visits a Binary Operator AST node, traversing sequences of logical binary
         operands to determien the number of unique such sequences, incrementing the
         cognitive complexity count by that number. For example, the expression
             `(a && b && c || d || e && f && g || h || i)`
@@ -1457,7 +1505,11 @@ class CognitiveAnalyzer(NodeVisitor):
         Args:
             node (BinaryOp): The binary operator AST node to visit and record.
         """
-        if self.current_function is None or node.op is None or node.op not in ["^", "&&", "||"]:
+        if (
+            self.current_function is None
+            or node.op is None
+            or node.op not in ["^", "&&", "||"]
+        ):
             return self.generic_visit(node)
         logical_op, sequence_len = self.logical_op_seq
         if sequence_len == 0:
@@ -1468,15 +1520,17 @@ class CognitiveAnalyzer(NodeVisitor):
             self.logical_op_seq = (node.op, 1)
             self.cognitive += 1
         if node.left is not None and node.right is not None:
-            if not isinstance(node.left, BinaryOp) and not isinstance(node.right, BinaryOp):
+            if not isinstance(node.left, BinaryOp) and not isinstance(
+                node.right, BinaryOp
+            ):
                 # End of sequence, so add the current sequence
                 self.cognitive += 1
         self.generic_visit(node)
-    
+
     def generic_visit(self, node: Node):
-        """Visits a generic AST node, calculating additional layers of nesting 
+        """Visits a generic AST node, calculating additional layers of nesting
         and incrementing the cognitive complexity number accordingly (by the amount
-        of nesting plus one). This also handles control flow statements and GOTOs, 
+        of nesting plus one). This also handles control flow statements and GOTOs,
         incrementing cognitive complexity by one accordingly.
 
         Args:
@@ -1484,9 +1538,9 @@ class CognitiveAnalyzer(NodeVisitor):
         """
         if self.current_function is None:
             return super(CognitiveAnalyzer, self).generic_visit(node)
-        # A special separate case for C - a compound within a compound, 
+        # A special separate case for C - a compound within a compound,
         # as compounds used inside compounds introduce additional complexity
-        # via variable shadowing and scoping. I also apply a layer of 
+        # via variable shadowing and scoping. I also apply a layer of
         # nesting in such a case.
         if isinstance(node, Compound) and node.block_items is not None:
             for child in node.block_items:
@@ -1499,7 +1553,11 @@ class CognitiveAnalyzer(NodeVisitor):
                     self.visit(child)
         elif isinstance(node, (For, While, DoWhile, If, TernaryOp, Switch)):
             self.cognitive += 1 + self.nesting
-            if isinstance(node, If) and node.iffalse is not None and not isinstance(node.iffalse, If):
+            if (
+                isinstance(node, If)
+                and node.iffalse is not None
+                and not isinstance(node.iffalse, If)
+            ):
                 # Count an else branch, but not an 'else if' branch, because
                 # that will be detected by the above conditional again instead.
                 self.cognitive += 1 + self.nesting
@@ -1518,7 +1576,7 @@ class CognitiveComplexityUnit(CodeMetricUnit):
     """A class for calculating metrics relating to Sonar's Cognitive Complexity Index,
     a measure for software complexity based on how difficult code is to actually maintain
     for software engineers, based on layers of nesting, control flow statements, recursion,
-    and more. Alongside this we group metrics based on the nesting depths of functions. """
+    and more. Alongside this we group metrics based on the nesting depths of functions."""
 
     name = "Cognitive Complexity"
     positions = dict(
@@ -1569,7 +1627,7 @@ class CognitiveComplexityUnit(CodeMetricUnit):
     predecessors = []
 
     def calculate_metrics(self, old_source: CSource, new_source: CSource) -> None:
-        """Computes and formats the set of cognitive complexity metrics for the given 
+        """Computes and formats the set of cognitive complexity metrics for the given
         programs.
 
         Args:
@@ -1587,8 +1645,11 @@ class CognitiveComplexityUnit(CodeMetricUnit):
         # Calculate the total, average, and max cognitive numbers across functions
         total_old_cognitive = sum(old_cognitive)
         total_new_cognitive = sum(new_cognitive)
-        self.add_metric("Total Cognitive Num", str(total_new_cognitive),
-                        int_delta(total_new_cognitive, total_old_cognitive))
+        self.add_metric(
+            "Total Cognitive Num",
+            str(total_new_cognitive),
+            int_delta(total_new_cognitive, total_old_cognitive),
+        )
         if len(old_cognitive) != 0:
             avg_old_cognitive = total_old_cognitive / len(old_cognitive)
         else:
@@ -1599,26 +1660,39 @@ class CognitiveComplexityUnit(CodeMetricUnit):
         else:
             avg_new_cognitive = "N/A"
             avg_new_cognitive_str = "N/A"
-        self.add_metric("Avg. Cognitive Num", avg_new_cognitive_str,
-                        float_delta(avg_new_cognitive, avg_old_cognitive))
+        self.add_metric(
+            "Avg. Cognitive Num",
+            avg_new_cognitive_str,
+            float_delta(avg_new_cognitive, avg_old_cognitive),
+        )
         max_new_cognitive = max([0] + list(new_cognitive))
-        self.add_metric("Max Cognitive Num", str(max_new_cognitive),
-                        int_delta(max_new_cognitive, max([0] + list(old_cognitive))))
-        
+        self.add_metric(
+            "Max Cognitive Num",
+            str(max_new_cognitive),
+            int_delta(max_new_cognitive, max([0] + list(old_cognitive))),
+        )
+
         # Calculate the standard deviation in cognitive numbers.
         if len(old_cognitive) >= 2:
-            sd_old_cognitive = math.sqrt(statistics.variance(old_cognitive, avg_old_cognitive))
+            sd_old_cognitive = math.sqrt(
+                statistics.variance(old_cognitive, avg_old_cognitive)
+            )
         else:
-            sd_old_cognitive = 'N/A'
+            sd_old_cognitive = "N/A"
         if len(new_cognitive) >= 2:
-            sd_new_cognitive = math.sqrt(statistics.variance(new_cognitive, avg_new_cognitive))
+            sd_new_cognitive = math.sqrt(
+                statistics.variance(new_cognitive, avg_new_cognitive)
+            )
             sd_new_cognitive_str = "{:.1f}".format(sd_new_cognitive)
         else:
-            sd_new_cognitive = 'N/A'
-            sd_new_cognitive_str = 'N/A'
-        self.add_metric("Cognitive SD", sd_new_cognitive_str,
-                        float_delta(sd_new_cognitive, sd_old_cognitive))
-        
+            sd_new_cognitive = "N/A"
+            sd_new_cognitive_str = "N/A"
+        self.add_metric(
+            "Cognitive SD",
+            sd_new_cognitive_str,
+            float_delta(sd_new_cognitive, sd_old_cognitive),
+        )
+
         # Calcuate the average and max nesting depths, and the standard deviation in
         # nesting depth.
         old_nesting = old_analyzer.func_nestings.values()
@@ -1633,43 +1707,55 @@ class CognitiveComplexityUnit(CodeMetricUnit):
         else:
             avg_new_nesting = "N/A"
             avg_new_nesting_str = "N/A"
-        self.add_metric("Avg. Nesting Depth", avg_new_nesting_str,
-                        float_delta(avg_new_nesting, avg_old_nesting))
+        self.add_metric(
+            "Avg. Nesting Depth",
+            avg_new_nesting_str,
+            float_delta(avg_new_nesting, avg_old_nesting),
+        )
         max_new_nesting = max([0] + list(new_nesting))
-        self.add_metric("Max Nesting Depth", str(max_new_nesting),
-                        int_delta(max_new_nesting, max([0] + list(old_nesting))))
+        self.add_metric(
+            "Max Nesting Depth",
+            str(max_new_nesting),
+            int_delta(max_new_nesting, max([0] + list(old_nesting))),
+        )
         if len(old_nesting) >= 2:
-            sd_old_nesting = math.sqrt(statistics.variance(old_nesting, avg_old_nesting))
+            sd_old_nesting = math.sqrt(
+                statistics.variance(old_nesting, avg_old_nesting)
+            )
         else:
-            sd_old_nesting = 'N/A'
+            sd_old_nesting = "N/A"
         if len(new_nesting) >= 2:
-            sd_new_nesting = math.sqrt(statistics.variance(new_nesting, avg_new_nesting))
+            sd_new_nesting = math.sqrt(
+                statistics.variance(new_nesting, avg_new_nesting)
+            )
             sd_new_nesting_str = "{:.1f}".format(sd_new_nesting)
         else:
-            sd_new_nesting = 'N/A'
-            sd_new_nesting_str = 'N/A'
-        self.add_metric("Nesting SD", sd_new_nesting_str,
-                        float_delta(sd_new_nesting, sd_old_nesting))
+            sd_new_nesting = "N/A"
+            sd_new_nesting_str = "N/A"
+        self.add_metric(
+            "Nesting SD",
+            sd_new_nesting_str,
+            float_delta(sd_new_nesting, sd_old_nesting),
+        )
 
 
 class HalsteadAnalyzer(NodeVisitor):
-    """ This class traverses an Abstract Syntax Tree (AST) to comptue the number
+    """This class traverses an Abstract Syntax Tree (AST) to comptue the number
     of unique operators and operand identifiers, to separate identifier tokens into
     operands and operators as is required for Halstead's Complexity measure metrics."""
-    
+
     def __init__(self):
-        """The constructor for the HalsteadAnalyzer, intialising its state variables
-        """
+        """The constructor for the HalsteadAnalyzer, intialising its state variables"""
         self.__reset()
 
     def __reset(self) -> None:
         """Resests the state of the HalsteadAnalyzer, resetting structures and counters
-        for storing operands and operators. """
+        for storing operands and operators."""
         self.operands = 0
         self.unique_operands = set()
         self.operators = 0
         self.unique_operators = set()
-    
+
     def __add_operand(self, operand: str) -> None:
         """Records an occurrence of an operand identifier, incrementing the operand count
         and storing it if it is unique.
@@ -1679,7 +1765,7 @@ class HalsteadAnalyzer(NodeVisitor):
         """
         self.operands += 1
         self.unique_operands.add(operand)
-        
+
     def __add_operator(self, operator: str) -> None:
         """Records an occurrence of an operator identifier, incrementing the oeprator count
         and storing it if it is unique.
@@ -1689,10 +1775,10 @@ class HalsteadAnalyzer(NodeVisitor):
         """
         self.operators += 1
         self.unique_operators.add(operator)
-    
+
     def visit_FuncDef(self, node: FuncDef) -> None:
         """Visits a Function Definition AST node, recording the function name as an operator
-        where it exists. 
+        where it exists.
 
         Args:
             node (FuncDef): The FuncDef AST node to traverse.
@@ -1703,19 +1789,19 @@ class HalsteadAnalyzer(NodeVisitor):
             self.visit(node.param_decls)
         if node.body is not None:
             self.visit(node.body)
-    
+
     def visit_FuncCall(self, node: FuncCall) -> None:
         """Visits a Function Call AST node, recording the function name as an operator
-        where it exists. 
+        where it exists.
 
         Args:
-            node (FuncCall): The FuncCall AST node to traverse. 
+            node (FuncCall): The FuncCall AST node to traverse.
         """
         if node.name is not None and node.name.name is not None:
             self.__add_operator(node.name.name)
         if node.args is not None:
             self.visit(node.args)
-    
+
     def visit_Decl(self, node: Decl) -> None:
         """Visits a declaration AST node, recording a variable name as an operand
         where it exists.
@@ -1726,9 +1812,9 @@ class HalsteadAnalyzer(NodeVisitor):
         if node.name is not None:
             self.__add_operand(node.name)
         self.generic_visit(node)
-    
+
     def visit_Enum(self, node: Enum) -> None:
-        """Visits an enumerator AST node, recording the enumerated type name as 
+        """Visits an enumerator AST node, recording the enumerated type name as
         an operand where it exists.
 
         Args:
@@ -1737,7 +1823,7 @@ class HalsteadAnalyzer(NodeVisitor):
         if node.name is not None:
             self.__add_operand(node.name)
         self.generic_visit(node)
-    
+
     def visit_Struct(self, node: Struct) -> None:
         """Visits a struct AST node, recording the struct name as an operand.
 
@@ -1747,7 +1833,7 @@ class HalsteadAnalyzer(NodeVisitor):
         if node.name is not None:
             self.__add_operand(node.name)
         self.generic_visit(node)
-    
+
     def visit_Union(self, node: Union) -> None:
         """Visits a union AST node, recording the union name as an operand.
 
@@ -1757,7 +1843,7 @@ class HalsteadAnalyzer(NodeVisitor):
         if node.name is not None:
             self.__add_operand(node.name)
         self.generic_visit(node)
-    
+
     def visit_ID(self, node: ID) -> None:
         """Visits an identifier AST node, recording the name of the identifier
         reference as an operand where it exists.
@@ -1773,8 +1859,8 @@ class HalsteadAnalyzer(NodeVisitor):
 class HalsteadComplexityUnit(CodeMetricUnit):
     """A class for calculating metrics related to Halstead's Complexity Measures, which are
     a group of measures for software complexity based on modelling the linguistig complexity
-    of a program, splitting tokens into operators and operands and comparing the number of 
-    distinct (unique) and overall operators/operands to compute a variety of metrics. """
+    of a program, splitting tokens into operators and operands and comparing the number of
+    distinct (unique) and overall operators/operands to compute a variety of metrics."""
 
     name = "Halstead Complexity Measures"
     gui_name = '<p style="line-height:80%">Halstead Complexity<br>Measures</p>'
@@ -1803,7 +1889,7 @@ class HalsteadComplexityUnit(CodeMetricUnit):
         "code (and hence likely also reverse engineer), the time to program, and the number\n"
         "of estimated bugs. Importantly note that this will not be fully correct for the given\n"
         "source code, as the preprocessing phase will naturally alter some of the syntax before\n"
-        "lexing (e.g. \"int a, b, c;\" to \"int a; int b; int c;\").\n"
+        'lexing (e.g. "int a, b, c;" to "int a; int b; int c;").\n'
         "\nThis metric primarily helps to measure obfuscation resilience and potency (complexity)."
     )
     tooltips = {
@@ -1831,59 +1917,60 @@ class HalsteadComplexityUnit(CodeMetricUnit):
     }
     predecessors = []
     cached = {}
-    
+
     __operand_toks = (
-        'CHAR',
-        'CONST',
-        'TYPEID',
-        'INT_CONST_DEC',
-        'INT_CONST_OCT',
-        'INT_CONST_OCT',
-        'INT_CONST_HEX',
-        'INT_CONST_BIN',
-        'INT_CONST_CHAR',
-        'FLOAT_CONST',
-        'HEX_FLOAT_CONST',
-        'CHAR_CONST',
-        'WCHAR_CONST',
-        'U8CHAR_CONST',
-        'U16CHAR_CONST',
-        'U32CHAR_CONST',
-        'STRING_LITERAL',
-        'WSTRING_LITERAL',
-        'U8STRING_LITERAL',
-        'U16STRING_LITERAL',
-        'U32STRING_LITERAL',
-        'ELLIPSIS',
-        
+        "CHAR",
+        "CONST",
+        "TYPEID",
+        "INT_CONST_DEC",
+        "INT_CONST_OCT",
+        "INT_CONST_OCT",
+        "INT_CONST_HEX",
+        "INT_CONST_BIN",
+        "INT_CONST_CHAR",
+        "FLOAT_CONST",
+        "HEX_FLOAT_CONST",
+        "CHAR_CONST",
+        "WCHAR_CONST",
+        "U8CHAR_CONST",
+        "U16CHAR_CONST",
+        "U32CHAR_CONST",
+        "STRING_LITERAL",
+        "WSTRING_LITERAL",
+        "U8STRING_LITERAL",
+        "U16STRING_LITERAL",
+        "U32STRING_LITERAL",
+        "ELLIPSIS",
     )
     __exclude_toks = (
-        'ID',       # IDs are a case by case basis: variables are operands, but
-                    #     function names are operators
-        'RBRACKET', # For indexing, only count once (so only count '[')
-        'RBRACE',   # Same as above - compounds only count once (so only count '{')
-        'RPAREN',   # Same as above - parentheses only count once (so only count '(')
-        'COLON',    # We count labels through identifers, so don't count again via colons 
-        'PPHASH',   # Ignore preprocessor tokens
-        'PPPRAGMA',
-        'PPPRAGMASTR',
+        "ID",  # IDs are a case by case basis: variables are operands, but
+        #     function names are operators
+        "RBRACKET",  # For indexing, only count once (so only count '[')
+        "RBRACE",  # Same as above - compounds only count once (so only count '{')
+        "RPAREN",  # Same as above - parentheses only count once (so only count '(')
+        "COLON",  # We count labels through identifers, so don't count again via colons
+        "PPHASH",  # Ignore preprocessor tokens
+        "PPPRAGMA",
+        "PPPRAGMASTR",
     )
-    
+
     def __cache_metrics(self, metrics) -> None:
-        """ Caches the provided set of metrics within the class' cache, such that
+        """Caches the provided set of metrics within the class' cache, such that
         any future metric group that wishes to use halstead's metrics in their
         calculations can access these cached values without recomputing them.
 
         Args:
             metrics (Metrics): The dictionary of metrics to cache.
         """
-        HalsteadComplexityUnit.cached = dict(x for x in HalsteadComplexityUnit.cached.items())
+        HalsteadComplexityUnit.cached = dict(
+            x for x in HalsteadComplexityUnit.cached.items()
+        )
         for k, v in metrics.items():
             HalsteadComplexityUnit.cached[k] = v
 
     def __preprocess_contents(self, source: CSource) -> str:
         """Given a CSource object, preprocess its contents by generating its C source
-        code using a patched generator. 
+        code using a patched generator.
 
         Args:
             source (CSource): The CSource source program to preprocess.
@@ -1895,10 +1982,12 @@ class HalsteadComplexityUnit(CodeMetricUnit):
         contents = generator.visit(source.t_unit)
         return contents
 
-    def __calc_halstead(self, lexer: c_lexer.CLexer, source: CSource) -> Tuple[int, int, int, int]:
+    def __calc_halstead(
+        self, lexer: c_lexer.CLexer, source: CSource
+    ) -> Tuple[int, int, int, int]:
         """Given a CSource object, calculate the total and distinct nubmers of operator and operand
         tokens respectively, such that Halstead's Complexity Measures can be computed for that
-        source C program. 
+        source C program.
 
         Args:
             lexer (c_lexer.CLexer): A lexer to use to lex the C program into tokens.
@@ -1912,9 +2001,9 @@ class HalsteadComplexityUnit(CodeMetricUnit):
         lexer.input(contents)
         token = lexer.token()
         num_operands = 0
-        unique_operands = set() # Distict operand lexemes
+        unique_operands = set()  # Distict operand lexemes
         num_operators = 0
-        unique_operators = set() # Distinct operator lexemes
+        unique_operators = set()  # Distinct operator lexemes
         while token is not None:
             if token.type in self.__operand_toks:
                 num_operands += 1
@@ -1929,13 +2018,18 @@ class HalsteadComplexityUnit(CodeMetricUnit):
         num_operators += context_analyzer.operators
         unique_operands.update(context_analyzer.unique_operands)
         unique_operators.update(context_analyzer.unique_operators)
-        return (num_operands, num_operators, len(unique_operands), len(unique_operators))
+        return (
+            num_operands,
+            num_operators,
+            len(unique_operands),
+            len(unique_operators),
+        )
 
     def calculate_metrics(self, old_source: CSource, new_source: CSource) -> None:
-        """Computes and formats the set of Halstead's complexity measure metrics for 
+        """Computes and formats the set of Halstead's complexity measure metrics for
         the given programs. This includes the length and estimated length, Halstead
         Volume (V), Difficulty (D) and Effort (E), and the estimated time to program
-        and estimated number of delivered bugs in the code. 
+        and estimated number of delivered bugs in the code.
 
         Args:
             old_source (CSource): The original C source file before obfuscation.
@@ -1954,7 +2048,7 @@ class HalsteadComplexityUnit(CodeMetricUnit):
         new_vocabulary = new_uq_operators + new_uq_operands
         old_length = old_operators + old_operands
         new_length = new_operators + new_operands
-        
+
         # Compute Halstead's Complexity Metrics, applying each formula in turn.
         if old_uq_operators != 0 and old_uq_operands != 0:
             old_estim_len = int(
@@ -1962,64 +2056,79 @@ class HalsteadComplexityUnit(CodeMetricUnit):
                 + old_uq_operands * math.log2(old_uq_operands)
             )
         else:
-            old_estim_len = 'N/A'
+            old_estim_len = "N/A"
         if new_uq_operators != 0 and new_uq_operands != 0:
             new_estim_len = int(
                 new_uq_operators * math.log2(new_uq_operators)
                 + new_uq_operands * math.log2(new_uq_operands)
             )
         else:
-            new_estim_len = 'N/A'
-        if old_vocabulary not in [0, 'N/A']:
+            new_estim_len = "N/A"
+        if old_vocabulary not in [0, "N/A"]:
             old_volume = old_length * math.log2(old_vocabulary)
         else:
-            old_volume = 'N/A'
-        if new_vocabulary not in [0, 'N/A']:
+            old_volume = "N/A"
+        if new_vocabulary not in [0, "N/A"]:
             new_volume = new_length * math.log2(new_vocabulary)
             new_volume_str = str(int(new_volume))
         else:
-            new_volume = 'N/A'
-            new_volume_str = 'N/A'
+            new_volume = "N/A"
+            new_volume_str = "N/A"
         if old_uq_operands != 0:
-            old_difficulty = int((old_uq_operators / 2) * (old_operands / old_uq_operands))
+            old_difficulty = int(
+                (old_uq_operators / 2) * (old_operands / old_uq_operands)
+            )
         else:
-            old_difficulty = 'N/A'
+            old_difficulty = "N/A"
         if new_uq_operands != 0:
-            new_difficulty = int((new_uq_operators / 2) * (new_operands / new_uq_operands))
+            new_difficulty = int(
+                (new_uq_operators / 2) * (new_operands / new_uq_operands)
+            )
         else:
-            new_difficulty = 'N/A'
-        if old_difficulty != 'N/A' and old_volume != 'N/A':
+            new_difficulty = "N/A"
+        if old_difficulty != "N/A" and old_volume != "N/A":
             old_effort = int(old_difficulty * old_volume)
             old_bugs = int(math.pow(old_effort, (2 / 3)) / 3000)
         else:
-            old_effort = 'N/A'
-            old_bugs = 'N/A'
-        if new_difficulty != 'N/A' and new_volume != 'N/A':
+            old_effort = "N/A"
+            old_bugs = "N/A"
+        if new_difficulty != "N/A" and new_volume != "N/A":
             new_effort = int(new_difficulty * new_volume)
             new_timetp = int(new_effort / 18)
             new_bugs = math.pow(new_effort, (2 / 3)) / 3000
             new_bugs_str = "{:.1f}".format(new_bugs)
         else:
-            new_effort = 'N/A'
-            new_timetp = 'N/A'
-            new_bugs = 'N/A'
-            new_bugs_str = 'N/A'
-        self.add_metric("Vocabulary (\u03B7)", str(new_vocabulary),
-                        int_delta(new_vocabulary, old_vocabulary))
-        self.add_metric("Length (N)", str(new_length),
-                        int_delta(new_length, old_length))
-        self.add_metric("Estimated Length (\u004E\u0302)", str(new_estim_len),
-                        int_delta(new_estim_len, old_estim_len))
-        self.add_metric("Volume (V)", new_volume_str, 
-                        int_delta(new_volume, old_volume))
-        self.add_metric("Difficulty (D)", str(new_difficulty),
-                        int_delta(new_difficulty, old_difficulty))
-        self.add_metric("Effort (E)", str(new_effort), 
-                        int_delta(new_effort, old_effort))
+            new_effort = "N/A"
+            new_timetp = "N/A"
+            new_bugs = "N/A"
+            new_bugs_str = "N/A"
+        self.add_metric(
+            "Vocabulary (\u03B7)",
+            str(new_vocabulary),
+            int_delta(new_vocabulary, old_vocabulary),
+        )
+        self.add_metric(
+            "Length (N)", str(new_length), int_delta(new_length, old_length)
+        )
+        self.add_metric(
+            "Estimated Length (\u004E\u0302)",
+            str(new_estim_len),
+            int_delta(new_estim_len, old_estim_len),
+        )
+        self.add_metric("Volume (V)", new_volume_str, int_delta(new_volume, old_volume))
+        self.add_metric(
+            "Difficulty (D)",
+            str(new_difficulty),
+            int_delta(new_difficulty, old_difficulty),
+        )
+        self.add_metric(
+            "Effort (E)", str(new_effort), int_delta(new_effort, old_effort)
+        )
         self.add_metric("Estimated Time (T)", format_time(new_timetp))
-        self.add_metric("Delivered Bugs (B)", new_bugs_str,
-                        float_delta(new_bugs, old_bugs))
-        
+        self.add_metric(
+            "Delivered Bugs (B)", new_bugs_str, float_delta(new_bugs, old_bugs)
+        )
+
         # Cache the volume metric for reuse in the maintainability index calculation.
         self.__cache_metrics({"Volume": (new_volume, old_volume)})
 
@@ -2028,7 +2137,7 @@ class MaintainabilityUnit(CodeMetricUnit):
     """A class for calculating metrics related to the Maintainabiltiy Index measure, which
     is a compound (combined) metric that accounts for the cyclomatic complexity, halstead
     volume, and number of lines of code, using an empirical formula to arrive at a holistic
-    view of program complexity and maintainbility. """
+    view of program complexity and maintainbility."""
 
     name = "Maintainability Index"
     positions = dict(
@@ -2073,12 +2182,12 @@ class MaintainabilityUnit(CodeMetricUnit):
     predecessors = [AggregateUnit, CyclomaticComplexityUnit, HalsteadComplexityUnit]
 
     def __skip_metrics(self) -> None:
-        """ Skips calculating of the maintainability index metrics due to the lack
-        of availability of required predecessor metrics. Simply adds each metric 
-        with relevant N/A values in each field. 
+        """Skips calculating of the maintainability index metrics due to the lack
+        of availability of required predecessor metrics. Simply adds each metric
+        with relevant N/A values in each field.
         """
         for metric in self.positions.keys():
-            self.add_metric(metric, 'N/A', 'N/A')
+            self.add_metric(metric, "N/A", "N/A")
 
     def __calc_maintainability_index(self, vol: float, cc: float, loc: int) -> float:
         """Calculates the maintainability index according to the initial formula, which is:
@@ -2090,10 +2199,10 @@ class MaintainabilityUnit(CodeMetricUnit):
             loc (int): The average number of lines of code per function.
 
         Returns:
-            float: The computed maintainability index value. 
+            float: The computed maintainability index value.
         """
         return 171 - 5.2 * math.log(vol) - 0.23 * cc - 16.2 * math.log(loc)
-    
+
     def __calc_vs_maintainability_index(self, vol: float, cc: float, loc: int) -> float:
         """Calculates the Visual Studio updated variant of the maintainability index
         according to their updated, bounded formula, which is:
@@ -2105,9 +2214,12 @@ class MaintainabilityUnit(CodeMetricUnit):
             loc (int): The average number of lines of code per function.
 
         Returns:
-            float: The computed Visual Studio maintainability index value. 
+            float: The computed Visual Studio maintainability index value.
         """
-        return max(0, (171 - 5.2 * math.log(vol) - 0.23 * cc - 16.2 * math.log(loc)) * 100 / 171)
+        return max(
+            0,
+            (171 - 5.2 * math.log(vol) - 0.23 * cc - 16.2 * math.log(loc)) * 100 / 171,
+        )
 
     def __interpet_meaning(self, index: float) -> str:
         """Assigns some qualitative interpretation of the meaning of a maintainability
@@ -2125,7 +2237,7 @@ class MaintainabilityUnit(CodeMetricUnit):
             return "Moderate"
         else:
             return "Maintainable"
-    
+
     def __interpet_vs_meaning(self, index: float) -> str:
         """Assigns some qualitative interpretation of the meaning of a Visual Studio
         maintainability index value, taking their "Red/Green/Blue" colour interpretation
@@ -2145,10 +2257,9 @@ class MaintainabilityUnit(CodeMetricUnit):
             return "Moderate"
         else:
             return "Maintainable"
-        
 
     def calculate_metrics(self, old_source: CSource, new_source: CSource) -> None:
-        """ Computes and formats the set of Maintainability Index code complexity
+        """Computes and formats the set of Maintainability Index code complexity
         measure metrics for the given programs. This includes both the original
         maintainabiliy index and its Visual Studio variant, as well as the qualitative
         interpretations of both metrics.
@@ -2157,10 +2268,10 @@ class MaintainabilityUnit(CodeMetricUnit):
             old_source (CSource): The original C source file before obfuscation.
             new_source (CSource): The final obfuscated C source file.
         """
-        
+
         # Retrieve previous cached line of code metric calculations
         count_metrics = AggregateUnit.cached
-        if "Lines" not in count_metrics or count_metrics["Lines"][0] == 'N/A':
+        if "Lines" not in count_metrics or count_metrics["Lines"][0] == "N/A":
             return self.__skip_metrics()
         # Get average lines of code per function
         new_loc, old_loc = count_metrics["Lines"]
@@ -2173,33 +2284,48 @@ class MaintainabilityUnit(CodeMetricUnit):
         old_loc /= old_func
         if old_loc == 0:
             old_loc = 1
-            
+
         # Retrieve previous cached Cyclomatic Complexiy and Halstead Volume calculations
         cyclomatic_metrics = CyclomaticComplexityUnit.cached
-        if "Cyclomatic Complexity" not in cyclomatic_metrics or \
-            cyclomatic_metrics["Cyclomatic Complexity"][0] == 'N/A':
-                return self.__skip_metrics()
+        if (
+            "Cyclomatic Complexity" not in cyclomatic_metrics
+            or cyclomatic_metrics["Cyclomatic Complexity"][0] == "N/A"
+        ):
+            return self.__skip_metrics()
         new_cc, old_cc = cyclomatic_metrics["Cyclomatic Complexity"]
         halstead_metrics = HalsteadComplexityUnit.cached
-        if "Volume" not in halstead_metrics or halstead_metrics["Volume"][0] == 'N/A':
+        if "Volume" not in halstead_metrics or halstead_metrics["Volume"][0] == "N/A":
             return self.__skip_metrics()
         new_vol, old_vol = halstead_metrics["Volume"]
-        if new_vol != 'N/A':
-            new_vol /= new_func 
-        if old_vol != 'N/A':
+        if new_vol != "N/A":
+            new_vol /= new_func
+        if old_vol != "N/A":
             old_vol /= old_func
 
         # Calculate and format new maintainbility index metrics
-        if old_loc == 'N/A' or old_cc == 'N/A' or old_vol == 'N/A' or old_vol <= 0 or old_loc <= 0:
-            old_maintainability = 'N/A'
-            old_vs = 'N/A'
+        if (
+            old_loc == "N/A"
+            or old_cc == "N/A"
+            or old_vol == "N/A"
+            or old_vol <= 0
+            or old_loc <= 0
+        ):
+            old_maintainability = "N/A"
+            old_vs = "N/A"
         else:
-            old_maintainability = self.__calc_maintainability_index(old_vol, old_cc, old_loc)
+            old_maintainability = self.__calc_maintainability_index(
+                old_vol, old_cc, old_loc
+            )
             old_vs = self.__calc_vs_maintainability_index(old_vol, old_cc, old_loc)
-        new_maintainability = self.__calc_maintainability_index(new_vol, new_cc, new_loc)
+        new_maintainability = self.__calc_maintainability_index(
+            new_vol, new_cc, new_loc
+        )
         new_vs = self.__calc_vs_maintainability_index(new_vol, new_cc, new_loc)
-        self.add_metric("Maintainability Index", str(int(new_maintainability)),
-                        int_delta(new_maintainability, old_maintainability))
+        self.add_metric(
+            "Maintainability Index",
+            str(int(new_maintainability)),
+            int_delta(new_maintainability, old_maintainability),
+        )
         self.add_metric("VS Bounded Index", str(int(new_vs)), int_delta(new_vs, old_vs))
         self.add_metric("Index Rating", self.__interpet_meaning(new_maintainability))
         self.add_metric("VS Index Rating", self.__interpet_vs_meaning(new_vs))
