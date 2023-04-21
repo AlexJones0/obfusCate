@@ -33,12 +33,7 @@ class IdentifierRenameUnit(ObfuscationUnit):
         "random variable names, names that use only underscore characters, and minimal length names.\n"
         "The other optional input allows you to enable identifier minimisation, where names are greedily\n"
         "reused whenever possible to achieve the maximal overlap between names, such that obfuscation is\n"
-        "achieved by giving many different constructs the same symbolic name.\n\n"
-        "WARNING: The `minimised identifiers` option does not currently work with function signatures\n"
-        "(those without bodies). Whilst the program will work in some cases, there are no guarantees.\n\n"
-        "WARNING: The 'minimised identifiers' option also cannot be used with nested tag scope (e.g. a\n"
-        "struct/union/enum inside a struct/union etc.) - again, this may work in some cases but is never\n"
-        "guaranteed. "
+        "achieved by giving many different constructs the same symbolic name."
     )
     type = TransformType.LEXICAL
 

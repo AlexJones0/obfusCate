@@ -368,13 +368,17 @@ class FuncArgumentRandomiseUnit(ObfuscationUnit):
     name = "Function Interface Randomisation"
     description = "Randomise Function Arguments to make them less compehensible"
     extended_description = (
-        """<html>This transformation randomises function signatures to obscure the true meanings of\n"""
-        """function definitions. This is done by adding an extra number of spurious argmuments\n"""
-        """that are not used to functions, and then randomising the order of these arguments.<br><br>\n\n"""
-        """The only input is the number of spurious arguments to add - if no arguments are added,\n"""
-        """then all that will happen is that the argument order will be randomised.<br><br>\n\n"""
-        """<b>Warning:</b> does not work with pointer aliased function calls. Although variadic functions\n"""
-        """are supported, they will not be transformed as correctness cannot be guaranteed.</html>"""
+        "<html>This transformation randomises function signatures to obscure the true meanings of\n"
+        "function definitions. This is done by adding an extra number of spurious argmuments\n"
+        "that are not used to functions, and then randomising the order of these arguments.<br><br>\n\n"
+        "The first input is the number of spurious arguments to add - if no arguments are added,\n"
+        "then all that will happen is that the argument order will be randomised if applicable. The\n"
+        "second input is the probability that the obfuscator attempts to fill a spurious argument\n"
+        "in a function call wih an existing program variable. This may not always be possible but\n"
+        "generally you want this as it increases security. The third option is whether to randomise\n"
+        "the order of arguments in the function definition or not.<br><br>\n\n"
+        "<b>Warning:</b> does not work with pointer aliased function calls. Although variadic functions\n"
+        "are supported, they will not be transformed as correctness cannot be guaranteed.</html>"
     )
     type = TransformType.PROCEDURAL
 

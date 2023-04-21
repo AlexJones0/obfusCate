@@ -419,7 +419,6 @@ class IntegerEncodeUnit(ObfuscationUnit):
         "of integers used. Note that the current implementation only allows simple encoding, which\n"
         "can be easily automatically optimised out, and so currently only served to obfuscate source\n"
         "code and to augment other obfuscations such as arithmetic encoding.\n\n"
-        "The only input is the integer encoding style to use, though only simple encoding is available now.\n\n"
         "WARNING: Do not use this method if you have any implicit casts from constants to pointers (e.g. in a\n"
         "function call. For example, `int *m = 0;` might seem harmless as a null pointer, but then even though\n"
         "`int *m = 1 - 1;` seems equivalent and should be folded to the same behaviour, many compilers will\n"
