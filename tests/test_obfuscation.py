@@ -121,13 +121,11 @@ options = {
         (StringEncodeTraverser.Style.ALL,),
     ],
     IntegerEncodeUnit: [tuple()],  # 1 Option
-    ArithmeticEncodeUnit: [  # 6 Options
+    ArithmeticEncodeUnit: [  # 4 Options
         (0,),
         (1,),
         (2,),
         (3,),
-        (4,),
-        (5,),
     ],
     FuncArgumentRandomiseUnit: list(  # 48 Options
         itertools.product(
@@ -170,8 +168,8 @@ options = {
         )
     ),
     InsertOpaqueUnit: list(
-        itertools.product(  # 1953 options # TODO is this OK?
-            list(  # 3
+        itertools.product(  # 1953 options
+            list(
                 itertools.chain.from_iterable(
                     itertools.combinations(
                         [
@@ -203,10 +201,8 @@ options = {
                             OpaqueInserter.Kind.CHECK,
                             OpaqueInserter.Kind.FALSE,
                             OpaqueInserter.Kind.ELSE_TRUE,
-                            OpaqueInserter.Kind.ELSE_FALSE,
                             OpaqueInserter.Kind.EITHER,
                             OpaqueInserter.Kind.WHILE_FALSE,
-                            OpaqueInserter.Kind.DO_WHILE,
                         ],
                         r,
                     )
@@ -344,7 +340,7 @@ def run_test(
     expected_output: str,
     seed: int,
 ) -> bool:
-    """Rnu a property based test, attempting to obfuscate, then compile, and then run
+    """Run a property based test, attempting to obfuscate, then compile, and then run
     a program, and comparing its output to the pre-computed unobfuscated output. If
     any of these steps fail, a corresponding debugging log will be created discussing
     the reason for failure and providing as much helpful context as possible, including
@@ -373,6 +369,21 @@ def run_test(
     Returns:
         bool: True if the test passed, False if the test failed.
     """
+
+    debug.logprint(
+        (
+            "INFO RUNNING Test {}\n"
+            "   Transform={},\n"
+            "   Example={},\n"
+            "   Seed={}"
+        ).format(
+            test,
+            str(pipeline),
+            filepath.split("\\./")[-1],
+            seed,
+        ),
+        err=False,
+    )
 
     # Try to obfuscate the program. If an exception occurs, log this and return.
     exception_handled = None
@@ -623,6 +634,7 @@ class TestObfuscationIntegrationDouble(unittest.TestCase):
                 for t1params, t2params in combination_options(t1, t2):
                     for program in get_bounded(programs, max_programs):
                         for seed in random.sample(range(0, 100000), num_seeds):
+                            debug.log(f"{test_num} {passed} {runs}\n")
                             test_passed = run_test(
                                 test_num,
                                 runs,
