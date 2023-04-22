@@ -1,8 +1,8 @@
 
-[//]: # (Hello! This README.md documentation file is a Markdown file, and so if you're reading this,)
-[//]: # (you aren't reading it in the intended way! It's probably still readable but some parts are)
-[//]: # (just going to look a lot like code. Ideally, you should use a markdown renderer to view the)
-[//]: # (intended contents of this file, for example using an applicable virtual studio code extension.)
+[//]: # (This README.md documentation file is a Markdown file, and so if you're reading this, you)
+[//]: # (aren't reading it in the intended way! It's probably still readable but some parts are just)
+[//]: # (going to look a lot like code. Ideally, you should use a markdown renderer to view the)
+[//]: # (intended contents of this file, for example using an applicable Visual Studio Code extension.)
 
 ***<img src="app/graphics/icons/logo.png" width="40" height="40"></img> obfusCate*: An automated, approachable C source-to-source obfuscator**
 ===============
@@ -94,6 +94,8 @@ The following steps are all that is needed for installation:
 ----
 
 ### **3.1. Running the Program**
+**Note**: This progam is designed such that it expects you are running it from the project root directory (that is, the directory containing this file). It may function outside, but this has not been thoroughly tested and so should be avoided if possible. 
+
 Provided that you have run the setup commands in the [**Section 2**](#2-installation), you should have all required libraries installed. As such, run the command:
 
 ```

@@ -284,7 +284,7 @@ def cli_obfuscation(
 def handle_CLI() -> bool:
     """Handles the command line interface for the program, parsing command arguments
     and options to determine which settings to apply and what other functionalities
-    and to call. Behaviour changes depending on the value of sys.argv, which depends
+    to call. Behaviour changes depending on the value of sys.argv, which depends
     on the arguments supplied to the program when calling it.
 
     Returns:

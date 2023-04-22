@@ -19,7 +19,7 @@ def set_no_options_widget(parent: QWidget) -> None:
     text "No options available.".
 
     Args:
-        parent (QWidget): The parent widget to put this widget into. 
+        parent (QWidget): The parent widget to put this widget into.
     """
     layout = QVBoxLayout(parent)
     no_options_label = QLabel("No options available.", parent)
@@ -35,9 +35,9 @@ def generate_integer_widget(
     init_val: int,
     min_val: int,
     max_val: int,
-    parent: QWidget
+    parent: QWidget,
 ) -> Tuple[QWidget, QLineEdit]:
-    """Creates a GUI form for transformation option integer entry, displaying a 
+    """Creates a GUI form for transformation option integer entry, displaying a
     left-justified label next to a right-justified entry that only accepts valid
     integer value inputs.
 
@@ -90,7 +90,7 @@ def generate_float_widget(
     max_val: float,
     parent: QWidget,
 ) -> Tuple[QWidget, QLineEdit]:
-    """Creates a GUI form for transformation option float entry, displaying a 
+    """Creates a GUI form for transformation option float entry, displaying a
     left-justified label next to a right-justified entry that only accepts valid
     float value inputs.
 
@@ -143,7 +143,7 @@ def generate_radio_button_widget(
     parent: QWidget,
     option_tooltips: Optional[Mapping[str, str]] = None,
 ) -> Tuple[QWidget, Iterable[QRadioButton]]:
-    """Creates a GUI form for radio button UI elements that allow the mutually 
+    """Creates a GUI form for radio button UI elements that allow the mutually
     exclusive selection of an option from some set of options. A name label is
     displayed above the set of optiosn, and each individual radio button has
     its own option label describing what the option is.
@@ -157,9 +157,9 @@ def generate_radio_button_widget(
         parent (QWidget): The parent widget that this widget will be placed in.
 
     Returns:
-        Tuple[QWidget, Iterable[QRadioButton]]: Returns a tuple, where the first item 
+        Tuple[QWidget, Iterable[QRadioButton]]: Returns a tuple, where the first item
         is the created widget, and the second is list of created radio buttons which
-        can be checked to determine the user input value. 
+        can be checked to determine the user input value.
     """
     radio_widget = QWidget(parent)
     layout = QVBoxLayout(radio_widget)
@@ -213,13 +213,13 @@ def generate_radio_button_widget(
 def generate_checkbox_widget(
     label_msg: str, tooltip_msg: str, init: bool, parent: QWidget
 ) -> Tuple[QWidget, QCheckBox]:
-    """Creates a GUI form for transformation option checkbox entry, displaying 
+    """Creates a GUI form for transformation option checkbox entry, displaying
     a left-justified label next to some binary checkbox that can be freely checked
     or unchecked by users.
 
     Args:
         label_msg (str): The text message to label the checkbox with.
-        tooltip_msg (str): The text message to display as a tooltip on the label 
+        tooltip_msg (str): The text message to display as a tooltip on the label
         and checkbox.
         init (bool): Whether the checkbox should initially be checked or not.
         parent (QWidget): The parent widget that this widget will be placed in.
@@ -277,7 +277,7 @@ def generate_checkboxes_widget(
         tooltips to be assigned to each individual checkbox label. Defaults to None.
 
     Returns:
-        Tuple[QWidget, Iterable[QCheckbox]]: Returns a tuple, where the first item 
+        Tuple[QWidget, Iterable[QCheckbox]]: Returns a tuple, where the first item
         is the created widget, and the second is list of created checkboxes which
         can be checked to determine the user input option subset.
     """
@@ -319,7 +319,7 @@ def generate_checkboxes_widget(
 
 class GuiIdentityUnit(IdentityUnit):
     """The identity transformation with added graphical interfaces."""
-    
+
     def edit_gui(self, parent: QWidget) -> None:
         """Implements a graphical interface for editing an identity transformation.
 
@@ -330,7 +330,7 @@ class GuiIdentityUnit(IdentityUnit):
 
     def load_gui_values(self) -> None:
         """Loads the user options from relevant UI elements into the actual identity
-        unit. In this case, no such options exist. """
+        unit. In this case, no such options exist."""
         return
 
     def from_json(json_str: str) -> "GuiIdentityUnit":
@@ -349,13 +349,13 @@ class GuiIdentityUnit(IdentityUnit):
         interaction with the transformation.
 
         Returns:
-            GuiIdentityUnit: the identity unit transformation with default values. """
+            GuiIdentityUnit: the identity unit transformation with default values."""
         return GuiIdentityUnit()
 
 
 class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
     """The function argument randomisation transformation with added graphical interfaces."""
-    
+
     def __init__(self, *args, **kwargs):
         """The constructor for the GuiFuncArgumentRandomiseUnit, extending the original
         transformation unit to also initialise entries and checkbox attributes.
@@ -367,7 +367,7 @@ class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
 
     def edit_gui(self, parent: QWidget) -> None:
         layout = QVBoxLayout(parent)
-        
+
         # Add an integer entry for the number of extra arguments
         extra_args, self.extra_args_entry = generate_integer_widget(
             "Extra Args:",
@@ -380,7 +380,7 @@ class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
             parent,
         )
         layout.addWidget(extra_args, 1, alignment=Qt.AlignmentFlag.AlignTop)
-        
+
         # Add a float entry for the probability of using existing variables
         probability, self.probability_entry = generate_float_widget(
             "Probability:",
@@ -398,8 +398,8 @@ class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
             parent,
         )
         layout.addWidget(probability, alignment=Qt.AlignmentFlag.AlignTop)
-        
-        # Add a checkbox for randomising the order of function arguments. 
+
+        # Add a checkbox for randomising the order of function arguments.
         randomise, self.randomise_checkbox = generate_checkbox_widget(
             "Randomise Arg Order?",
             "Where possible, randomises the order of arguments in function definitions and calls such\n"
@@ -418,7 +418,7 @@ class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
     def load_gui_values(self) -> None:
         """Loads the user options from relevant UI elements into the actual function
         argument randomisation unit. In this case, we load the number of extra
-        arguments, the probability, and whether to randomise the order or not. """
+        arguments, the probability, and whether to randomise the order or not."""
         # Load the number of extra arguments (>= 0, default 3)
         if self.extra_args_entry is not None:
             try:
@@ -458,21 +458,23 @@ class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
         unit = FuncArgumentRandomiseUnit.from_json(json_str)
         if unit is None:
             return None
-        return GuiFuncArgumentRandomiseUnit(unit.extra_args, unit.probability, unit.randomise)
+        return GuiFuncArgumentRandomiseUnit(
+            unit.extra_args, unit.probability, unit.randomise
+        )
 
     def get_gui() -> "GuiFuncArgumentRandomiseUnit":
-        """Creates a function argument randomisation transformation loaded with default 
+        """Creates a function argument randomisation transformation loaded with default
         values to allow GUI interaction with the transformation.
 
         Returns:
-            GuiFuncArgumentRandomiseUnit: the function argument randomisation transformation 
-            with default values. """
+            GuiFuncArgumentRandomiseUnit: the function argument randomisation transformation
+            with default values."""
         return GuiFuncArgumentRandomiseUnit(3, 0.75, True)
 
 
 class GuiStringEncodeUnit(StringEncodeUnit):
     """The string literal encoding transformation with added graphical interfaces."""
-    
+
     def __init__(self, *args, **kwargs):
         """The constructor for the GuiStringEncodeUnit, extending the original
         transformation unit to also initialise attributes for the style buttons.
@@ -513,7 +515,7 @@ class GuiStringEncodeUnit(StringEncodeUnit):
 
     def load_gui_values(self) -> None:
         """Loads the user options from relevant UI elements into the actual string
-        encoding unit. In this case, we load the encoding style only. """
+        encoding unit. In this case, we load the encoding style only."""
         if self.style_buttons is not None and len(self.style_buttons) > 0:
             for button, style in self.style_buttons.items():
                 if button.isChecked():
@@ -536,17 +538,17 @@ class GuiStringEncodeUnit(StringEncodeUnit):
         return GuiStringEncodeUnit(unit.style)
 
     def get_gui() -> "GuiStringEncodeUnit":
-        """Creates a string encoding transformation loaded with default values to allow 
+        """Creates a string encoding transformation loaded with default values to allow
         GUI interaction with the transformation.
 
         Returns:
-            GuiStringEncodeUnit: the string encoding transformation with default values. """
+            GuiStringEncodeUnit: the string encoding transformation with default values."""
         return GuiStringEncodeUnit(StringEncodeTraverser.Style.MIXED)
 
 
 class GuiIntegerEncodeUnit(IntegerEncodeUnit):
     """The integer literal encoding transformation with added graphical interfaces."""
-    
+
     def edit_gui(self, parent: QWidget) -> None:
         """Implements a graphical interface for editing an integer encoding transformation.
 
@@ -557,7 +559,7 @@ class GuiIntegerEncodeUnit(IntegerEncodeUnit):
 
     def load_gui_values(self) -> None:
         """Loads the user options from relevant UI elements into the actual integer
-        encoding transformation unit. In this case, no such options exist. """
+        encoding transformation unit. In this case, no such options exist."""
         return
 
     def from_json(json_str: str) -> "GuiIntegerEncodeUnit":
@@ -575,17 +577,17 @@ class GuiIntegerEncodeUnit(IntegerEncodeUnit):
         return GuiIntegerEncodeUnit()
 
     def get_gui() -> "GuiIntegerEncodeUnit":
-        """Creates an integer encoding transformation loaded with default values to allow 
+        """Creates an integer encoding transformation loaded with default values to allow
         GUI interaction with the transformation.
 
         Returns:
-            GuiIntegerEncodeUnit: the integer encoding transformation with default values. """
+            GuiIntegerEncodeUnit: the integer encoding transformation with default values."""
         return GuiIntegerEncodeUnit()
 
 
 class GuiIdentifierRenameUnit(IdentifierRenameUnit):
     """The identifier renaming transformation with added graphical interfaces."""
-    
+
     def __init__(self, *args, **kwargs):
         """The constructor for the GuiIdentifierRenameUnit, extending the original
         transformation unit to also initialise attributes for the style buttons and
@@ -602,7 +604,7 @@ class GuiIdentifierRenameUnit(IdentifierRenameUnit):
             parent (QWidget): The parent widget to place this widget into.
         """
         layout = QVBoxLayout(parent)
-        
+
         # Add radio buttons for selecting the name generation style
         style, self.style_buttons = generate_radio_button_widget(
             "Renaming Style:",
@@ -628,7 +630,7 @@ class GuiIdentifierRenameUnit(IdentifierRenameUnit):
             },
         )
         layout.addWidget(style, 1, alignment=Qt.AlignmentFlag.AlignTop)
-        
+
         # Add a checkbox for minimising identifier usage or not.
         minimise_idents, self.minimise_idents_checkbox = generate_checkbox_widget(
             "Minimise Identifiers?",
@@ -672,17 +674,19 @@ class GuiIdentifierRenameUnit(IdentifierRenameUnit):
         return GuiIdentifierRenameUnit(unit.style, unit.minimise_idents)
 
     def get_gui() -> "GuiIdentifierRenameUnit":
-        """Creates an identifier renaming transformation loaded with default values to allow 
+        """Creates an identifier renaming transformation loaded with default values to allow
         GUI interaction with the transformation.
 
         Returns:
-            GuiIdentifierRenameUnit: the identifier renaming transformation with default values. """
-        return GuiIdentifierRenameUnit(IdentifierRenameUnit.Style.COMPLETE_RANDOM, False)
+            GuiIdentifierRenameUnit: the identifier renaming transformation with default values."""
+        return GuiIdentifierRenameUnit(
+            IdentifierRenameUnit.Style.COMPLETE_RANDOM, False
+        )
 
 
 class GuiArithmeticEncodeUnit(ArithmeticEncodeUnit):
     """The integer arithmetic encoding transformation with added graphical interfaces."""
-    
+
     def __init__(self, *args, **kwargs):
         """The constructor for the GuiArithmeticEncodeUnit, extending the original
         transformation unit to also initialise attributes for the encoding depth entry.
@@ -697,7 +701,7 @@ class GuiArithmeticEncodeUnit(ArithmeticEncodeUnit):
             parent (QWidget): The parent widget to place this widget into.
         """
         layout = QVBoxLayout(parent)
-        
+
         # Add an integer entry for inputting the recursive depth.
         depth, self.depth_entry = generate_integer_widget(
             "Recursive Depth:",
@@ -716,7 +720,7 @@ class GuiArithmeticEncodeUnit(ArithmeticEncodeUnit):
 
     def load_gui_values(self) -> None:
         """Loads the user options from relevant UI elements into the actual arithmetic
-        encoding unit. In this case, we load the recursive encoding depth. """
+        encoding unit. In this case, we load the recursive encoding depth."""
         # Load the encoding depth (>= 0, default 1)
         if self.depth_entry is not None:
             try:
@@ -743,21 +747,21 @@ class GuiArithmeticEncodeUnit(ArithmeticEncodeUnit):
         return GuiArithmeticEncodeUnit(unit.level)
 
     def get_gui() -> "GuiArithmeticEncodeUnit":
-        """Creates an integer arithmetic encoding transformation loaded with default values 
+        """Creates an integer arithmetic encoding transformation loaded with default values
         to allow GUI interaction with the transformation.
 
         Returns:
-            GuiArithmeticEncodeUnit: the arithmetic encoding transformation with default values. """
+            GuiArithmeticEncodeUnit: the arithmetic encoding transformation with default values."""
         return GuiArithmeticEncodeUnit(1)
 
 
 class GuiAugmentOpaqueUnit(AugmentOpaqueUnit):
     """The opaque augmentation transformation with added graphical interfaces."""
-    
+
     def __init__(self, *args, **kwargs):
         """The constructor for the GuiAugmentOpaqueUnit, extending the original
         transformation unit to also initialise attributes for the style checkboxes,
-        and the probability and number entries. 
+        and the probability and number entries.
         """
         super(GuiAugmentOpaqueUnit, self).__init__(*args, **kwargs)
         self.style_checkboxes = None
@@ -772,7 +776,7 @@ class GuiAugmentOpaqueUnit(AugmentOpaqueUnit):
             parent (QWidget): The parent widget to place this widget into.
         """
         layout = QVBoxLayout(parent)
-        
+
         # Add checkboxes for selecting opaque predicate argument generation styles
         tooltips = {
             OpaqueAugmenter.Style.INPUT.value: "Opaque predicates can be generated using user inputs (function parameters).",
@@ -801,7 +805,7 @@ class GuiAugmentOpaqueUnit(AugmentOpaqueUnit):
             ),
         )
         layout.addWidget(styles, alignment=Qt.AlignmentFlag.AlignTop)
-        
+
         # Add a float entry for selecting the probability of augmenting conditionals
         probability, self.probability_entry = generate_float_widget(
             "Probability:",
@@ -817,7 +821,7 @@ class GuiAugmentOpaqueUnit(AugmentOpaqueUnit):
             parent,
         )
         layout.addWidget(probability, alignment=Qt.AlignmentFlag.AlignTop)
-        
+
         # Add an integer entry for selecting the number of predicates to add
         number, self.number_entry = generate_integer_widget(
             "Number of predicates:",
@@ -839,7 +843,7 @@ class GuiAugmentOpaqueUnit(AugmentOpaqueUnit):
         """Loads the user options from relevant UI elements into the actual opaque
         predicate augmentation unit. In this case, we load the valid predicate argument
         generation styles, the probabiltiy of augmenting existing conditionals, and
-        the number of opaque predicates to augment each conditional with. """
+        the number of opaque predicates to augment each conditional with."""
         # Load the set of selected valid predicate argument styles.
         if self.style_checkboxes is not None and len(self.style_checkboxes) > 0:
             self.styles = [
@@ -884,22 +888,22 @@ class GuiAugmentOpaqueUnit(AugmentOpaqueUnit):
         return GuiAugmentOpaqueUnit(unit.styles, unit.probability, unit.number)
 
     def get_gui() -> "GuiAugmentOpaqueUnit":
-        """Creates an opaque predicate augmentation transformation loaded with default 
+        """Creates an opaque predicate augmentation transformation loaded with default
         values to allow GUI interaction with the transformation.
 
         Returns:
-            GuiAugmentOpaqueUnit: the opaque predicate augmentation transformation with 
-            default values. """
+            GuiAugmentOpaqueUnit: the opaque predicate augmentation transformation with
+            default values."""
         return GuiAugmentOpaqueUnit([s for s in OpaqueAugmenter.Style], 1.0, 1)
 
 
 class GuiInsertOpaqueUnit(InsertOpaqueUnit):
     """The opaque insertion transformation with added graphical interfaces."""
-    
+
     def __init__(self, *args, **kwargs):
         """The constructor for the GuiInsertOpaqueUnit, extending the original
         transformation unit to also initialise attributes for the style, granularity
-        and kind checkboxes, as well as an entry for the number of insertions. 
+        and kind checkboxes, as well as an entry for the number of insertions.
         """
         super(GuiInsertOpaqueUnit, self).__init__(*args, **kwargs)
         self.style_checkboxes = None
@@ -947,7 +951,7 @@ class GuiInsertOpaqueUnit(InsertOpaqueUnit):
         )
         scroll_widget.setWidget(scroll_content)
         layout.addWidget(scroll_widget)
-        
+
         # Add a set of checkboxes for selecting opaque predicate argument generation styles
         tooltips = {
             OpaqueAugmenter.Style.INPUT.value: "Opaque predicates can be generated using user inputs (function parameters).",
@@ -976,7 +980,7 @@ class GuiInsertOpaqueUnit(InsertOpaqueUnit):
             ),
         )
         scroll_content.layout.addWidget(styles, alignment=Qt.AlignmentFlag.AlignTop)
-        
+
         # Add a set of checkboxes for selecing insertion granularities
         granularities, self.granularity_checkboxes = generate_checkboxes_widget(
             "Predicate Granularities:",
@@ -1009,7 +1013,7 @@ class GuiInsertOpaqueUnit(InsertOpaqueUnit):
         scroll_content.layout.addWidget(
             granularities, alignment=Qt.AlignmentFlag.AlignTop
         )
-        
+
         # Add a set of checkboxes for selecting insertion kinds/formats/structures
         kinds, self.kind_checkboxes = generate_checkboxes_widget(
             "Predicate Kinds:",
@@ -1034,7 +1038,7 @@ class GuiInsertOpaqueUnit(InsertOpaqueUnit):
             ),
         )
         scroll_content.layout.addWidget(kinds, alignment=Qt.AlignmentFlag.AlignTop)
-        
+
         # Add an integer entry for selecting the number of conditionals to insert.
         number, self.number_entry = generate_integer_widget(
             "Number per function:",
@@ -1057,7 +1061,7 @@ class GuiInsertOpaqueUnit(InsertOpaqueUnit):
         """Loads the user options from relevant UI elements into the actual opaque
         predicate insertion unit. In this case, we load the valid predicate argument
         generation styles, the conditional insertion granularities, the conditional
-        kinds/structures/formates, and the number of conditionals to attempt to add. """
+        kinds/structures/formates, and the number of conditionals to attempt to add."""
         # Load the valid opaque predicate argument generation styles.
         if self.style_checkboxes is not None and len(self.style_checkboxes) > 0:
             self.styles = [
@@ -1107,12 +1111,12 @@ class GuiInsertOpaqueUnit(InsertOpaqueUnit):
         )
 
     def get_gui() -> "GuiInsertOpaqueUnit":
-        """Creates an opaque predicate insertion transformation loaded with default 
+        """Creates an opaque predicate insertion transformation loaded with default
         values to allow GUI interaction with the transformation.
 
         Returns:
-            GuiInsertOpaqueUnit: the opaque predicate insertion transformation with 
-            default values. """
+            GuiInsertOpaqueUnit: the opaque predicate insertion transformation with
+            default values."""
         return GuiInsertOpaqueUnit(
             [s for s in OpaqueInserter.Style],
             [g for g in OpaqueInserter.Granularity],
@@ -1123,11 +1127,11 @@ class GuiInsertOpaqueUnit(InsertOpaqueUnit):
 
 class GuiControlFlowFlattenUnit(ControlFlowFlattenUnit):
     """The control flow flattening transformation with added graphical interfaces."""
-    
+
     def __init__(self, *args, **kwargs):
         """The constructor for the GuiControlFlowFlattenUnit, extending the original
         transformation unit to also initialise attributes for the style buttons and
-        a checkbox for case randomisation. 
+        a checkbox for case randomisation.
         """
         super(GuiControlFlowFlattenUnit, self).__init__(*args, **kwargs)
         self.style_buttons = None
@@ -1141,7 +1145,7 @@ class GuiControlFlowFlattenUnit(ControlFlowFlattenUnit):
             parent (QWidget): The parent widget to place this widget into.
         """
         layout = QVBoxLayout(parent)
-        
+
         # Add radio buttons for selecting the case generation style.
         style, self.style_buttons = generate_radio_button_widget(
             "Case Expression Style:",
@@ -1173,7 +1177,7 @@ class GuiControlFlowFlattenUnit(ControlFlowFlattenUnit):
             },
         )
         layout.addWidget(style, 1, alignment=Qt.AlignmentFlag.AlignTop)
-        
+
         # Add a checkbox for selecting whether to randomise the case order or not.
         randomise_cases, self.randomise_cases_checkbox = generate_checkbox_widget(
             "Randomise Case Order?",
@@ -1189,7 +1193,7 @@ class GuiControlFlowFlattenUnit(ControlFlowFlattenUnit):
     def load_gui_values(self) -> None:
         """Loads the user options from relevant UI elements into the actual control
         flow flattenign unit. In this case, we load the case generation style to
-        be used, as well as whether to randomise the case order or not. """
+        be used, as well as whether to randomise the case order or not."""
         # Load the case generation style to use (selected via radio button)
         if self.style_buttons is not None and len(self.style_buttons) > 0:
             for button, style in self.style_buttons.items():
@@ -1217,18 +1221,18 @@ class GuiControlFlowFlattenUnit(ControlFlowFlattenUnit):
         return GuiControlFlowFlattenUnit(unit.randomise_cases, unit.style)
 
     def get_gui() -> "GuiControlFlowFlattenUnit":
-        """Creates a control flow flattening transformation loaded with default values 
+        """Creates a control flow flattening transformation loaded with default values
         to allow GUI interaction with the transformation.
 
         Returns:
-            GuiControlFlowFlattenUnit: the control flow flattening transformation with 
-            default values. """
+            GuiControlFlowFlattenUnit: the control flow flattening transformation with
+            default values."""
         return GuiControlFlowFlattenUnit(False, ControlFlowFlattener.Style.SEQUENTIAL)
 
 
 class GuiReverseIndexUnit(ReverseIndexUnit):
     """The index reversing transformation with added graphical interfaces."""
-    
+
     def __init__(self, *args, **kwargs):
         """The constructor for the GuiReverseIndexUnit, extending the original
         transformation unit to also initialise attributes for the probability entry.
@@ -1244,7 +1248,7 @@ class GuiReverseIndexUnit(ReverseIndexUnit):
             parent (QWidget): The parent widget to place this widget into.
         """
         layout = QVBoxLayout(parent)
-        
+
         # Add a float entry for entering the probability of reversing indexes.
         probability, self.probability_entry = generate_float_widget(
             "Probability:",
@@ -1264,7 +1268,7 @@ class GuiReverseIndexUnit(ReverseIndexUnit):
     def load_gui_values(self) -> None:
         """Loads the user options from relevant UI elements into the actual array
         index reversal unit. In this case, we load the independent probability that
-        an array index will be reversed. """
+        an array index will be reversed."""
         # Load the reversal probability (0.0 <= p <= 1.0, default 0.8)
         if self.probability_entry is not None:
             try:
@@ -1293,17 +1297,17 @@ class GuiReverseIndexUnit(ReverseIndexUnit):
         return GuiReverseIndexUnit(unit.probability)
 
     def get_gui() -> "GuiReverseIndexUnit":
-        """Creates an array index reversal transformation loaded with default values to 
+        """Creates an array index reversal transformation loaded with default values to
         allow  GUI interaction with the transformation.
 
         Returns:
-            GuiReverseIndexUnit: the index reversal transformation with default values. """
+            GuiReverseIndexUnit: the index reversal transformation with default values."""
         return GuiReverseIndexUnit(0.8)
 
 
 class GuiClutterWhitespaceUnit(ClutterWhitespaceUnit):
     """The whitespace cluttering transformation with added graphical interfaces."""
-    
+
     def __init__(self, *args, **kwargs):
         """The constructor for the GuiClutterWhitespaceUnit, extending the original
         transformation unit to also initialise attributes for the target length
@@ -1314,14 +1318,14 @@ class GuiClutterWhitespaceUnit(ClutterWhitespaceUnit):
         self.pad_lines_checkbox = None
 
     def edit_gui(self, parent: QWidget) -> None:
-        """Implements a graphical interface for editing a whitespace cluttering 
+        """Implements a graphical interface for editing a whitespace cluttering
         transformation.
 
         Args:
             parent (QWidget): The parent widget to place this widget into.
         """
         layout = QVBoxLayout(parent)
-        
+
         # Add an integer entry for the target positive line length to achieve.
         target_length, self.target_length_entry = generate_integer_widget(
             "Target Line Length:",
@@ -1336,7 +1340,7 @@ class GuiClutterWhitespaceUnit(ClutterWhitespaceUnit):
         )
         layout.addWidget(target_length, alignment=Qt.AlignmentFlag.AlignTop)
         layout.addSpacing(4)
-        
+
         # Add a checkbox for whether to pad lines to achieve the target line length or not.
         pad_lines, self.pad_lines_checkbox = generate_checkbox_widget(
             "Add Line Padding?",
@@ -1352,7 +1356,7 @@ class GuiClutterWhitespaceUnit(ClutterWhitespaceUnit):
     def load_gui_values(self) -> None:
         """Loads the user options from relevant UI elements into the actual whitespace
         cluttering unit. In this case, we load the target line length to be achieved,
-        and whether to pad tokens to achieve that line length or not. """
+        and whether to pad tokens to achieve that line length or not."""
         # Load the target line length (>= 0, default 3)
         if self.target_length_entry is not None:
             try:
@@ -1380,18 +1384,18 @@ class GuiClutterWhitespaceUnit(ClutterWhitespaceUnit):
         return GuiClutterWhitespaceUnit(unit.target_length, unit.pad_lines)
 
     def get_gui() -> "GuiClutterWhitespaceUnit":
-        """Creates a whitespace cluttering transformation loaded with default values to 
+        """Creates a whitespace cluttering transformation loaded with default values to
         allow  GUI interaction with the transformation.
 
         Returns:
-            GuiCluterWhitespaceUnit: the whitespace cluttering transformation with default 
-            values. """
+            GuiCluterWhitespaceUnit: the whitespace cluttering transformation with default
+            values."""
         return GuiClutterWhitespaceUnit(100, True)
 
 
 class GuiDiTriGraphEncodeUnit(DiTriGraphEncodeUnit):
     """The digraph/trigraph encoding transformation with added graphical interfaces."""
-    
+
     def __init__(self, *args, **kwargs):
         """The constructor for the GuiDiTriGraphEncodeUnit, extending the original
         transformation unit to also initialise attributes for the style buttons and
@@ -1409,7 +1413,7 @@ class GuiDiTriGraphEncodeUnit(DiTriGraphEncodeUnit):
             parent (QWidget): The parent widget to place this widget into.
         """
         layout = QVBoxLayout(parent)
-        
+
         # Add radio buttons for selecting the encoding style to use.
         style, self.style_buttons = generate_radio_button_widget(
             "Encoding Style:",
@@ -1428,7 +1432,7 @@ class GuiDiTriGraphEncodeUnit(DiTriGraphEncodeUnit):
             },
         )
         layout.addWidget(style, 1, alignment=Qt.AlignmentFlag.AlignTop)
-        
+
         # Add a float entry for selecting the probability of performing encodings.
         probability, self.probability_entry = generate_float_widget(
             "Probability:",
@@ -1448,7 +1452,7 @@ class GuiDiTriGraphEncodeUnit(DiTriGraphEncodeUnit):
     def load_gui_values(self) -> None:
         """Loads the user options from relevant UI elements into the actual digraph and
         trigraph encoding unit. In this case, we load the encoding style to be used,
-        alongside the probability that an encoding should be performed. """
+        alongside the probability that an encoding should be performed."""
         # Load the encoding style to used (selected via radio buttons)
         if self.style_buttons is not None and len(self.style_buttons) > 0:
             for button, style in self.style_buttons.items():
@@ -1481,10 +1485,10 @@ class GuiDiTriGraphEncodeUnit(DiTriGraphEncodeUnit):
         return GuiDiTriGraphEncodeUnit(unit.style, unit.chance)
 
     def get_gui() -> "GuiDiTriGraphEncodeUnit":
-        """Creates a digraph/trigraph encoding transformation loaded with default values 
+        """Creates a digraph/trigraph encoding transformation loaded with default values
         to allow GUI interaction with the transformation.
 
         Returns:
-            GuiDiTriGraphEncodeUnit: the digraph/trigraph encoding transformation with 
-            default values. """
+            GuiDiTriGraphEncodeUnit: the digraph/trigraph encoding transformation with
+            default values."""
         return GuiDiTriGraphEncodeUnit(DiTriGraphEncodeUnit.Style.MIXED, 0.75)
