@@ -1,3 +1,12 @@
+""" File: tests/test_utils.py
+Implements a wide range of unit and integration tests for the utility functions and
+classes used by the program, including tests for the debug utilities (logging, printing
+of errors, directory creation, etc.), tests for utilities to determine if a library is
+initialised in a C file, and tests of interaction functions (the CSource class, parsing
+of C files, system option handling, menu-driven CLI interfaces, functions for getting
+CLI float/int inputs, functions for saving and loading composition files, and a
+variety of other command line options).
+"""
 import unittest
 from unittest.mock import patch
 from contextlib import redirect_stdout, redirect_stderr

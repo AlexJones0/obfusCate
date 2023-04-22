@@ -1,3 +1,9 @@
+""" File: tests/test_cli.py
+Implements unit and integration tests for the command line interface of the program,
+including tests for general command line interaction functions, the obfuscation
+transformation selection menu (including transform addition / editing / cursor
+traversal etc.) and system arguments that are supplied to the CLI.
+"""
 import unittest
 from unittest.mock import patch
 from contextlib import redirect_stdout
@@ -890,7 +896,7 @@ class TestCLISysArgs(unittest.TestCase):
 
 
 class TestObfuscationMethodsCLI(unittest.TestCase):
-    """Implements unit tests for each obfuscation method's CLI interface
+    """Implements unit tests some obfuscation method's CLI interfaces
     (their .edit_cli() and .get_cli() methods.)"""
 
     def test_identity_get_cli(self) -> None:

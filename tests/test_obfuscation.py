@@ -1,3 +1,10 @@
+""" File: tests/test_obfuscation.py
+Implements procedural property-based tests for the functionality and correctness
+of obfuscation within the program, randomly generating tens of thousands to 
+millions of tests and performing obfuscations to ensure that the implementation
+is correct. Tests are implemented for both single transformations, pairs of 
+transformations, and sequences of all 12 implemented obfusation transformations.
+"""
 from app import debug
 from app.obfuscation import *
 from app.interaction import CSource
