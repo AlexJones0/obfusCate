@@ -630,6 +630,7 @@ class TestCLISysArgs(unittest.TestCase):
         help system arguments are given, and that this contains a title,
         as well as usage and option information. Also tests that the
         help menu causes the program to quit when read."""
+        interaction.set_help_menu(help_menu)
         help_args = ["-h", "--help"]
         for arg in help_args:
             reset_config()
@@ -745,7 +746,7 @@ class TestCLISysArgs(unittest.TestCase):
 
     def test_cli_progress_sysarg(self) -> None:
         """Tests that the CLI correctly updates the option to display
-        prograss information when the progress system arguments are
+        progress information when the progress system arguments are
         provided."""
         progress_args = ["-p", "--progress"]
         for arg in progress_args:

@@ -17,7 +17,6 @@ from PyQt6.QtCore import (
     QDir,
     QCoreApplication,
     QTimer,
-    QRegularExpression,
 )
 from typing import Type, Tuple, Callable
 from copy import deepcopy
@@ -292,7 +291,8 @@ class AvailableForm(QFrame):
         subsubclasses = [
             c.__subclasses__() for c in obfs.ObfuscationUnit.__subclasses__()
         ]
-        subsubclasses = [c[0] for c in subsubclasses if len(c) > 0]
+        subsubclasses = [c[0] for c in subsubclasses if len(c) > 0
+                         and not c[0].__name__.startswith("Cli")]
         ts = sorted(subsubclasses, key=lambda c: c.type.value)
         for class_ in ts:
             transform_widget = TransformWidget(class_, select_func, self)
@@ -850,7 +850,7 @@ class CurrentForm(QFrame):
 
         Args:
             widget (SelectedTransformWidget): The widget corresponding to the
-            unique obfuscation transformation that should be removed.
+            unique obfuscation transformation that should be selected.
         """
         if self.current_widget is not None:
             self.current_transform.load_gui_values()
@@ -1339,7 +1339,6 @@ class MetricsForm(QFrame):
                 continue
             self.metric_widget.layout.removeWidget(widget)
             widget.setParent(None)
-        self.metric_widget.layout
         metrics = CodeMetricUnit.__subclasses__()
         # Add and compute all metric groups where enabled to satisfy predecessor constraints
         while len(metrics) != 0:
@@ -1608,6 +1607,10 @@ class GeneralOptionsForm(QFrame):
             return
         with open(file, "w+") as f:
             f.write(self.__obfuscated_form_reference.toPlainText())
+        prev_source =  self.__obfuscated_form_reference.source
+        self.__obfuscated_form_reference.add_source(
+            CSource(file, prev_source.contents, prev_source.t_unit)
+        )
 
     def save_composition(self) -> None:
         """Save the current composition (the current obfuscation scheme) through a file
@@ -2087,16 +2090,22 @@ def patch_windows() -> None:
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
 
 
-def handle_gui() -> bool:
+def handle_GUI(testing: bool = False) -> bool:
     """Handles the graphical user interface for the program, parsing command arguments
     and options to determine which settings to apply and what other functionalities
     to call. Behaviour changes depending on the value of sys.argv, which depends
     on the arguments supplied to the program when calling it.
 
+    Args: 
+        testing (bool). A boolean value to indicate whether the GUI is currently
+        being tested or not. If it is, this function will not execute the PyQt
+        application. 
+
     Returns:
         bool: Whether execution ended as expected or not (i.e. an error occurred).
     """
-    patch_windows()
+    if not testing:
+        patch_windows()
 
     supplied_args = sys.argv
     if len(supplied_args) != 0 and supplied_args[0].endswith(".py"):
@@ -2114,7 +2123,8 @@ def handle_gui() -> bool:
 
     # Create the PyQt application and the main window, and load the JetBrains Mono font
     # into the font database for use by the application.
-    app = QApplication(sys.argv)
+    if not testing:
+        app = QApplication(sys.argv)
     QFontDatabase.addApplicationFont(
         "./app/graphics/fonts/Jetbrains-Mono/JetBrainsMono-Regular.ttf"
     )
@@ -2156,8 +2166,9 @@ def handle_gui() -> bool:
         selection_form.current_form.set_transforms(saved_pipeline.transforms)
 
     # Display the window and execute the application, running the GUI until quit.
-    window.show()
-    app.exec()
+    if not testing:
+        window.show()
+        app.exec()
 
     if config.SAVE_COMPOSITION:
         # Save the last obfuscation scheme (composition) if the option is set.

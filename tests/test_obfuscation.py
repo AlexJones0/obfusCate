@@ -377,21 +377,6 @@ def run_test(
         bool: True if the test passed, False if the test failed.
     """
 
-    debug.logprint(
-        (
-            "INFO RUNNING Test {}\n"
-            "   Transform={},\n"
-            "   Example={},\n"
-            "   Seed={}"
-        ).format(
-            test,
-            str(pipeline),
-            filepath.split("\\./")[-1],
-            seed,
-        ),
-        err=False,
-    )
-
     # Try to obfuscate the program. If an exception occurs, log this and return.
     exception_handled = None
     try:

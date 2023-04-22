@@ -142,7 +142,7 @@ def generate_radio_button_widget(
     init_val: str,
     parent: QWidget,
     option_tooltips: Optional[Mapping[str, str]] = None,
-) -> Tuple[QWidget, Iterable[QRadioButton]]:
+) -> Tuple[QWidget, dict[QRadioButton, Any]]:
     """Creates a GUI form for radio button UI elements that allow the mutually
     exclusive selection of an option from some set of options. A name label is
     displayed above the set of optiosn, and each individual radio button has
@@ -157,10 +157,12 @@ def generate_radio_button_widget(
         parent (QWidget): The parent widget that this widget will be placed in.
 
     Returns:
-        Tuple[QWidget, Iterable[QRadioButton]]: Returns a tuple, where the first item
-        is the created widget, and the second is list of created radio buttons which
-        can be checked to determine the user input value.
+        Tuple[QWidget, dict[QRadioButton, Any]]: Returns a tuple, where the first item
+        is the created widget, and the second is a dictionary of created radio buttons 
+        which can be checked to determine the user input value.
     """
+    if option_tooltips is None:
+        option_tooltips = {}
     radio_widget = QWidget(parent)
     layout = QVBoxLayout(radio_widget)
     layout.setSpacing(0)
@@ -260,7 +262,7 @@ def generate_checkboxes_widget(
     init_vals: Iterable[str],
     parent: QWidget,
     option_tooltips: Mapping[str, str] | None = None,
-) -> Tuple[QWidget, Iterable[QCheckBox]]:
+) -> Tuple[QWidget, dict[QCheckBox, Any]]:
     """Creates a GUI form for a grouped set of checkbox entries for a transformation
     option, to allow users to select any subset of options from a specific set, as
     each option can be freely checked or unchecked by users (unlike radio buttons).
@@ -277,9 +279,9 @@ def generate_checkboxes_widget(
         tooltips to be assigned to each individual checkbox label. Defaults to None.
 
     Returns:
-        Tuple[QWidget, Iterable[QCheckbox]]: Returns a tuple, where the first item
-        is the created widget, and the second is list of created checkboxes which
-        can be checked to determine the user input option subset.
+        Tuple[QWidget, dict[QCheckbox, Any]]: Returns a tuple, where the first item
+        is the created widget, and the second is a dictionary of created checkboxes 
+        which can be checked to determine the user input option subset.
     """
     labelled_widget = QWidget(parent)
     layout = QVBoxLayout(labelled_widget)
