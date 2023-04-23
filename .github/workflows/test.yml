@@ -45,7 +45,7 @@ jobs:
     - name: Install Qt
       uses: jurplel/install-qt-action@v3
       with:
-        version: 6.2.*
+        version: 6.4
     - name: Test with pytest
       run: |
         pytest --capture=sys --verbose tests
