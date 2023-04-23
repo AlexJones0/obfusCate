@@ -68,7 +68,7 @@ For those that cannot access (or would rather not access) a GUI interface, we al
 ----
 The following steps are all that is needed for installation:
 
-1. Make sure Python 3.10 or later is installed on your system, and is being used by your python path. You can check this using the command 
+1. Make sure Python **3.10** or later is installed on your system, and is being used by your python path. You can check this using the command 
 
     ```
     > python3 --version
@@ -102,7 +102,7 @@ Provided that you have run the setup commands in the [**Section 2**](#2-installa
 > python3 obf_gui.py input_file.c
 ```
 
-replacing `python3` with `python` or `py` with your python path, and `input_file.c` with the name of the C file that you would like to obfuscate. A few such example files are included in the `test/data/` directory if you would like. You can also alternatively run
+replacing `python3` with `python` or `py` according to your python path, and `input_file.c` with the name of the C file that you would like to obfuscate. A few such example files are included in the `test/data/` directory if you would like. You can also alternatively run
 
 ```
 > python3 obf_gui.py input_file.c output_file.c
@@ -132,10 +132,10 @@ Again, please see sections [**3.5**](#35-cligui-options) and [**3.6**](#36-gui-s
 > python3 obf_cli.py --help
 ```
 
-Your obfuscated programs are then perfectly syntactically and semantically valid C programs, which are targeted towards Clang but should work on any modern compiler including gcc. Note that if you use the **digraph / trigraph encoding** obfuscation option most modern compilers will have these off by default, requiring you to provide a **--trigraphs** flag. They might still spam you with warnings, so you should probably include **-Wno-everything** in Clang or an equivalent for other compilers, to free up your terminal. So, an example of using Clang to compile an obfuscated program with digraphs/trigraphs might like look like e.g.
+Your obfuscated programs are then perfectly syntactically and semantically valid C programs, which are targeted towards Clang but should work on any modern compiler including gcc. Note that if you use the **digraph / trigraph encoding** obfuscation option most modern compilers will have these off by default, requiring you to provide a **-trigraphs** flag. They might still spam you with warnings, so you should probably include **-Wno-everything** in Clang or an equivalent for other compilers, to free up your terminal. So, an example of using Clang to compile an obfuscated program with digraphs/trigraphs might like look like e.g.
 
 ```
-> clang -o obfs obfs.c --trigraphs -Wno-everything
+> clang -o obfs obfs.c -trigraphs -Wno-everything
 > ./obfs
 ```
 
@@ -145,7 +145,7 @@ Your obfuscated programs are then perfectly syntactically and semantically valid
 
 ### **3.2. Making your program amenable to obfuscation**
 
-There are several steps you can take to make your program more amenable to obfuscation and allow more effective transformations, as there are a few cases in which the program behavious cautioutsly in case it cannot be 100% sure about certain properties of your program (e.g. side effects), and there are many things that it is simply not intelligent enough to reason about with regards to semantics. The following are suggested ways to make your program more amenable (and how they help!)
+There are several steps you can take to make your program more amenable to obfuscation and allow more effective transformations, as there are a few cases in which the program behavious cautiously in case it cannot be 100% sure about certain properties of your program (e.g. side effects), and there are many things that it is simply not intelligent enough to reason about with regards to semantics. The following are suggested ways to make your program more amenable (and how they help!)
 
 1. **Move as much code out of the `main()` function as possible** - due to certain limitations and to make it easier to preserve certain properties, some obfuscations are not applied or applied in limited effect to the `main()` function - for example, opaque predicate insertion or augmentation will not occur in `main`. To overcome this, put as much code as possible outside of this function, even if it means taking your current main body and putting it in some other function `main2(int argc, char *argv)` which you then just immediately call from `main` using `main2(argc, argv)`.
 
@@ -157,7 +157,7 @@ There are several steps you can take to make your program more amenable to obfus
 
 5. **Use integers over floats where possible** - obfusCate of course does work with float types, but many techniques are limited to integers (e.g. arithmetic encoding), and many techniques are not particularly stealthy without them due to lengthy and obvious conversions, so where it is possible to downcast to integers for your intermediary code steps (without losing accuracy, functionality, etc.) - it is recommended that you do so.
 
-6. **Check the limitations of each method** - although most methods will work with almost every standard C feature, there are some limitations on certain methods, or on certain options of certain methods (e.g. no function signatures with minimised identifier renaming). These are sometimes due to limitations in `pycparser`, sometimes due to the complexity of supporting such a feature (e.g. even though it is supported, anonymous structs/unions cause *so many* issues...). Make sure you're not using any features that conflict with the options you want to use!
+6. **Check the limitations of each method** - although most methods will work with almost every standard C feature, there are some limitations on certain methods, or on certain options of certain methods (e.g. no function signatures with minimised identifier renaming). These are sometimes due to limitations in `pycparser`, sometimes due to the complexity of supporting such a feature (e.g. even though it is supported, anonymous structs/unions cause *many* issues...). Make sure you're not using any features that conflict with the options you want to use!
 
 <br>
 
@@ -175,13 +175,13 @@ Currently supported transformations are listed below. Please see relevant report
         - Minimal Length (a, b, c, d, ...) 
         - Blocks of I's and l's (IllIIlllIlllIIl)
     - Minimise identifiers (Yes/No)
-- **Array Index Reversing**: Probabilistically reverse indexes of arrays, making `A[i]` into `i[A]`. <br>
+- **Array Index Reversal**: Probabilistically reverse indexes of arrays, making `A[i]` into `i[A]`. <br>
 *Options*:
     - Probability (`0-1`)
 - **Whitespace Scrambling**: Remove/jumble code indentation <br>
 *Options*:
-    - Target Line Length (1+)
-    - Add Line Padding (Yes/No)
+    - Target Line Length (`1+`)
+    - Add Line Padding (`Yes`/`No`)
 - **Digraph / Trigraph Encoding**: Probabilistically encode program symbols as two character digraphs or three character trigraphs (e.g. `{` == `<%` == `??<`). <br>
 *Options*:
     - Encoding Style
@@ -204,6 +204,7 @@ Currently supported transformations are listed below. Please see relevant report
 - **Function Interface Randomisation**: Insert spurious arguments into function signatures and/or randomise the order of their arguments. <br>
 *Options*:
     - Extra arguments (`0+`)
+    - Probability of using program variables to fill arguments (`0-1`)
     - Randomise Argument Order (`Yes`/`No`)
 - **Opaque Predicate Augmentation**: Augment existing conditionals in code with opaque predicates, whose value is known to us but is not immediately obvious at deobfuscation time. <br>
 *Options*:
@@ -227,6 +228,7 @@ Currently supported transformations are listed below. Please see relevant report
         - Else true: `if (TRUE PREDICATE) { YOUR CODE } ELSE { BUGGY CODE }`
         - Else false: `if (FALSE PREDICATE) { BUGGY CODE } ELSE { YOUR CODE }`
         - While false: `while (FALSE PREDICATE) { BUGGY CODE } `
+        - Do while: `do { BUGGY CODE } while (FALSE PREDICATE);`
         - Either: `if (ANY PREDICATE) { YOUR CODE } else { YOUR CODE }`
     - Number to insert per function (`0+`)
 - **Control Flow Flattening**: Flatten the control flow graph of the given function, encoding each basic block to be a case inside a while-loop-switch-statement dispatch structure. <br>
@@ -306,6 +308,7 @@ Currently supported code complexity metrics are listed below. Except where quali
 - `-m`, `--no-metrics`: Disables calculation of code complexity metrics for the obfuscated programs.
 - `-a`, `--no-alloca`: Disables use of alloca() to replace Variable Length Arrays (VLA) in the program whilst control flow flattening, as this is not defined in the C standard and may not be available in all systems (though it is in most).
 - `-u`, `--unpatch-parser`: Unpatches the parser/lexer/grammar used by yacc, such that the default pycparser CParser class `yacctable.py` is used. Disabling the patch will mean you cannot use labels with the same name as defined types, but may fix any unknown issues that arise due to patching.
+- `-s`, `--skip`: CLI only. Skips the menus, immediately obfuscating using any loaded composition file.
 
 <br>
 
@@ -355,22 +358,21 @@ This project is relatively large in scope. As such, I roughly describe the file 
     - `gui.py` - General graphical user interface implementation
     - `interaction.py` - IO & User interaction utilities: `CSource` class, system argument handling, generic IO methods (user inputs, outputs, file handling, etc.), patches for pycparser.
     - `utils.py` - Miscallaneous project utilities
-- `compositions/` - Directory for storing obfuscation compositions.
+- `compositions/` - Directory for storing obfuscation compositions. Contains some default compositions.
 - `logs/` - Directory for storing any log files, if enabled
 - `tests/` - Main testing directory
     - `data/` - Main testing data
-        - `benchmarks/` - C benchmark programs
         - `compositions/` - Obfuscation compositions created for unit testing
-        - `constructs/` - C files each targetting different program constructs
-        - `examples/` - C files targetting typical program examples (e.g. quick sort, finding primes, fibonacci) and stress tests
+        - `constructs/` - C files each targeting different program constructs, which are not particularly targeted by existing example programs or edge cases.
+        - `examples/` - C files targeting typical program examples (e.g. quick sort, finding primes, Fibonacci) and stress tests
     - `testing/` - Temporary directory used while running tests; can be safely ignored
     - `__init__.py` - Python packaging file
     - `test_cli.py` - CLI unit tests
-    - `test_compositions.py` - Obfuscation composition correctness testing
-    - `test_gui.py` - GUI unit tests
+    - `test_complexity.py` - Complexity metric unit tests
+    - `text_gui.py` - GUI unit tests
     - `test_obfuscation.py` - Obfuscation method correctness testing
-    - `test_utils.py` - Utility function unit tests
-- `utils/fake_libc_include/*` - Safely ignore this. Standard library header file handling for pycparser. Code is taken from pycparser (see the [**Acknowledgements**](#6-acknowledgements)) and slightly modified
+    - `test_utils.py` - Tests for program utilities and modular functionality
+- `utils/fake_libc_include/*` - Safely ignore this. Standard library header file handling for pycparser. Code is taken from pycparser (see the [**Acknowledgements [1]**](#6-acknowledgements)) and slightly modified
 - `bugs.md` - List and explanation of known bugs
 - `install.bat` - Windows bat automatic install script
 - `install.sh` - Linux/Mac bash automatic install script
@@ -383,15 +385,15 @@ This project is relatively large in scope. As such, I roughly describe the file 
 
 ### **4.2. Documentation**
 
-Much of the project's functionality is created by extending the pycparser Abstract Syntax Tree (AST) `NodeVisitor` class, which defines an interface for in-order traversal of ASTs. This defined **49 unique methods** for visiting each AST node class - as such, documentation of these methods tend to be very repetitive and regurgitative within such classes, and as such provided explanation will primarily focus on what the method does *aside from* simply traversing the AST, with mention to its traversal only being discussed if necessary (e.g. using a different traversal order). This allows documentation to focus on key specifics and implementation details, and reduces repetitiveness - I focus on clarity, readability, and brevity. For any such `NodeVisitor` subclass, be aware that methods prepended by `visit_` are for visiting a specific AST node class, such as e.g. `visit_FuncDef`, traversing that node.
+Much of the project's functionality is created by extending the pycparser Abstract Syntax Tree (AST) `NodeVisitor` class, which defines an interface for in-order traversal of ASTs. This defined **49 unique methods** for visiting each AST node class - as such, documentation of these methods tend to be very repetitive and regurgitative within such classes, and as such provided explanation will primarily focus on what the method does *aside from* simply traversing the AST. For any such `NodeVisitor` subclass, be aware that methods prepended by `visit_` are for visiting a specific AST node class, such as e.g. `visit_FuncDef`, traversing that node.
 
-Documentation regarding the creation of this project, its motivation, background research, design decisions, management, evaluation and such can be found in the supporting final dissertation report pdf. Please see there for more detail. A `bugs.md` file is also included to provide more detailed documentation of the few specific known issues that cannot be easily fixed. This `README.md` file also contains some helpful documentation to get you started using the documentation. Apart from that, all other documentation can be found within file-, function- and statement-level comments throughout the code.
+Documentation regarding the creation of this project, its motivation, background research, design decisions, management, evaluation and such can be found in the supporting final dissertation report pdf. Please see there for more detail. A `bugs.md` file is also included to provide more detailed documentation of the few specific known issues that cannot be easily fixed. This `README.md` file also contains some helpful documentation to get you started using the program. Apart from that, all other documentation can be found within file-, function- and statement-level comments throughout the code.
 
 <br></br>
 
 ## **5. Testing**
 ----
-Continuous integration with Github Action assures me that the code definitely runs on the latest Mac, Ubuntu and Windows images, but I've only been able to manually test on **Windows 11**, **Rocky Linux** and **Ubuntu** - so no guarantee there are no OS-specific issues on other systems. At the very least given that the tests pass it is likely that at least the CLI version should work on most systems.
+Continuous integration with Github Action assures me that the code definitely runs on the latest Mac, Ubuntu and Windows images, but I've only been able to manually test on **Windows 11** and **Rocky Linux** - so no guarantee there are no OS-specific issues on other systems. At the very least given that the tests pass it is likely that at least the CLI version should work on most systems.
 
 <br>
 
@@ -402,7 +404,7 @@ Provided that you have run the setup commands in the [**Section 2**](#2-installa
 > python3 -m pytest --capture=sys --verbose tests
 ```
 
-replacing `python3` with `python` or `py` with your python path as is necessary. This will run the full test suite, including unit, integration, system and obfuscation correctness tests. As such, you can expect that these tests will take a while to run purely because of the obfuscation correctness testing (on default settings this takes about 5 minutes for me).
+replacing `python3` with `python` or `py` according to your python path. This will run the full test suite, including unit, integration, system and obfuscation correctness tests. As such, you can expect that these tests will take a while to run purely because of the obfuscation correctness testing (on default settings this takes about 5 minutes for me).
 
 If you navigate to `tests/test_obfuscation.py`, you can change the value of the `INTEGRATION_TEST_STYLE` variable to be different `UsedDepth` enumerated values, to run obfuscation correctness tests that fit your needs. Note that these test cases grow exponentially, so you can roughly expect (on a standard modern laptop, note these are rough estimates):
 - `UsedDepth.NONE`: 0 seconds, 0 tests
@@ -417,7 +419,7 @@ The test scheme that was run for this project was `MEDIUM`. Generally, `LIGHTEST
 <br>
 
 ### **5.2. Unit, Integration and System Testing**
-Unit tests are found in the `tests/test_*.py` files, and are designed to test different aspects of the program's utilities, classes, command line interface and graphical user interface. At the time of writing, there are currently **115** implemented unit tests.
+Unit tests are found in the `tests/test_*.py` files, and are designed to test different aspects of the program's utilities, classes, command line interface and graphical user interface. At the time of writing, there are currently **174** implemented unit tests (minus the three obfuscation correctness procedural tests).
 
 <br>
 
