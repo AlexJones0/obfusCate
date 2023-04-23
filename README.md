@@ -393,7 +393,7 @@ Documentation regarding the creation of this project, its motivation, background
 
 ## **5. Testing**
 ----
-Continuous integration with Github Action assures me that the code definitely runs on the latest Mac, Ubuntu and Windows images, but I've only been able to manually test on **Windows 11** and **Rocky Linux** - so no guarantee there are no OS-specific issues on other systems. At the very least given that the tests pass it is likely that at least the CLI version should work on most systems.
+Continuous integration with Github Action assures me that the code definitely runs on the latest Mac, Ubuntu and Windows images, but I've only been able to manually test on **Windows 11** and **Rocky Linux** - so no guarantee there are no OS-specific issues on other systems. At the very least given that the tests pass it is likely that at least the CLI version should work on most systems. The GUI tests have not been run on CI (continuous integration) due to issues with PyQt6 in containerisation, but these have been run locally on Windows 11.
 
 <br>
 
