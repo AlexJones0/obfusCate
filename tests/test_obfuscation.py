@@ -28,7 +28,7 @@ class UsedDepth(enum.Enum):
 
 
 # Set the scale of property-based testing to be performed here.
-INTEGRATION_TEST_STYLE = UsedDepth.LIGHTEST
+INTEGRATION_TEST_STYLE = UsedDepth.NONE
 
 
 def callfunc_neq(func: Callable, neq: Iterable[Any]) -> Any:
@@ -626,7 +626,6 @@ class TestObfuscationIntegrationDouble(unittest.TestCase):
                 for t1params, t2params in combination_options(t1, t2):
                     for program in get_bounded(programs, max_programs):
                         for seed in random.sample(range(0, 100000), num_seeds):
-                            debug.log(f"{test_num} {passed} {runs}\n")
                             test_passed = run_test(
                                 test_num,
                                 runs,
