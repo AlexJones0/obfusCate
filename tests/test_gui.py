@@ -1,7 +1,7 @@
 """ File: tests/test_gui.py
 Implements unit and integration tests for the graphical user interface of the program,
 including tests for different GUI components, and system arguments that are supplied 
-to the GUI.
+to the GUI. 
 """
 from app import settings as cfg
 from app.gui import *
