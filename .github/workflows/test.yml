@@ -39,7 +39,7 @@ jobs:
         pip install -r requirements.txt
     - uses: awalsh128/cache-apt-pkgs-action@latest
       with:
-        packages: libegl1
+        packages: libegl1 libxcb
         version: 1.0
     - name: Test with pytest
       run: |

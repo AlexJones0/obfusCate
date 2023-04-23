@@ -12,7 +12,7 @@ from PyQt6.QtTest import QTest
 from PyQt6.QtCore import Qt
 from contextlib import redirect_stdout
 from unittest.mock import patch
-import unittest, io, copy
+import unittest, io, copy 
 
 
 app = QApplication(sys.argv)
