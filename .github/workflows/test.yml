@@ -39,8 +39,11 @@ jobs:
         pip install -r requirements.txt
     - uses: awalsh128/cache-apt-pkgs-action@latest
       with:
-        packages: libegl1 libxcb
+        packages: libegl1
         version: 1.0
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      version: 6.2.*
     - name: Test with pytest
       run: |
         pytest --capture=sys --verbose tests
