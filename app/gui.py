@@ -1,7 +1,7 @@
 """ File: gui.py
 Implements functions to implement the graphical user interface of the program,
 such that it can be more accessibly used without text interaction in a terminal
-window. """ 
+window. """
 from . import interaction, obfuscation as obfs
 from .obfuscation import gui as obfs_gui
 from .complexity import *

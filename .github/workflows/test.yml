@@ -44,6 +44,7 @@ jobs:
     - name: Fix Qt plugin issues
       run: |
         sudo apt-get install '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev
+        export QT_QPA_PLATFORM=offscreen
     - name: Test with pytest
       run: |
         pytest --capture=sys --verbose tests
