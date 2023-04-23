@@ -73,7 +73,7 @@ def log(log_str: str, print_err: bool = False) -> bool:
     Returns:
         bool: Whether execution was successful or not.
     """
-    if print_err:  # TODO remove this when replaced all instances with logprint
+    if print_err:
         print_error(log_str)
     if not cfg.LOGS_ENABLED:
         return True

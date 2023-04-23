@@ -414,7 +414,7 @@ class GuiFuncArgumentRandomiseUnit(FuncArgumentRandomiseUnit):
             parent,
         )
         layout.addWidget(randomise, 1, alignment=Qt.AlignmentFlag.AlignTop)
-        layout.addStretch(3)  # TODO why doesn't this work without 3?
+        layout.addStretch(3)
         parent.setLayout(layout)
 
     def load_gui_values(self) -> None:

@@ -271,7 +271,6 @@ def cli_obfuscation(
     # Apply selected transform pipeline to given source code
     pipeline = obfs.Pipeline(seed, *selected)
     if config.SAVE_COMPOSITION:
-        # TODO if time: could let users give a file location or not?
         interaction.save_composition_file(pipeline.to_json())
     original = copy.deepcopy(source)
     obfuscated = pipeline.process(source)

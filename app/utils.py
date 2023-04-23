@@ -19,7 +19,6 @@ def is_initialised(source: CSource, libraries: Iterable[str]) -> Iterable[bool]:
         Iterable[bool]: a bool list of the same size as the input libraries,
         describing whether that library was initialised (included or not).
     """
-    # TODO could do with transformation units; hidden imports may be an issue
     libs = [l if l.startswith("<") else ("<" + l + ">") for l in libraries]
     inits = [False for _ in libraries]
     for line in source.contents.split("\n"):

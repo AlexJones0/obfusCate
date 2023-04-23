@@ -501,7 +501,6 @@ class TestMainCLIFunctions(unittest.TestCase):
         the correct argument (i.e. the correct option is set)."""
         cfg.SEED = None
         cfg.COMPOSITION = "./tests/data/compositions/seed.cobf"
-        # TODO make non-version dependent
         source = CSource(os.path.join(os.getcwd(), "./tests/data/minimal.c"))
         inputs = ["quit"]
         with patch("builtins.input", side_effect=inputs):

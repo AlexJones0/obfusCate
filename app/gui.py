@@ -291,8 +291,11 @@ class AvailableForm(QFrame):
         subsubclasses = [
             c.__subclasses__() for c in obfs.ObfuscationUnit.__subclasses__()
         ]
-        subsubclasses = [c[0] for c in subsubclasses if len(c) > 0
-                         and not c[0].__name__.startswith("Cli")]
+        subsubclasses = [
+            c[0]
+            for c in subsubclasses
+            if len(c) > 0 and not c[0].__name__.startswith("Cli")
+        ]
         ts = sorted(subsubclasses, key=lambda c: c.type.value)
         for class_ in ts:
             transform_widget = TransformWidget(class_, select_func, self)
@@ -1607,7 +1610,7 @@ class GeneralOptionsForm(QFrame):
             return
         with open(file, "w+") as f:
             f.write(self.__obfuscated_form_reference.toPlainText())
-        prev_source =  self.__obfuscated_form_reference.source
+        prev_source = self.__obfuscated_form_reference.source
         self.__obfuscated_form_reference.add_source(
             CSource(file, prev_source.contents, prev_source.t_unit)
         )
@@ -1776,7 +1779,7 @@ class MiscForm(QWidget):
         )
         self.layout.addWidget(
             self.general_options, alignment=Qt.AlignmentFlag.AlignBottom
-        )  # TODO temp alignment
+        )
         self.setLayout(self.layout)
 
     def update_progress(self, index: int) -> None:
@@ -2096,10 +2099,10 @@ def handle_GUI(testing: bool = False) -> bool:
     to call. Behaviour changes depending on the value of sys.argv, which depends
     on the arguments supplied to the program when calling it.
 
-    Args: 
+    Args:
         testing (bool). A boolean value to indicate whether the GUI is currently
         being tested or not. If it is, this function will not execute the PyQt
-        application. 
+        application.
 
     Returns:
         bool: Whether execution ended as expected or not (i.e. an error occurred).
