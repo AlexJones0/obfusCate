@@ -37,15 +37,13 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-    - name: Acquire libegl1 package
-      uses: awalsh128/cache-apt-pkgs-action@latest
-      with:
-        packages: libegl1
-        version: 1.0
     - name: Install Qt
       uses: jurplel/install-qt-action@v3
       with:
         version: 6.4
+    - name: Fix Qt plugin issues
+      run: |
+        sudo apt-get install '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev
     - name: Test with pytest
       run: |
         pytest --capture=sys --verbose tests
