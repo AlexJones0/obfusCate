@@ -1425,9 +1425,9 @@ class GuiDiTriGraphEncodeUnit(DiTriGraphEncodeUnit):
             self.style.value,
             parent,
             {
-                DiTriGraphEncodeUnit.Style.DIGRAPH.value: "Replace symbols []\{\}# with corresponding two-letter digraphs.\n"
+                DiTriGraphEncodeUnit.Style.DIGRAPH.value: "Replace symbols []{}# with corresponding two-letter digraphs.\n"
                 '  e.g. "[" ---> "<:".',
-                DiTriGraphEncodeUnit.Style.TRIGRAPH.value: "Replace symbols []\{\}#\\^|~ with corresponding three-letter digraphs.\n"
+                DiTriGraphEncodeUnit.Style.TRIGRAPH.value: "Replace symbols []{}#\\^|~ with corresponding three-letter digraphs.\n"
                 '  e.g. "[" ---> "??(".',
                 DiTriGraphEncodeUnit.Style.MIXED.value: "Replace symbols with corresponding two-letter digraphs or three-letter\n"
                 "digraphs, chosen between randomly with equal probability.",
