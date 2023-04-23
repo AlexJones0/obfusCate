@@ -3,7 +3,7 @@ Defines generic widget generation functions in addition to subclasses
 of the obfuscation transformation unit classes that provide support 
 for graphical user interface operation, through the addition of `get_gui`, 
 `edit_gui` and `load_gui_values` methods. This allows these
-transformations to be instantiated, edited and used through the GUI.
+transformations to be instantiated, edited and used through the GUI. 
 """
 from ..config import GuiDefaults as Df
 from . import *
