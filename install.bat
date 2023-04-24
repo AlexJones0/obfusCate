@@ -7,6 +7,9 @@ IF %ERRORLEVEL% == 0 goto :aliaspython
 WHERE python3 >nul 2>nul
 IF %ERRORLEVEL% == 0 goto :aliaspython3
 
+WHERE py >nul 2>nul
+IF %ERRORLEVEL% == 0 goto :aliaspy
+
 echo "Sorry, Python could not be found!"
 goto :end
 
@@ -18,6 +21,11 @@ goto :checkversion
 :aliaspython3
 FOR /F "tokens=2" %%g IN ('python3 -V') do (SET version=%%g)
 SET pyexec=python3
+goto :checkversion
+
+:aliaspy
+FOR /F "tokens=2" %%g IN ('py -V') do (SET version=%%g)
+SET pyexec=py
 
 :: Check a valid python version is installed (> 3.10.0)
 :checkversion
