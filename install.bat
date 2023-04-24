@@ -19,11 +19,11 @@ goto :checkversion
 FOR /F "tokens=2" %%g IN ('python3 -V') do (SET version=%%g)
 SET pyexec=python3
 
-:: Check a valid python version is installed (> 3.8)
+:: Check a valid python version is installed (> 3.10.0)
 :checkversion
-IF (%version% GEQ "3.8.0") goto :install
+IF (%version% GEQ "3.10.0") goto :install
 
-echo You are running an invalid python version: Python %version%. Please use version 3.8 or greater.
+echo You are running an invalid python version: Python %version%. Please use version 3.10.0 or greater.
 goto :end
 
 :: Upgrade pip and install required packages through PyPi
