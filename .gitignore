@@ -50,6 +50,7 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+coverage_re*
 
 # Translations
 *.mo
@@ -156,3 +157,6 @@ backups/
 
 # Obfuscated program search scripts
 /prog_finder.py
+
+# Old legacy documentation
+README-old.*

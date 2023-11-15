@@ -11,9 +11,30 @@
 
 <img src="app/graphics/examples/example1.png"></img>
 
-## **Table of Contents**
+## **Introduction**
 ----
-1. [**Introduction**](#1-introduction)
+
+###
+
+(Note: *this project was made for my 3rd year dissertation, and is no longer being actively maintained. Please see `bugs.md` for known issues.*)
+
+**ObfusCate** is a C source-to-source obfuscator, meaning that it takes programs written in the C programming language, and translates them into obfuscated programs also written in the C programming language, which perform the same functionality but are incomprehensible and harder to understand. 
+
+obfusCate aims to provide a complete, whole package that makes C program obfuscation easy and approachable like never before. By providing a responsive GUI interface with flexible, modular obfuscation tools and a whole host of code complexity metrics, most people should easily be able to use the program to obfuscate their code.
+
+For those that cannot access (or would rather not access) a GUI interface, there is a menu-driven TUI interface that should allow users to easily obfuscate their C code.
+
+**Key limitations** - only works on C, and only on single file C programs.
+
+<br></br>
+
+###
+
+## **1. Table of Contents**
+----
+0. [**Introduction**](#introduction)
+
+1. [**Table of Contents**](#2-table-of-contents)
 
 2. [**Installation**](#2-installation)
 
@@ -46,21 +67,6 @@
     5.3. [**Testing Obfuscation Correctness**](#53-testing-obfuscation-correctness)
 
 6. [**Acknowledgements**](#6-acknowledgements)
-
-<br></br>
-
-## **1. Introduction**
-----
-
-###
-
-**ObfusCate** is a C source-to-source obfuscator, meaning that it takes programs written in the C programming language, and translates them into obfuscated programs also written in the C programming language, which perform the same functionality but are incomprehensible and harder to understand. 
-
-obfusCate aims to provide a complete, whole package that makes C program obfuscation easy and approachable like never before - everyone should be able to secure their code, regardless of their knowledge about compiler and language design and information security! By providing a seamless and responsive GUI interface with flexible, modular obfuscation tools and a whole host of code complexity metrics and helfpul tooltips, we aim to enable *anybody* who wants to obfuscate their code to be able to do so, without having to battle with the interfaces of other complicated tools.
-
-For those that cannot access (or would rather not access) a GUI interface, we also provide a menu-driven CLI interface that should allow users to easily obfuscate their C code. For the power users out there, you can even run the program as a single command-line command if you provide the list of obfuscation transformations to use in JSON format (alongside relevant options, of course). 
-
-###
 
 <br></br>
 
@@ -149,7 +155,7 @@ There are several steps you can take to make your program more amenable to obfus
 
 1. **Move as much code out of the `main()` function as possible** - due to certain limitations and to make it easier to preserve certain properties, some obfuscations are not applied or applied in limited effect to the `main()` function - for example, opaque predicate insertion or augmentation will not occur in `main`. To overcome this, put as much code as possible outside of this function, even if it means taking your current main body and putting it in some other function `main2(int argc, char *argv)` which you then just immediately call from `main` using `main2(argc, argv)`.
 
-2. **Store the results of function calls as variables** - for some transformations (such as arithmetic encoding), expression type analysis is used to infer the type and potential for side effects in expressions. Although functions may return e.g. integer types, these are still not encoded if placed within expressions, because obfusCated cannot easily assert any guarantees about whether `f()` has side effects on the rest of the program, for example by setting globals. So for example instead of using `x = f() + g()`, please write `a = f(); b = g(); x = a + b`.
+2. **Store the results of function calls as variables** - for some transformations (such as arithmetic encoding), expression type analysis is used to infer the type and potential for side effects in expressions. Although functions may return e.g. integer types, these are still not encoded if placed within expressions, because obfusCate cannot easily assert any guarantees about whether `f()` has side effects on the rest of the program, for example by setting globals. So for example instead of using `x = f() + g()`, please write `a = f(); b = g(); x = a + b`.
 
 3. **Store the results of expressions with side effects (e.g. `i++`) as variables** - for similar reasons as above, to make it easier for obfusCate to understand when it can transform your code.
 
@@ -163,7 +169,7 @@ There are several steps you can take to make your program more amenable to obfus
 
 ### **3.3. Supported Transformations**
 
-Currently supported transformations are listed below. Please see relevant report / documentaton / GUI tooltips for further explanations.
+Currently supported transformations are listed below. Please see relevant documentation / GUI tooltips for further explanations.
 
  - **Identity**: Does nothing. <br>
  *Options*: None.
@@ -213,7 +219,7 @@ Currently supported transformations are listed below. Please see relevant report
         - Entropic variables (random numbers)
     - Probability (`0-1`)
     - Number of predicates per condition (`0+`)
-- **Opaque Predicate Insertion**: Insert new conditionals in the code at varying granularities using opaque predicates, whose valeu is known to use but is not immediately obvious at deobfuscation time. <br>
+- **Opaque Predicate Insertion**: Insert new conditionals in the code at varying granularities using opaque predicates, whose value is known to use but is not immediately obvious at deobfuscation time. <br>
 *Options*:
     - Predicate Styles
         - Dynamic user input (parameters)
@@ -349,7 +355,7 @@ This project is relatively large in scope. As such, I roughly describe the file 
         - `pipeline.py` - The implementation of the obfuscation pipeline class.
         - `procedural_obfs.py` - Implementation for procedural obfuscations, which only includes function interface randomisation
         - `structural_obfs.py` - Implementation for structural obfuscations, including: opaque predicate augmentation, opaque predicate insertion, and control flow flattening
-        - `utils.py` - Miscallaneous utilities, including the `ObfuscationUnit` base clase and identity transformation among other things
+        - `utils.py` - Miscellaneous utilities, including the `ObfuscationUnit` base clase and identity transformation among other things
     - `__init__.py` - Python packaging file
     - `cli.py` - General command line interface implementation
     - `complexity.py` - Implementation of code complexity metrics
@@ -357,7 +363,7 @@ This project is relatively large in scope. As such, I roughly describe the file 
     - `debug.py` - Implementation of custom logging and debug utilities.
     - `gui.py` - General graphical user interface implementation
     - `interaction.py` - IO & User interaction utilities: `CSource` class, system argument handling, generic IO methods (user inputs, outputs, file handling, etc.), patches for pycparser.
-    - `utils.py` - Miscallaneous project utilities
+    - `utils.py` - Miscellaneous project utilities
 - `compositions/` - Directory for storing obfuscation compositions. Contains some default compositions.
 - `logs/` - Directory for storing any log files, if enabled
 - `tests/` - Main testing directory
@@ -387,13 +393,11 @@ This project is relatively large in scope. As such, I roughly describe the file 
 
 Much of the project's functionality is created by extending the pycparser Abstract Syntax Tree (AST) `NodeVisitor` class, which defines an interface for in-order traversal of ASTs. This defined **49 unique methods** for visiting each AST node class - as such, documentation of these methods tend to be very repetitive and regurgitative within such classes, and as such provided explanation will primarily focus on what the method does *aside from* simply traversing the AST. For any such `NodeVisitor` subclass, be aware that methods prepended by `visit_` are for visiting a specific AST node class, such as e.g. `visit_FuncDef`, traversing that node.
 
-Documentation regarding the creation of this project, its motivation, background research, design decisions, management, evaluation and such can be found in the supporting final dissertation report pdf. Please see there for more detail. A `bugs.md` file is also included to provide more detailed documentation of the few specific known issues that cannot be easily fixed. This `README.md` file also contains some helpful documentation to get you started using the program. Apart from that, all other documentation can be found within file-, function- and statement-level comments throughout the code.
-
 <br></br>
 
 ## **5. Testing**
 ----
-Continuous integration with Github Action assures me that the code definitely runs on the latest Mac, Ubuntu and Windows images, but I've only been able to manually test on **Windows 11** and **Rocky Linux** - so no guarantee there are no OS-specific issues on other systems. At the very least given that the tests pass it is likely that at least the CLI version should work on most systems. The GUI tests have not been run on CI (continuous integration) due to issues with PyQt6 in containerisation, but these have been run locally on Windows 11.
+Continuous integration with Github Actions assures me that the code definitely runs on the latest Mac, Ubuntu and Windows images, but I've only been able to manually test on **Windows 11** and **Rocky Linux** - so no guarantee there are no OS-specific issues on other systems. At the very least given that the tests pass it is likely that at least the CLI version should work on most systems. The GUI tests have not been run on CI (continuous integration) due to issues with PyQt6 in containerisation, but these have been run locally on Windows 11.
 
 <br>
 
