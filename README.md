@@ -28,6 +28,9 @@ For those that cannot access (or would rather not access) a GUI interface, there
 
 <br></br>
 
+<img src="app/graphics/examples/appx-source-cfg.png" alt="" width=35%></img>
+<img src="app/graphics/examples/appx-obfuscated-cfg.png" alt="" width=61%></img>
+
 ###
 
 ## **1. Table of Contents**
@@ -249,7 +252,7 @@ Currently supported transformations are listed below. Please see relevant docume
 
 ### **3.4. Supported Complexity Metrics**
 
-Currently supported code complexity metrics are listed below. Except where qualitative (e.g. a rating description), metrics are provided for the obfuscated program, alongside delta (change) values that describe how the obfuscated program differs from the original. Please see relevant report / documentaton / GUI tooltips for further explanations.
+Currently supported code complexity metrics are listed below. Except where qualitative (e.g. a rating description), metrics are provided for the obfuscated program, alongside delta (change) values that describe how the obfuscated program differs from the original. Please see relevant documentation / GUI tooltips for further explanations.
 
 - **Aggregates**: General aggregate information (totals and averages)
     - File size
