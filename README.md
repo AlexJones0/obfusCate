@@ -156,7 +156,7 @@ Your obfuscated programs are then perfectly syntactically and semantically valid
 
 There are several steps you can take to make your program more amenable to obfuscation and allow more effective transformations, as there are a few cases in which the program behavious cautiously in case it cannot be 100% sure about certain properties of your program (e.g. side effects), and there are many things that it is simply not intelligent enough to reason about with regards to semantics. The following are suggested ways to make your program more amenable (and how they help!)
 
-1. **Move as much code out of the `main()` function as possible** - due to certain limitations and to make it easier to preserve certain properties, some obfuscations are not applied or applied in limited effect to the `main()` function - for example, opaque predicate insertion or augmentation will not occur in `main`. To overcome this, put as much code as possible outside of this function, even if it means taking your current main body and putting it in some other function `main2(int argc, char *argv)` which you then just immediately call from `main` using `main2(argc, argv)`.
+1. **Move as much code out of the `main()` function as possible** - due to certain limitations and to make it easier to preserve certain properties, some obfuscations are not applied or applied in limited effect to the `main()` function - for example, opaque predicate insertion or augmentation will not occur in `main`. To overcome this, put as much code as possible outside of this function, even if it means taking your current main body and putting it in some other function `main2(int argc, char *argv[])` which you then just immediately call from `main` using `main2(argc, argv)`.
 
 2. **Store the results of function calls as variables** - for some transformations (such as arithmetic encoding), expression type analysis is used to infer the type and potential for side effects in expressions. Although functions may return e.g. integer types, these are still not encoded if placed within expressions, because obfusCate cannot easily assert any guarantees about whether `f()` has side effects on the rest of the program, for example by setting globals. So for example instead of using `x = f() + g()`, please write `a = f(); b = g(); x = a + b`.
 
@@ -222,7 +222,7 @@ Currently supported transformations are listed below. Please see relevant docume
         - Entropic variables (random numbers)
     - Probability (`0-1`)
     - Number of predicates per condition (`0+`)
-- **Opaque Predicate Insertion**: Insert new conditionals in the code at varying granularities using opaque predicates, whose value is known to use but is not immediately obvious at deobfuscation time. <br>
+- **Opaque Predicate Insertion**: Insert new conditionals in the code at varying granularities using opaque predicates, whose value is known to us but is not immediately obvious at deobfuscation time. <br>
 *Options*:
     - Predicate Styles
         - Dynamic user input (parameters)
@@ -237,7 +237,7 @@ Currently supported transformations are listed below. Please see relevant docume
         - Else true: `if (TRUE PREDICATE) { YOUR CODE } ELSE { BUGGY CODE }`
         - Else false: `if (FALSE PREDICATE) { BUGGY CODE } ELSE { YOUR CODE }`
         - While false: `while (FALSE PREDICATE) { BUGGY CODE } `
-        - Do while: `do { BUGGY CODE } while (FALSE PREDICATE);`
+        - Do while: `do { YOUR CODE } while (FALSE PREDICATE);`
         - Either: `if (ANY PREDICATE) { YOUR CODE } else { YOUR CODE }`
     - Number to insert per function (`0+`)
 - **Control Flow Flattening**: Flatten the control flow graph of the given function, encoding each basic block to be a case inside a while-loop-switch-statement dispatch structure. <br>
