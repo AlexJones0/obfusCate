@@ -91,9 +91,11 @@ The following steps are all that is needed for installation:
     > python3 -m pip install -r requirements.txt
     ```
 
-    to install the required python modules. *Hopefully*, installation of the *libclang* module will automatically install clang on your system if it is not already installed. If not, please install clang using normal procedures. 
+    to install the required python modules.
 
-3. Everything needed to run the project should now be installed! You can see the [Usage section](#3-usage) to see how you are intended to run the program!
+3. The project also requires **clang** to be installed on your system and executable via the PATH environmental variable. This should be fairly simple, though it is a little more laborious if you are on a windows system. See [**this page**](https://clang.llvm.org/get_started.html) for instructions on installing Clang for your system.
+
+4. Everything needed to run the project should now be installed! You can see the [Usage section](#3-usage) to see how you are intended to run the program!
 
 *Note:* Alternatively, you can just try running some install scripts I have set up that will try and determine your python executable alias for you - but there is no guarantees that these will work for your OS! On Windows open Powershell / Windows Terminal / cmd and run `install.bat`, and on Linux / Mac open a terminal and run `./install.sh`. This should complete this installation process for you.
 
