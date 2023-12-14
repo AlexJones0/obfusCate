@@ -69,7 +69,9 @@ For those that cannot access (or would rather not access) a GUI interface, there
 
     5.3. [**Testing Obfuscation Correctness**](#53-testing-obfuscation-correctness)
 
-6. [**Acknowledgements**](#6-acknowledgements)
+6. [**Disclaimer**](#6-disclaimer)
+
+7. [**Acknowledgements**](#7-acknowledgements)
 
 <br></br>
 
@@ -383,7 +385,7 @@ This project is relatively large in scope. As such, I roughly describe the file 
     - `text_gui.py` - GUI unit tests
     - `test_obfuscation.py` - Obfuscation method correctness testing
     - `test_utils.py` - Tests for program utilities and modular functionality
-- `utils/fake_libc_include/*` - Safely ignore this. Standard library header file handling for pycparser. Code is taken from pycparser (see the [**Acknowledgements [1]**](#6-acknowledgements)) and slightly modified
+- `utils/fake_libc_include/*` - Safely ignore this. Standard library header file handling for pycparser. Code is taken from pycparser (see the [**Acknowledgements [1]**](#7-acknowledgements)) and slightly modified
 - `bugs.md` - List and explanation of known bugs
 - `install.bat` - Windows bat automatic install script
 - `install.sh` - Linux/Mac bash automatic install script
@@ -443,7 +445,13 @@ The intention is that through the implementation of these three testing schemes,
 
 <br></br>
 
-## **6. Acknowledgements**
+## **6. Disclaimer**
+----
+This tool is intended for educational purposes or for protecting your intellectual property for legitimate, ethical reasons. Please do not use this tool for any malicious, illegitimate or unethical purposes.
+
+<br></br>
+
+## **7. Acknowledgements**
 ----
 **[1] pycparser**, created primarily by Eli Bendersky, was used heavily in the creation of this project, providing a C source code lexer, parser and generator created using yacc, which provides an intuitive pythonic interface for generating, traversing and manipulating Abstract Syntax Trees (ASTs) of C source code programs. In addition to using the library, all files in the ***utils/fake_libc_include/*** directory are code included (and very slightly modified) from pycparser in order to allow programs using standard library headers to be modified. See: *https://github.com/eliben/pycparser*
 
