@@ -1444,6 +1444,8 @@ class GeneralOptionsForm(QFrame):
         # Create the option buttons available in this form.
         self.obfuscate_button = self.make_button("Obfuscate")
         self.obfuscate_button.setObjectName("ObfuscateButton")
+        self.cfg_button = self.make_button("View control flow")
+        self.cfg_button.clicked.connect(self.show_control_flow)
         self.obfuscate_button.clicked.connect(self.obfuscate)
         self.load_source_button = self.make_button("Load source file")
         self.load_source_button.clicked.connect(self.load_source)
@@ -1526,6 +1528,9 @@ class GeneralOptionsForm(QFrame):
         self.__obfuscated_form_reference.add_source(obfuscated)
         if config.CALCULATE_COMPLEXITY:
             self.parent().metrics_form.load_metrics(original_source, obfuscated)
+
+    def show_control_flow(self) -> None:
+        pass  # TODO comehere
 
     def load_source(self) -> None:
         """Loads a new source C program through a file dialog with the user, allowing
@@ -2016,7 +2021,7 @@ class ObfuscateWidget(QWidget):
         self.source_editor.add_source(source)
 
 
-class MainWindow(QMainWindow):
+class PrimaryWindow(QMainWindow):
     """This class represents the entire main window of the GUI, setting up basic window,
     colour palette and shortcut information, and containing the main card-based obfuscation
     GUI widget."""
@@ -2029,20 +2034,7 @@ class MainWindow(QMainWindow):
         Args:
             parent (QWidget | None): The parent widget that this widget should be
             placed within. Defaults to None."""
-        super(MainWindow, self).__init__(parent)
-        # Set window title and icon information
-        self.setWindowTitle(config.NAME + " " + config.VERSION)
-        self.setWindowIcon(QIcon("./app/graphics/icons/logo.png"))
-        self.setAutoFillBackground(True)
-        # Set default palette colour information
-        palette = self.palette()
-        palette.setColor(self.backgroundRole(), QColor("#1D1E1A"))
-        self.setPalette(palette)
-        # Initialise shortcut for fullscreen
-        self.fullscreen_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_FULLSCREEN), self)
-        self.fullscreen_shortcut.activated.connect(self.toggle_fullscreen)
-        self.windowed_size = self.size()
-        self.window_pos = self.pos()
+        super(PrimaryWindow, self).__init__(parent)
         # Initialise window widgets
         self.obfuscate_widget = ObfuscateWidget(self)
         self.setCentralWidget(self.obfuscate_widget)
@@ -2062,6 +2054,41 @@ class MainWindow(QMainWindow):
         each GUI update."""
         super(MainWindow, self).show(*args, **kwargs)
         self.obfuscate_widget.update_namelabels()
+
+
+class CFGWindow(QMainWindow):
+    
+    def __init__(self, parent: QWidget | None = None):
+        super(CFGWindow, self).__init__(parent)
+        # do something
+
+
+class MainWindow(QStackedWidget):
+    
+    def __init__(self, parent: QWidget | None = None):
+        super(MainWindow, self).__init__(parent)
+        self.setWindowTitle(config.NAME + " " + config.VERSION)
+        self.setWindowIcon(QIcon("./app/graphics/icons/logo.png"))
+        self.setAutoFillBackground(True)
+        # Set window title and icon information
+        self.setWindowTitle(config.NAME + " " + config.VERSION)
+        self.setWindowIcon(QIcon("./app/graphics/icons/logo.png"))
+        self.setAutoFillBackground(True)
+        # Set default palette colour information
+        palette = self.palette()
+        palette.setColor(self.backgroundRole(), QColor("#1D1E1A"))
+        self.setPalette(palette)
+        # Initialise shortcut for fullscreen
+        self.fullscreen_shortcut = QShortcut(QKeySequence(Df.SHORTCUT_FULLSCREEN), self)
+        self.fullscreen_shortcut.activated.connect(self.toggle_fullscreen)
+        self.windowed_size = self.size()
+        self.window_pos = self.pos()
+        # Initialise the window widgets used by the program
+        self.primary_window = PrimaryWindow()
+        self.addWidget(self.primary_window)
+        self.cfg_window = CFGWindow()
+        self.addWidget(self.cfg_window)
+        self.setCurrentWidget(self.primary_window)
 
     def toggle_fullscreen(self) -> None:
         """Toggles the program between fullscreen and windowed mode, updating relevant
@@ -2132,9 +2159,9 @@ def handle_GUI(testing: bool = False) -> bool:
         "./app/graphics/fonts/Jetbrains-Mono/JetBrainsMono-Regular.ttf"
     )
     window = MainWindow()
-    obfuscated_editor = window.obfuscate_widget.obfuscated_editor
-    misc_form = window.obfuscate_widget.misc_form
-    selection_form = window.obfuscate_widget.selection_form
+    obfuscated_editor = window.primary_window.obfuscate_widget.obfuscated_editor
+    misc_form = window.primary_window.obfuscate_widget.misc_form
+    selection_form = window.primary_window.obfuscate_widget.selection_form
 
     # Read file and display parse errors
     if len(args) >= 1:
