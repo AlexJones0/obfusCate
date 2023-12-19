@@ -8,7 +8,7 @@ class Config(object):
     """Stores settings used by the program during its execution."""
 
     NAME = "obfusCate"
-    VERSION = "v0.18.3"
+    VERSION = "v0.18.5"
     LOG_PATH = "./logs/"
     COMP_PATH = "./compositions/auto/"
     TEMP_FILE_PATH = "./obfuscate_temp.c"

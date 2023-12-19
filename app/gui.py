@@ -2070,18 +2070,77 @@ class PrimaryWindow(QMainWindow):
         self.obfuscate_widget.update_namelabels()
 
 
-class CFGWindow(QWidget):
+class CFGSelector(QWidget):
+    
+    def __init__(self, name: str, parent: QWidget | None = None):
+        super(CFGSelector, self).__init__(parent)
+        self.name = name
+        pass
+    
+    
+class CFGViewer(QScrollArea):
     
     def __init__(self, parent: QWidget | None = None):
-        super(CFGWindow, self).__init__(parent)
+        super(CFGViewer, self).__init__(parent)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        pass
+
+
+class CFGHeader(QWidget):
+    
+    def __init__(self, load_main_window_func, parent: QWidget | None = None):
+        super(CFGHeader, self).__init__(parent)
         
-        self.test_label = QLabel("This is a test :)\nHopefully you can see this.", self)
-        self.test_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.test_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.test_label.setFont(QFont(Df.DEFAULT_FONT, 14, 1000))
-        self.test_label.setStyleSheet("QLabel{color: #B7B7B7;}")
+        self.title_label = QLabel("Control Flow Graph View")
+        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.title_label.setFont(QFont(Df.DEFAULT_FONT, 16, 1000))
+        self.title_label.setStyleSheet("QLabel{color: #B7B7B7;}")
+        
+        self.back_button = QPushButton("Back", self)
+        self.back_button.setStyleSheet("padding-left: 25px; padding-right: 25px;")
+        self.back_button.setFont(QFont(Df.DEFAULT_FONT, 14))
+        self.back_button.clicked.connect(load_main_window_func)
+        
+        self.layout = QHBoxLayout(self)
+        self.layout.setContentsMargins(5, 5, 5, 5)
+        self.layout.addStretch(4)
+        self.layout.addWidget(self.title_label, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.layout.addStretch(3)
+        self.layout.addWidget(self.back_button, 1, alignment=Qt.AlignmentFlag.AlignRight)
+        self.setLayout(self.layout)
+
+
+class CFGWindow(QWidget):
+    
+    def __init__(self, load_main_window_func: Callable, parent: QWidget | None = None):
+        super(CFGWindow, self).__init__(parent)
+
+        self.setStyleSheet("""
+            QPushButton{
+                background-color: #2F3029;
+                border-style: solid;
+                border-width: 2px;
+                border-color: #48493E;
+                color: #B7B7B7;
+            }
+        """)
+
+        self.header = CFGHeader(load_main_window_func, self)
+        self.source_selector = CFGSelector("Source", self)
+        self.obfuscated_selector = CFGSelector("Obfuscated", self)
+        self.source_cfg_widget = CFGViewer(self)
+        self.obfuscated_cfg_widget = CFGViewer(self)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        self.splitter.addWidget(self.source_cfg_widget)
+        self.splitter.addWidget(self.obfuscated_cfg_widget)
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 1)
+        
         self.layout = QVBoxLayout()
-        self.layout.addWidget(self.test_label)
+        self.layout.addWidget(self.header, alignment=Qt.AlignmentFlag.AlignTop)
+        self.layout.addWidget(self.source_selector, alignment=Qt.AlignmentFlag.AlignTop)
+        self.layout.addWidget(self.obfuscated_selector, alignment=Qt.AlignmentFlag.AlignTop)
+        self.layout.addWidget(self.splitter, 7)
         self.setLayout(self.layout)
 
 
@@ -2108,7 +2167,7 @@ class MainWindow(QStackedWidget):
         # Initialise the window widgets used by the program
         self.primary_window = PrimaryWindow(self.loadCFGWindow)
         self.addWidget(self.primary_window)
-        self.cfg_window = CFGWindow()
+        self.cfg_window = CFGWindow(self.loadMainWindow)
         self.addWidget(self.cfg_window)
         self.setCurrentWidget(self.primary_window)
 
@@ -2124,6 +2183,10 @@ class MainWindow(QStackedWidget):
     def loadCFGWindow(self) -> None:
         """Load the CFG (Control Flow Graph) window to be the main content being shown. """
         self.setCurrentWidget(self.cfg_window)
+        
+    def loadMainWindow(self) -> None:
+        """Load the main (primary) window to be the main content being shown. """
+        self.setCurrentWidget(self.primary_window)
 
     def toggle_fullscreen(self) -> None:
         """Toggles the program between fullscreen and windowed mode, updating relevant
