@@ -150,7 +150,7 @@ yacctab.py
 /ast*.pdf
 /ast*.exe
 backups/
-/draw_ast.py
+draw_ast.py
 
 # Evaluation scripts
 /evaluation.py
