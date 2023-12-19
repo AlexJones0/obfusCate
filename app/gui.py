@@ -2074,6 +2074,7 @@ class CFGWindow(QWidget):
     
     def __init__(self, parent: QWidget | None = None):
         super(CFGWindow, self).__init__(parent)
+        
         self.test_label = QLabel("This is a test :)\nHopefully you can see this.", self)
         self.test_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.test_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -2111,7 +2112,17 @@ class MainWindow(QStackedWidget):
         self.addWidget(self.cfg_window)
         self.setCurrentWidget(self.primary_window)
 
-    def loadCFGWindow(self):
+    def add_source(self, source: CSource) -> None:
+        """Add a new original source C program to the GUI, loading its contents into
+        the relevant source editor.
+
+        Args:
+            source (CSource): The original source C program to be loaded.
+        """
+        self.primary_window.add_source(source)
+
+    def loadCFGWindow(self) -> None:
+        """Load the CFG (Control Flow Graph) window to be the main content being shown. """
         self.setCurrentWidget(self.cfg_window)
 
     def toggle_fullscreen(self) -> None:
