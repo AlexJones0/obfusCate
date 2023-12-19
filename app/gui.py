@@ -1369,6 +1369,7 @@ class GeneralOptionsForm(QFrame):
         transforms_func: Callable,
         set_transforms_func: Callable,
         load_gui_vals_func: Callable,
+        load_cfg_window_func: Callable,
         source_form: SourceEditor,
         obfuscated_form: SourceEditor,
         parent: QWidget | None = None,
@@ -1387,6 +1388,8 @@ class GeneralOptionsForm(QFrame):
             load_gui_vals_func (Callable): A function to load all current transformation
             option values input by users in the GUI into their repective obfuscation
             transformation units.
+            load_cfg_window_func (Callable): A function to load the CFG window to be the main
+            window being shown at the moment.
             source_form (SourceEditor): The SourceEditor widget corresponding to the
             original source program.
             obfuscated_form (SourceEditor): The SourceEditor widget corresponding to
@@ -1397,6 +1400,7 @@ class GeneralOptionsForm(QFrame):
         self.__transforms_reference = transforms_func
         self.__set_transforms_func = set_transforms_func
         self.__load_selected_gui_reference = load_gui_vals_func
+        self.__load_cfg_window_func = load_cfg_window_func
         self.__source_form_reference = source_form
         self.__obfuscated_form_reference = obfuscated_form
 
@@ -1530,7 +1534,8 @@ class GeneralOptionsForm(QFrame):
             self.parent().metrics_form.load_metrics(original_source, obfuscated)
 
     def show_control_flow(self) -> None:
-        pass  # TODO comehere
+        self.__load_cfg_window_func()
+        # TODO comehere
 
     def load_source(self) -> None:
         """Loads a new source C program through a file dialog with the user, allowing
@@ -1695,6 +1700,7 @@ class MiscForm(QWidget):
         transforms_func: Callable,
         set_transforms_func: Callable,
         load_gui_vals_func: Callable,
+        load_cfg_window_func: Callable,
         source_form: SourceEditor,
         obfuscated_form: SourceEditor,
         remove_func: Callable,
@@ -1714,6 +1720,8 @@ class MiscForm(QWidget):
             load_gui_vals_func (Callable): A function to load all current transformation
             option values input by users in the GUI into their repective obfuscation
             transformation units.
+            load_cfg_window_func (Callable): A function to make the CFG window the main
+            window of the application.
             source_form (SourceEditor): The SourceEditor widget corresponding to the
             original source program.
             obfuscated_form (SourceEditor): The SourceEditor widget corresponding to
@@ -1778,6 +1786,7 @@ class MiscForm(QWidget):
             transforms_func,
             set_transforms_func,
             load_gui_vals_func,
+            load_cfg_window_func,
             source_form,
             obfuscated_form,
             self,
@@ -1870,11 +1879,13 @@ class ObfuscateWidget(QWidget):
     editor, the name labels above each source editor, and the vertical selection and
     miscallaneous option forms which are horizontally positioned to create the final UI."""
 
-    def __init__(self, parent: QWidget | None = None):
+    def __init__(self, load_cfg_window_func: Callable, parent: QWidget | None = None):
         """The constructor for an ObfusacteWidget object, creating the card-based
         GUI interface within the given parent widget.
 
         Args:
+            load_cfg_window_func (Callable): A function that, when called, will
+            load the CFG window to become the main window of the application.
             parent (QWidget | None): The parent widget that this widget should be
             placed within. Defaults to None."""
         super(ObfuscateWidget, self).__init__(parent)
@@ -1936,6 +1947,7 @@ class ObfuscateWidget(QWidget):
             self.selection_form.current_form.get_transforms,
             self.selection_form.current_form.set_transforms,
             self.selection_form.current_form.load_selected_values,
+            load_cfg_window_func,
             self.source_editor,
             self.obfuscated_editor,
             self.selection_form.current_form.remove_selected,
@@ -2026,17 +2038,19 @@ class PrimaryWindow(QMainWindow):
     colour palette and shortcut information, and containing the main card-based obfuscation
     GUI widget."""
 
-    def __init__(self, parent: QWidget | None = None):
+    def __init__(self, load_cfg_window_func: Callable, parent: QWidget | None = None):
         """The constructor for the MainWindow class, setting up the window with
         the program information, setting the background colour, initialising
         a fullscreen shortcut and then creating the card-based obfuscation GUI.
 
         Args:
+            load_cfg_window_func (Callable): A function that, when called, loads the CFG
+            window to be the main window that is displayed to users.
             parent (QWidget | None): The parent widget that this widget should be
             placed within. Defaults to None."""
         super(PrimaryWindow, self).__init__(parent)
         # Initialise window widgets
-        self.obfuscate_widget = ObfuscateWidget(self)
+        self.obfuscate_widget = ObfuscateWidget(load_cfg_window_func, self)
         self.setCentralWidget(self.obfuscate_widget)
 
     def add_source(self, source: CSource) -> None:
@@ -2056,11 +2070,18 @@ class PrimaryWindow(QMainWindow):
         self.obfuscate_widget.update_namelabels()
 
 
-class CFGWindow(QMainWindow):
+class CFGWindow(QWidget):
     
     def __init__(self, parent: QWidget | None = None):
         super(CFGWindow, self).__init__(parent)
-        # do something
+        self.test_label = QLabel("This is a test :)\nHopefully you can see this.", self)
+        self.test_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.test_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.test_label.setFont(QFont(Df.DEFAULT_FONT, 14, 1000))
+        self.test_label.setStyleSheet("QLabel{color: #B7B7B7;}")
+        self.layout = QVBoxLayout()
+        self.layout.addWidget(self.test_label)
+        self.setLayout(self.layout)
 
 
 class MainWindow(QStackedWidget):
@@ -2084,11 +2105,14 @@ class MainWindow(QStackedWidget):
         self.windowed_size = self.size()
         self.window_pos = self.pos()
         # Initialise the window widgets used by the program
-        self.primary_window = PrimaryWindow()
+        self.primary_window = PrimaryWindow(self.loadCFGWindow)
         self.addWidget(self.primary_window)
         self.cfg_window = CFGWindow()
         self.addWidget(self.cfg_window)
         self.setCurrentWidget(self.primary_window)
+
+    def loadCFGWindow(self):
+        self.setCurrentWidget(self.cfg_window)
 
     def toggle_fullscreen(self) -> None:
         """Toggles the program between fullscreen and windowed mode, updating relevant
