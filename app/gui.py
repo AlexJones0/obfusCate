@@ -1534,8 +1534,12 @@ class GeneralOptionsForm(QFrame):
             self.parent().metrics_form.load_metrics(original_source, obfuscated)
 
     def show_control_flow(self) -> None:
-        self.__load_cfg_window_func()
-        # TODO comehere
+        if self.__obfuscated_form_reference.source is None:
+            return
+        source = self.__source_form_reference.source
+        obfuscated = self.__obfuscated_form_reference.source
+        self.__load_cfg_window_func(source, obfuscated)
+        # TODO comehere chn
 
     def load_source(self) -> None:
         """Loads a new source C program through a file dialog with the user, allowing
@@ -2070,12 +2074,127 @@ class PrimaryWindow(QMainWindow):
         self.obfuscate_widget.update_namelabels()
 
 
-class CFGSelector(QWidget):
+class SelectedCFGWidget(QLabel):
+
+    __UNSELECTED_CSS = """
+            QLabel{ 
+                color: white; 
+                background-color: #34352D; 
+                padding: 3px;
+            }
+    """
+    __SELECTED_CSS = """
+            QLabel{
+                color: white; 
+                background-color: #48493E;
+                padding: 3px;
+            }
+    """
+
+    def __init__(
+        self,
+        name: str,
+        select_func: Callable,
+        parent: QWidget | None = None,
+    ):
+        QLabel.__init__(self, name, parent)
+        self.setFont(QFont(Df.DEFAULT_FONT, 12))
+        self.setStyleSheet(SelectedCFGWidget.__UNSELECTED_CSS)
+        self.select_func = select_func
+        
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.buttons() == Qt.MouseButton.LeftButton:
+            self.select_func(self)
+
+    def select(self) -> None:
+        self.setStyleSheet(SelectedCFGWidget.__SELECTED_CSS)
+
+    def deselect(self) -> None:
+        self.setStyleSheet(SelectedCFGWidget.__UNSELECTED_CSS)
+
+
+class CFGSelector(QFrame):
     
     def __init__(self, name: str, parent: QWidget | None = None):
         super(CFGSelector, self).__init__(parent)
-        self.name = name
-        pass
+        self.setObjectName("CFGSelector")
+        self.setStyleSheet("""
+            CFGSelector{
+                background-color: #272822; 
+                border-style: solid;
+                border-width: 2px;
+                border-radius: 6px;
+                border-color: #848484;
+                padding: 0px; 
+            }
+            QScrollArea{
+                background-color: transparent;
+                border: none;
+                padding: 0px;
+            }
+            QWidget#ScrollWidget{
+                background-color: transparent;
+                border: none;
+            }"""
+            + Df.MINIMAL_SCROLL_BAR_CSS + """
+            QScrollBar:horizontal{
+                height: 6px;
+                margin: 4px 0px 0px 0px;
+            }"""
+        )
+        self.setContentsMargins(0, 0, 0, 0)
+        self.name_label = QLabel(name + ":", self)
+        self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.name_label.setFont(QFont(Df.DEFAULT_FONT, 14, 1000))
+        self.name_label.setStyleSheet("QLabel{color: #B7B7B7;}")
+        self.scroll_widget = QScrollArea(self)
+        self.scroll_widget.setContentsMargins(0, 0, 0, 0)
+        self.scroll_widget.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.scroll_widget.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self.scroll_widget.setWidgetResizable(True)
+        self.item_box = QWidget(self.scroll_widget)
+        self.item_box.setObjectName("ScrollWidget")
+        self.item_box.setContentsMargins(0, 0, 0, 0)
+        self.item_box.layout = QHBoxLayout(self.item_box)
+        self.item_box.layout.setContentsMargins(0, 0, 0, 0)
+        self.item_box.layout.setSpacing(7)
+        self.item_box.setLayout(self.item_box.layout)
+        self.item_box.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred
+        )
+        self.scroll_widget.setWidget(self.item_box)
+        
+        self.layout = QHBoxLayout(self)
+        self.layout.addWidget(self.name_label, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.layout.addWidget(self.scroll_widget)
+        self.setLayout(self.layout)
+        
+        self.__items = []
+        self.__itemWidgets = []
+        self.selected = None
+        
+    @property
+    def name(self) -> str:
+        return self.name_label.text()[:-1]
+    
+    @name.setter
+    def name(self, newName: str) -> None:
+        self.name_label.setText(newName + ":")
+    
+    def select(self, widget: SelectedCFGWidget) -> None:
+        if self.selected is not None:
+            self.selected.deselect()
+        self.selected = widget
+        widget.select()
+    
+    def add_item(self, name: str) -> None:
+        self.__items.append(name)
+        self.__itemWidgets.append(SelectedCFGWidget(name, self.select))
+        self.item_box.layout.addWidget(self.__itemWidgets[-1])
     
     
 class CFGViewer(QScrollArea):
@@ -2083,13 +2202,25 @@ class CFGViewer(QScrollArea):
     def __init__(self, parent: QWidget | None = None):
         super(CFGViewer, self).__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setStyleSheet("""background-color: rgba(255, 255, 255, 10);""")
         pass
 
 
 class CFGHeader(QWidget):
     
+    class CFGViewType(Enum):
+        STRUCTURED = "Structured CFGs"
+        LLVM = "LLVM CFGs"
+    
     def __init__(self, load_main_window_func, parent: QWidget | None = None):
         super(CFGHeader, self).__init__(parent)
+        
+        self.view_type = CFGHeader.CFGViewType.STRUCTURED
+        self.view_toggle = QPushButton("Current: " + self.view_type)
+        self.view_toggle.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.view_toggle.setStyleSheet("padding: 2px;")
+        self.view_toggle.setFont(QFont(Df.DEFAULT_FONT, 14))
+        self.view_toggle.clicked.connect(self.toggle_cfg_view)
         
         self.title_label = QLabel("Control Flow Graph View")
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -2103,11 +2234,17 @@ class CFGHeader(QWidget):
         
         self.layout = QHBoxLayout(self)
         self.layout.setContentsMargins(5, 5, 5, 5)
-        self.layout.addStretch(4)
-        self.layout.addWidget(self.title_label, 1, alignment=Qt.AlignmentFlag.AlignCenter)
-        self.layout.addStretch(3)
-        self.layout.addWidget(self.back_button, 1, alignment=Qt.AlignmentFlag.AlignRight)
+        self.layout.addWidget(self.view_toggle, 0, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.layout.addWidget(self.title_label, 0, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.layout.addWidget(self.back_button, 0, alignment=Qt.AlignmentFlag.AlignRight)
         self.setLayout(self.layout)
+
+    def toggle_cfg_view(self):
+        if self.view_type == CFGHeader.CFGViewType.STRUCTURED:
+            self.view_type = CFGHeader.CFGViewType.LLVM
+        else:
+            self.view_type = CFGHeader.CFGViewType.STRUCTURED
+        self.view_toggle.setText("Current: " + self.view_type)
 
 
 class CFGWindow(QWidget):
@@ -2125,6 +2262,9 @@ class CFGWindow(QWidget):
             }
         """)
 
+        self.__lastSource = None
+        self.__lastObfuscated = None
+        
         self.header = CFGHeader(load_main_window_func, self)
         self.source_selector = CFGSelector("Source", self)
         self.obfuscated_selector = CFGSelector("Obfuscated", self)
@@ -2142,6 +2282,19 @@ class CFGWindow(QWidget):
         self.layout.addWidget(self.obfuscated_selector, alignment=Qt.AlignmentFlag.AlignTop)
         self.layout.addWidget(self.splitter, 7)
         self.setLayout(self.layout)
+    
+    def update_cfgs(self) -> None:
+        if self.__lastSource is not None:
+            for item in ["abc", "def", "ghi"]:
+                self.source_selector.add_item(item)
+        if self.__lastObfuscated is not None:
+            for item in ["jkl", "mno", "pqr", "stu", "vwxyz"] * 10:
+                self.obfuscated_selector.add_item(item)
+    
+    def load_cfgs(self, source: CSource, obfuscated: CSource) -> None:
+        self.__lastSource = source
+        self.__lastObfuscated = obfuscated
+        self.update_cfgs()
 
 
 class MainWindow(QStackedWidget):
@@ -2180,9 +2333,10 @@ class MainWindow(QStackedWidget):
         """
         self.primary_window.add_source(source)
 
-    def loadCFGWindow(self) -> None:
+    def loadCFGWindow(self, source: CSource, obfuscated: CSource) -> None:
         """Load the CFG (Control Flow Graph) window to be the main content being shown. """
         self.setCurrentWidget(self.cfg_window)
+        self.cfg_window.load_cfgs(source, obfuscated)
         
     def loadMainWindow(self) -> None:
         """Load the main (primary) window to be the main content being shown. """
